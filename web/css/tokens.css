@@ -1,0 +1,226 @@
+/* ==========================================================================
+   vortex — design tokens
+   Primitives are raw values and are never used directly in components.
+   Components only reference the semantic layer, which is redefined per theme.
+   ========================================================================== */
+
+:root {
+  /* ---- primitives: neutrals -------------------------------------------- */
+  --graphite-1000: #08080A;
+  --graphite-950:  #0B0B0D;
+  --graphite-900:  #101012;
+  --graphite-850:  #151517;
+  --graphite-800:  #1B1B1E;
+  --graphite-700:  #26262A;
+  --graphite-600:  #35353A;
+  --graphite-500:  #4A4A50;
+  --graphite-400:  #6B6B72;
+  --graphite-300:  #8E8E96;
+  --graphite-200:  #B4B4BA;
+  --graphite-100:  #D6D6DA;
+  --graphite-50:   #EDEDEF;
+
+  --paper-0:   #FFFFFF;
+  --paper-50:  #FBFAF8;
+  --paper-100: #F5F3EF;
+  --paper-200: #EDEAE4;
+  --paper-300: #E2DED6;
+  --paper-400: #D2CDC3;
+  --paper-500: #B5AFA3;
+
+  /* ---- primitives: accents --------------------------------------------- */
+  --ember-300: #FFA98E;
+  --ember-400: #FF7A54;
+  --ember-500: #FF5C35;
+  --ember-600: #E8431D;
+  --ember-700: #B93314;
+
+  --lime-300: #E3F8A4;
+  --lime-400: #CFF262;
+  --lime-500: #B9E33D;
+  --lime-600: #8FB621;
+
+  --rose-400: #F76B89;
+  --rose-500: #F2456A;
+  --rose-600: #D1264B;
+
+  --amber-500: #F5A524;
+  --teal-400:  #5FD2BD;
+  --teal-500:  #3FBFA8;
+  --slate-400: #94A3B4;
+  --slate-500: #7C8CA1;
+
+  /* ---- scale ------------------------------------------------------------ */
+  --space-2: 2px;   --space-4: 4px;   --space-6: 6px;   --space-8: 8px;
+  --space-10: 10px; --space-12: 12px; --space-16: 16px; --space-20: 20px;
+  --space-24: 24px; --space-32: 32px; --space-40: 40px; --space-48: 48px;
+  --space-64: 64px;
+
+  --radius-xs: 6px;  --radius-sm: 8px;  --radius-md: 12px;
+  --radius-lg: 16px; --radius-xl: 22px; --radius-2xl: 28px;
+  --radius-full: 999px;
+
+  --blur-subtle: 16px;
+  --blur-default: 28px;
+  --blur-strong: 48px;
+
+  --sidebar-w: 244px;
+  --sidebar-compact-w: 76px;
+  --shell-inset: 16px;
+
+  /* ---- type ------------------------------------------------------------- */
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Mono", monospace;
+
+  /* ---- motion ----------------------------------------------------------- */
+  --dur-instant: 90ms;
+  --dur-fast: 140ms;
+  --dur-base: 180ms;
+  --dur-slow: 260ms;
+  --dur-slower: 420ms;
+  --ease-out: cubic-bezier(.2, .8, .3, 1);
+  --ease-in-out: cubic-bezier(.65, 0, .35, 1);
+  --ease-spring: cubic-bezier(.34, 1.32, .64, 1);
+}
+
+/* ==========================================================================
+   semantic layer — dark
+   ========================================================================== */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-canvas: var(--graphite-950);
+  --bg-canvas-deep: var(--graphite-1000);
+  --bg-inset: rgba(255, 255, 255, .035);
+
+  --glass-panel: rgba(255, 255, 255, .055);
+  --glass-panel-strong: rgba(16, 16, 18, .80);
+  --glass-raised: rgba(255, 255, 255, .09);
+  --glass-border: rgba(255, 255, 255, .08);
+  --glass-border-strong: rgba(255, 255, 255, .14);
+  --glass-highlight: rgba(255, 255, 255, .22);
+
+  --text-primary: #F2F1EE;
+  --text-secondary: rgba(242, 241, 238, .64);
+  --text-tertiary: rgba(242, 241, 238, .40);
+  --text-inverse: var(--graphite-1000);
+  --text-on-accent: #1A0A05;
+
+  --accent-base: var(--ember-500);
+  --accent-hover: var(--ember-400);
+  --accent-press: var(--ember-600);
+  --accent-soft: rgba(255, 92, 53, .14);
+  --accent-border: rgba(255, 92, 53, .32);
+
+  --state-positive: var(--lime-500);
+  --state-negative: var(--rose-400);
+  --state-warning: var(--amber-500);
+  --state-info: var(--teal-500);
+  --state-positive-soft: rgba(185, 227, 61, .14);
+  --state-negative-soft: rgba(247, 107, 137, .14);
+  --state-warning-soft: rgba(245, 165, 36, .14);
+  --state-info-soft: rgba(63, 191, 168, .14);
+
+  --data-1: var(--ember-500);
+  --data-2: var(--teal-500);
+  --data-3: var(--lime-500);
+  --data-4: var(--slate-500);
+
+  --border-subtle: rgba(255, 255, 255, .06);
+  --border-default: rgba(255, 255, 255, .10);
+  --border-strong: rgba(255, 255, 255, .18);
+
+  --overlay-scrim: rgba(6, 6, 8, .62);
+  --focus-ring: rgba(255, 122, 84, .55);
+
+  /* layered glass recipe */
+  --elev-panel:
+    inset 0 1px 0 rgba(255, 255, 255, .12),
+    0 1px 2px rgba(0, 0, 0, .18),
+    0 12px 32px -4px rgba(0, 0, 0, .22);
+  --elev-raised:
+    inset 0 1px 0 rgba(255, 255, 255, .16),
+    0 2px 4px rgba(0, 0, 0, .20),
+    0 18px 44px -6px rgba(0, 0, 0, .30);
+  --elev-overlay:
+    inset 0 1px 0 rgba(255, 255, 255, .18),
+    0 8px 16px -4px rgba(0, 0, 0, .24),
+    0 28px 72px -12px rgba(0, 0, 0, .48);
+  --elev-inset: inset 0 1px 2px rgba(0, 0, 0, .35);
+
+  --ambient-1: rgba(255, 92, 53, .13);
+  --ambient-2: rgba(63, 191, 168, .10);
+  --ambient-3: rgba(185, 227, 61, .05);
+  --ambient-4: rgba(124, 140, 161, .07);
+}
+
+/* ==========================================================================
+   semantic layer — light
+   ========================================================================== */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-canvas: var(--paper-100);
+  --bg-canvas-deep: var(--paper-200);
+  --bg-inset: rgba(20, 20, 22, .04);
+
+  --glass-panel: rgba(255, 255, 255, .68);
+  --glass-panel-strong: rgba(255, 255, 255, .86);
+  --glass-raised: rgba(255, 255, 255, .94);
+  --glass-border: rgba(20, 20, 22, .07);
+  --glass-border-strong: rgba(20, 20, 22, .12);
+  --glass-highlight: rgba(255, 255, 255, .90);
+
+  --text-primary: #15151A;
+  --text-secondary: rgba(21, 21, 26, .62);
+  --text-tertiary: rgba(21, 21, 26, .42);
+  --text-inverse: var(--paper-0);
+  --text-on-accent: #FFF5F1;
+
+  --accent-base: var(--ember-600);
+  --accent-hover: var(--ember-500);
+  --accent-press: var(--ember-700);
+  --accent-soft: rgba(232, 67, 29, .10);
+  --accent-border: rgba(232, 67, 29, .26);
+
+  --state-positive: var(--lime-600);
+  --state-negative: var(--rose-600);
+  --state-warning: var(--amber-500);
+  --state-info: var(--teal-500);
+  --state-positive-soft: rgba(143, 182, 33, .16);
+  --state-negative-soft: rgba(209, 38, 75, .10);
+  --state-warning-soft: rgba(245, 165, 36, .18);
+  --state-info-soft: rgba(63, 191, 168, .14);
+
+  --data-1: var(--ember-600);
+  --data-2: var(--teal-500);
+  --data-3: var(--lime-600);
+  --data-4: var(--slate-500);
+
+  --border-subtle: rgba(20, 20, 22, .06);
+  --border-default: rgba(20, 20, 22, .10);
+  --border-strong: rgba(20, 20, 22, .16);
+
+  --overlay-scrim: rgba(40, 38, 34, .34);
+  --focus-ring: rgba(232, 67, 29, .45);
+
+  --elev-panel:
+    inset 0 1px 0 rgba(255, 255, 255, .90),
+    0 1px 2px rgba(30, 28, 24, .06),
+    0 10px 28px -4px rgba(30, 28, 24, .08);
+  --elev-raised:
+    inset 0 1px 0 rgba(255, 255, 255, .95),
+    0 2px 4px rgba(30, 28, 24, .07),
+    0 18px 40px -6px rgba(30, 28, 24, .12);
+  --elev-overlay:
+    inset 0 1px 0 rgba(255, 255, 255, .95),
+    0 8px 16px -4px rgba(30, 28, 24, .10),
+    0 28px 72px -12px rgba(30, 28, 24, .18);
+  --elev-inset: inset 0 1px 2px rgba(30, 28, 24, .10);
+
+  --ambient-1: rgba(255, 92, 53, .13);
+  --ambient-2: rgba(63, 191, 168, .12);
+  --ambient-3: rgba(185, 227, 61, .10);
+  --ambient-4: rgba(124, 140, 161, .07);
+}
