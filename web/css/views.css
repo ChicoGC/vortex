@@ -298,6 +298,8 @@
   border: 1px solid var(--border-subtle);
 }
 .auth__note svg { color: var(--state-warning); flex: none; margin-top: 1px; }
+.auth__note--error { background: var(--state-negative-soft); }
+.auth__note--error svg { color: var(--state-negative); }
 
 .check {
   width: 18px; height: 18px; border-radius: 5px; flex: none;

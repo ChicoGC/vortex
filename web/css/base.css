@@ -4,6 +4,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 html, body { height: 100%; }
 
 body {
@@ -129,6 +131,7 @@ svg { display: block; flex: none; }
   transition: grid-template-columns var(--dur-slow) var(--ease-out);
 }
 .app[data-rail="compact"] { grid-template-columns: var(--sidebar-compact-w) minmax(0, 1fr); }
+.app[data-authed="false"] { grid-template-columns: minmax(0, 1fr); }
 
 .main {
   min-width: 0;

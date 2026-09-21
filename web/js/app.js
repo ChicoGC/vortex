@@ -17,6 +17,7 @@ const NAV = [
 ];
 
 const MOBILE_NAV = ['home', 'feed', 'friends', 'music', 'profile'];
+const PUBLIC_VIEWS = ['login', 'signup'];
 
 const STORE = {
   get: function (k, fallback) {
@@ -28,12 +29,70 @@ const STORE = {
 
 const app = {
   view: 'home',
+  session: null,
   player: {
     elapsed: DATA.nowPlaying.elapsed,
     duration: DATA.nowPlaying.duration,
     playing: true
   }
 };
+
+/* ---- auth ----------------------------------------------------------------- */
+function initialsFrom(name) {
+  return (name || '').trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0] || ''; }).join('').toUpperCase();
+}
+
+async function loadCurrentUser() {
+  if (!app.session) return;
+  try {
+    const profile = await db.profiles.get(app.session.user.id);
+    DATA.me.name = profile.name;
+    DATA.me.username = '@' + profile.username;
+    DATA.me.initials = initialsFrom(profile.name);
+    document.getElementById('sidebar').innerHTML = renderSidebar();
+  } catch (e) { /* profile row may not exist yet right after signup */ }
+}
+
+function showAuthMessage(msg, isError) {
+  const box = document.getElementById('authError');
+  const text = document.getElementById('authErrorText');
+  if (!box || !text) return;
+  box.classList.toggle('auth__note--error', isError !== false);
+  text.textContent = msg;
+  box.hidden = false;
+}
+
+async function handleLogin(form) {
+  const email = form.querySelector('#authEmail').value.trim();
+  const pass = form.querySelector('#authPass').value;
+  const btn = document.getElementById('authLoginSubmit');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    await db.auth.signIn(email, pass);
+  } catch (err) {
+    showAuthMessage(err.message || 'Could not sign in', true);
+    btn.disabled = false; btn.textContent = 'Log in';
+  }
+}
+
+async function handleSignup(form) {
+  const name = form.querySelector('#authName').value.trim();
+  const username = form.querySelector('#authUsername').value.trim();
+  const email = form.querySelector('#authEmail').value.trim();
+  const pass = form.querySelector('#authPass').value;
+  const btn = document.getElementById('authSignupSubmit');
+  btn.disabled = true; btn.textContent = 'Creating account…';
+  try {
+    const data = await db.auth.signUp(email, pass, { username, name });
+    if (!data.session) {
+      showAuthMessage('Check your email to confirm your account, then log in.', false);
+      btn.disabled = false; btn.textContent = 'Create account';
+    }
+  } catch (err) {
+    showAuthMessage(err.message || 'Could not create account', true);
+    btn.disabled = false; btn.textContent = 'Create account';
+  }
+}
 
 /* ---- sidebar ------------------------------------------------------------ */
 function renderSidebar() {
@@ -102,7 +161,11 @@ function renderMobileBar() {
 /* ---- routing ------------------------------------------------------------ */
 function currentRoute() {
   const raw = (location.hash || '').replace(/^#\/?/, '').trim();
-  return VIEWS[raw] ? raw : 'home';
+  const target = VIEWS[raw] ? raw : 'home';
+  const isPublic = PUBLIC_VIEWS.indexOf(target) > -1;
+  if (!app.session && !isPublic) return 'login';
+  if (app.session && isPublic) return 'home';
+  return target;
 }
 
 function setView(name) {
@@ -112,6 +175,11 @@ function setView(name) {
     if (a.dataset.viewLink === name) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
+  const authed = PUBLIC_VIEWS.indexOf(name) === -1;
+  document.getElementById('app').dataset.authed = String(authed);
+  document.getElementById('sidebar').hidden = !authed;
+  document.getElementById('bottomnav').hidden = !authed;
+  document.getElementById('mobilebar').hidden = !authed;
   const label = (NAV.filter(function (n) { return n.id === name; })[0] || {}).label || 'vortex';
   document.title = label + ' · vortex';
   syncAppearanceControls();
@@ -343,6 +411,9 @@ document.addEventListener('click', function (e) {
   const navBtn = t.closest('[data-nav]');
   if (navBtn) { location.hash = '#/' + navBtn.dataset.nav; return; }
 
+  const logoutBtn = t.closest('[data-action="logout"]');
+  if (logoutBtn) { db.auth.signOut(); return; }
+
   if (t.closest('#openCmdk') || t.closest('#openCmdkMobile')) { openCmdk(); return; }
   if (t.closest('#railToggle')) { setRail(document.getElementById('app').dataset.rail !== 'compact'); return; }
 
@@ -421,6 +492,8 @@ document.addEventListener('click', function (e) {
 
 document.addEventListener('submit', function (e) {
   if (e.target.id === 'protoLogin') { e.preventDefault(); toast('login'); }
+  if (e.target.id === 'authLoginForm') { e.preventDefault(); handleLogin(e.target); }
+  if (e.target.id === 'authSignupForm') { e.preventDefault(); handleSignup(e.target); }
 });
 
 document.addEventListener('keydown', function (e) {
@@ -432,7 +505,7 @@ document.addEventListener('keydown', function (e) {
 window.addEventListener('hashchange', function () { setView(currentRoute()); });
 
 /* ---- boot ---------------------------------------------------------------- */
-(function boot() {
+(async function boot() {
   const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
   setTheme(STORE.get('theme', prefersLight ? 'light' : 'dark'));
   document.getElementById('sidebar').innerHTML = renderSidebar();
@@ -440,6 +513,16 @@ window.addEventListener('hashchange', function () { setView(currentRoute()); });
   document.getElementById('mobilebar').innerHTML = renderMobileBar();
   setRail(STORE.get('rail', 'full') === 'compact');
   setAmbient(STORE.get('ambient', '1') === '1');
-  if (!location.hash) location.hash = '#/home';
+
+  app.session = await db.auth.getSession();
+  if (app.session) await loadCurrentUser();
+
+  db.auth.onChange(function (event, session) {
+    app.session = session;
+    if (event === 'SIGNED_OUT') { location.hash = '#/login'; setView(currentRoute()); }
+    if (event === 'SIGNED_IN') { loadCurrentUser().then(function () { location.hash = '#/home'; setView(currentRoute()); }); }
+  });
+
+  if (!location.hash) location.hash = app.session ? '#/home' : '#/login';
   setView(currentRoute());
 })();

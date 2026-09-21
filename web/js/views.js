@@ -782,7 +782,7 @@ VIEWS.settings = function () {
   const danger =
     '<section class="panel section">' + sectionHead('Danger zone') +
       '<div class="section__body section__body--flush">' +
-        row('logout', 'Log out', 'Sign out on this device only.', '<button class="btn btn--secondary btn--sm">Log out</button>') +
+        row('logout', 'Log out', 'Sign out on this device only.', '<button class="btn btn--secondary btn--sm" data-action="logout">Log out</button>') +
         '<div class="setting">' +
           '<span class="c-negative">' + icon('close', 18) + '</span>' +
           '<div class="setting__meta">' +
