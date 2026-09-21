@@ -48,8 +48,7 @@ const ICON_PATHS = {
   bars: '<path d="M5.6 20.4v-6.8"/><path d="M12 20.4V5.2"/><path d="M18.4 20.4v-4.5"/>',
   globe: '<circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2"/><path d="M12 3.4a13.2 13.2 0 0 1 0 17.2 13.2 13.2 0 0 1 0-17.2z"/>',
   logout: '<path d="M9.4 20.4H5.8a2 2 0 0 1-2-2V5.6a2 2 0 0 1 2-2h3.6"/><path d="m15.4 16.4 4.4-4.4-4.4-4.4"/><path d="M19.8 12H9.2"/>',
-  link: '<path d="M10.2 13.8a4 4 0 0 0 6 .4l2.4-2.4a4 4 0 0 0-5.6-5.6l-1.4 1.3"/><path d="M13.8 10.2a4 4 0 0 0-6-.4L5.4 12.2a4 4 0 0 0 5.6 5.6l1.3-1.3"/>',
-  vortex: '<path d="M12 3.4a8.6 8.6 0 1 1-8.6 8.6" stroke-width="2.1"/><path d="M12 7.7a4.3 4.3 0 1 1-4.3 4.3" stroke-width="2.1"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/>'
+  link: '<path d="M10.2 13.8a4 4 0 0 0 6 .4l2.4-2.4a4 4 0 0 0-5.6-5.6l-1.4 1.3"/><path d="M13.8 10.2a4 4 0 0 0-6-.4L5.4 12.2a4 4 0 0 0 5.6 5.6l1.3-1.3"/>'
 };
 
 function icon(name, size, attrs) {

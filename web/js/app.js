@@ -49,7 +49,7 @@ function renderSidebar() {
 
   return '' +
   '<div class="sidebar__brand">' +
-    '<a class="brand" href="#/home">' + icon('vortex', 22) + '<b>vortex</b></a>' +
+    '<a class="brand" href="#/home"><img class="brand__mark" src="assets/logo-64.png" width="22" height="22" alt="vortex"><b>vortex</b></a>' +
     '<button class="iconbtn" id="railToggle" data-tip="Collapse sidebar" aria-label="Collapse sidebar">' +
       icon('chevronLeft', 17) + '</button>' +
   '</div>' +
@@ -93,7 +93,7 @@ function renderBottomNav() {
 }
 
 function renderMobileBar() {
-  return '<a class="brand" href="#/home">' + icon('vortex', 20) + '<b style="font-size:17px">vortex</b></a>' +
+  return '<a class="brand" href="#/home"><img class="brand__mark" src="assets/logo-64.png" width="20" height="20" alt="vortex"><b style="font-size:17px">vortex</b></a>' +
     '<span class="spacer"></span>' +
     '<button class="iconbtn iconbtn--lg" id="openCmdkMobile" aria-label="Search">' + icon('search', 18) + '</button>' +
     '<button class="iconbtn iconbtn--lg" data-nav="settings" aria-label="Settings">' + icon('sliders', 18) + '</button>';

@@ -684,7 +684,7 @@ VIEWS.experimental = function () {
   const auth =
     '<form class="panel panel--raised auth" id="protoLogin" novalidate>' +
       '<div class="auth__head">' +
-        '<span class="auth__mark">' + icon('vortex', 30) + '</span>' +
+        '<span class="auth__mark"><img src="assets/logo-64.png" width="30" height="30" alt=""></span>' +
         '<h2 class="t-title-m">Sign in to vortex</h2>' +
         '<p class="t-body-s c-tertiary">Visual prototype — nothing is sent anywhere.</p>' +
       '</div>' +

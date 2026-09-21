@@ -13,7 +13,7 @@
 }
 .sidebar__brand { display: flex; align-items: center; gap: 8px; flex: none; }
 .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.brand svg { color: var(--accent-base); }
+.brand__mark { display: block; flex: none; }
 .brand b { font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
 .sidebar__brand .iconbtn { margin-left: auto; }
 .sidebar__brand .iconbtn svg { transition: transform var(--dur-slow) var(--ease-out); }
@@ -284,7 +284,8 @@
 }
 .auth { width: min(408px, 100%); padding: 24px; display: flex; flex-direction: column; gap: 16px; }
 .auth__head { display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center; }
-.auth__mark { margin-bottom: 4px; color: var(--accent-base); }
+.auth__mark { margin-bottom: 4px; display: block; }
+.auth__mark img { display: block; }
 .auth__field { display: flex; flex-direction: column; gap: 7px; }
 .auth__row { display: flex; align-items: center; gap: 10px; }
 .auth__sep { display: flex; align-items: center; gap: 12px; color: var(--text-tertiary); }
