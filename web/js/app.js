@@ -42,15 +42,76 @@ function initialsFrom(name) {
   return (name || '').trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0] || ''; }).join('').toUpperCase();
 }
 
+function formatTimeAgo(isoDate) {
+  const now = new Date();
+  const posted = new Date(isoDate);
+  const diffMs = now - posted;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'now';
+  if (diffMins < 60) return diffMins + 'm';
+  if (diffHours < 24) return diffHours + 'h';
+  if (diffDays < 7) return diffDays + 'd';
+
+  const posted_short = posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return posted_short;
+}
+
+function transformPostData(post, currentUserId) {
+  const flameCount = (post.reactions || []).filter(function (r) { return r.type === 'flame'; }).length;
+  const heartCount = (post.reactions || []).filter(function (r) { return r.type === 'heart'; }).length;
+  const userReaction = (post.reactions || []).find(function (r) { return r.user_id === currentUserId; });
+
+  return {
+    id: post.id,
+    user: post.author.name,
+    initials: initialsFrom(post.author.name),
+    time: formatTimeAgo(post.created_at),
+    platform: 'spotify',
+    track: post.track_title,
+    artist: post.artist,
+    album: post.album,
+    art: post.art_seed || 1,
+    note: post.note,
+    reactions: { flame: flameCount, heart: heartCount },
+    reacted: userReaction ? userReaction.type : null,
+    comments: (post.comments || []).length
+  };
+}
+
 async function loadCurrentUser() {
   if (!app.session) return;
   try {
     const profile = await db.profiles.get(app.session.user.id);
+    const friendships = await db.friends.list(app.session.user.id);
+
     DATA.me.name = profile.name;
     DATA.me.username = '@' + profile.username;
     DATA.me.initials = initialsFrom(profile.name);
+    DATA.me.bio = profile.bio || 'No bio yet.';
+    DATA.me.friends = friendships.length;
+
+    const joinedDate = new Date(profile.created_at);
+    const month = joinedDate.toLocaleString('en-US', { month: 'long' });
+    const year = joinedDate.getFullYear();
+    DATA.me.joined = month + ' ' + year;
+
     document.getElementById('sidebar').innerHTML = renderSidebar();
-  } catch (e) { /* profile row may not exist yet right after signup */ }
+
+    await loadFeed();
+  } catch (e) { console.error('Error loading user:', e); }
+}
+
+async function loadFeed() {
+  if (!app.session) return;
+  try {
+    const posts = await db.posts.list(30);
+    DATA.feed = posts.map(function (post) {
+      return transformPostData(post, app.session.user.id);
+    });
+  } catch (e) { console.error('Error loading feed:', e); }
 }
 
 function showAuthMessage(msg, isError) {

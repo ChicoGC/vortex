@@ -304,7 +304,10 @@ VIEWS.feed = function () {
       tabsEl('feed', ['All', 'Friends', 'Groups'], 'All') +
       iconBtn('filter', 'Filter', 'iconbtn--lg')),
     '<div class="cols cols--feed">' +
-      '<div class="stack">' + DATA.feed.map(postCard).join('') + '</div>' +
+      '<div class="stack">' + (DATA.feed.length ? DATA.feed.map(postCard).join('') :
+        '<section class="panel"><div class="empty"><span class="empty__well">' + icon('broadcast', 20) + '</span>' +
+        '<span class="t-body-m-med">No posts yet</span>' +
+        '<p class="t-body-s c-tertiary">When you or your friends share a track, it shows up here.</p></div></section>') + '</div>' +
       '<div class="stack">' + trending + leaders + '</div>' +
     '</div>'
   );
