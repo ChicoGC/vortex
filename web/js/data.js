@@ -54,40 +54,7 @@ const DATA = {
     { id: 's3', name: 'Alice Moura',  initials: 'AM', reason: 'Both deep in shoegaze', compat: 64 }
   ],
 
-  feed: [
-    {
-      id: 'p1', user: 'Mariana Reis', initials: 'MR', time: '12m', platform: 'spotify',
-      track: 'Everything In Its Right Place', artist: 'Radiohead', album: 'Kid A', art: 2,
-      note: 'this album still rearranges my brain every single time',
-      reactions: { flame: 12, heart: 5 }, reacted: 'flame', comments: 4
-    },
-    {
-      id: 'p2', user: 'Rafa Mendes', initials: 'RM', time: '34m', platform: 'spotify',
-      track: 'Kids', artist: 'MGMT', album: 'Oracular Spectacular', art: 5,
-      reactions: { flame: 7, heart: 9 }, reacted: null, comments: 2
-    },
-    {
-      id: 'p3', user: 'Lu Carvalho', initials: 'LC', time: '1h', platform: 'apple',
-      track: 'Dreams', artist: 'Fleetwood Mac', album: 'Rumours', art: 4,
-      note: 'sunday morning on repeat',
-      reactions: { flame: 3, heart: 14 }, reacted: 'heart', comments: 6
-    },
-    {
-      id: 'p4', user: 'Theo Antunes', initials: 'TA', time: '2h', platform: 'spotify',
-      track: 'Weird Fishes / Arpeggi', artist: 'Radiohead', album: 'In Rainbows', art: 3,
-      reactions: { flame: 18, heart: 6 }, reacted: null, comments: 9
-    },
-    {
-      id: 'p5', user: 'Bia Nogueira', initials: 'BN', time: '3h', platform: 'spotify',
-      track: 'Midnight City', artist: 'M83', album: 'Hurry Up, We Are Dreaming', art: 6,
-      reactions: { flame: 5, heart: 2 }, reacted: null, comments: 0
-    },
-    {
-      id: 'p6', user: 'Caio Duarte', initials: 'CD', time: '5h', platform: 'apple',
-      track: 'Motion Sickness', artist: 'Phoebe Bridgers', album: 'Stranger in the Alps', art: 1,
-      reactions: { flame: 9, heart: 11 }, reacted: null, comments: 3
-    }
-  ],
+  feed: [],
 
   recent: [
     { title: 'Lisztomania',        artist: 'Phoenix',          album: 'Wolfgang Amadeus Phoenix', art: 1, len: '4:07', playing: true },

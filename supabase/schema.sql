@@ -180,3 +180,46 @@ drop policy if exists "users can delete own comments" on public.comments;
 create policy "users can delete own comments"
   on public.comments for delete
   using (auth.uid() = user_id);
+
+-- ==========================================================================
+-- comment rate limit
+-- At most 3 comments per user on the same post in any 60-second window.
+-- Lives in the database so it holds even when the API is called directly.
+-- ==========================================================================
+create index if not exists comments_post_user_created_idx
+  on public.comments (post_id, user_id, created_at desc);
+
+create or replace function public.enforce_comment_rate_limit()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  recent int;
+begin
+  -- Clients could otherwise backdate created_at to slip under the window.
+  new.created_at := now();
+
+  -- Serialize concurrent inserts from the same user on the same post,
+  -- so a burst of parallel requests can't all pass the count check.
+  perform pg_advisory_xact_lock(hashtext(new.user_id::text || ':' || new.post_id::text));
+
+  select count(*) into recent
+  from public.comments
+  where post_id = new.post_id
+    and user_id = new.user_id
+    and created_at > now() - interval '60 seconds';
+
+  if recent >= 3 then
+    raise exception 'You are commenting too fast on this post. Wait a minute and try again.'
+      using errcode = 'P0001', hint = 'rate_limited';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists comments_rate_limit on public.comments;
+create trigger comments_rate_limit
+  before insert on public.comments
+  for each row execute function public.enforce_comment_rate_limit();

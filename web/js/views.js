@@ -79,8 +79,35 @@ function friendRow(f) {
   '</button>';
 }
 
+const UI = { openComments: {} };
+
+function commentsBlock(p) {
+  const list = p.comments.length
+    ? p.comments.map(function (c) {
+        return '<div class="comment">' +
+          avatarEl(c.initials, '24') +
+          '<div class="comment__body">' +
+            '<span class="comment__who"><span class="t-label-m truncate">' + esc(c.user) + '</span>' +
+            '<span class="t-meta c-tertiary">' + esc(c.time) + '</span></span>' +
+            '<p class="t-body-s c-secondary">' + esc(c.text) + '</p>' +
+          '</div>' +
+        '</div>';
+      }).join('')
+    : '<p class="t-body-s c-tertiary">No comments yet. Say something.</p>';
+  return '<div class="post__comments">' +
+    '<div class="post__comment-list">' + list + '</div>' +
+    '<form class="post__comment-form" data-comment-form="' + esc(p.id) + '" novalidate>' +
+      '<span class="field field--sm">' +
+        '<input type="text" name="content" placeholder="Write a comment…" maxlength="500" autocomplete="off" aria-label="Write a comment">' +
+      '</span>' +
+      '<button type="submit" class="btn btn--primary btn--sm">Send</button>' +
+    '</form>' +
+  '</div>';
+}
+
 function postCard(p) {
   const total = p.reactions.flame + p.reactions.heart;
+  const open = !!UI.openComments[p.id];
   return '<article class="panel post" data-post="' + esc(p.id) + '">' +
     '<div class="post__head">' +
       avatarEl(p.initials, '32', 'listening') +
@@ -105,15 +132,17 @@ function postCard(p) {
     '</div>' +
     '<hr class="hr">' +
     '<div class="post__foot">' +
-      '<button class="pill" data-react="flame" aria-pressed="' + (p.reacted === 'flame') + '">' +
+      '<button class="pill" data-react="flame" aria-label="Flame" aria-pressed="' + p.reacted.flame + '">' +
         icon('flame', 14) + '<b>' + p.reactions.flame + '</b></button>' +
-      '<button class="pill" data-react="heart" aria-pressed="' + (p.reacted === 'heart') + '">' +
+      '<button class="pill" data-react="heart" aria-label="Heart" aria-pressed="' + p.reacted.heart + '">' +
         icon('heart', 14) + '<b>' + p.reactions.heart + '</b></button>' +
-      '<button class="pill" data-comment>' + icon('comment', 14) + '<b>' + p.comments + '</b></button>' +
+      '<button class="pill" data-comment aria-label="Comments" aria-expanded="' + open + '">' +
+        icon('comment', 14) + '<b>' + p.comments.length + '</b></button>' +
       '<span class="spacer"></span>' +
-      '<span class="t-meta c-tertiary">' + total + ' reactions</span>' +
+      '<span class="t-meta c-tertiary">' + total + (total === 1 ? ' reaction' : ' reactions') + '</span>' +
       '<button class="iconbtn" data-tip="Open track" aria-label="Open track">' + icon('arrowUpRight', 16) + '</button>' +
     '</div>' +
+    (open ? commentsBlock(p) : '') +
   '</article>';
 }
 

@@ -111,7 +111,7 @@ const db = {
     async list(limit) {
       const { data, error } = await supabaseClient
         .from('posts')
-        .select('*, author:user_id(id, username, name, avatar_url), reactions(*), comments(*)')
+        .select('*, author:user_id(id, username, name, avatar_url), reactions(*), comments(*, author:user_id(id, username, name))')
         .order('created_at', { ascending: false })
         .limit(limit || 30);
       if (error) throw error;

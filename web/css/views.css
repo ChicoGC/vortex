@@ -165,6 +165,17 @@
   padding: 8px 11px; border-radius: var(--radius-md);
   background: var(--bg-inset); border: 1px solid var(--border-subtle);
 }
+.post__comments {
+  display: flex; flex-direction: column; gap: 12px;
+  padding-top: 12px; border-top: 1px solid var(--border-subtle);
+}
+.post__comment-list { display: flex; flex-direction: column; gap: 10px; }
+.post__comment-form { display: flex; gap: 8px; }
+.post__comment-form .field { flex: 1; }
+.comment { display: flex; gap: 9px; align-items: flex-start; }
+.comment__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.comment__body p { overflow-wrap: anywhere; }
+.comment__who { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 
 /* ---- friend row --------------------------------------------------------- */
 .friend {

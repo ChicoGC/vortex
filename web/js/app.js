@@ -59,10 +59,27 @@ function formatTimeAgo(isoDate) {
   return posted_short;
 }
 
+function transformComment(c, currentUserId) {
+  const name = c.author ? c.author.name : 'Unknown';
+  return {
+    id: c.id,
+    user: name,
+    initials: initialsFrom(name),
+    text: c.content,
+    time: formatTimeAgo(c.created_at),
+    createdAt: c.created_at,
+    mine: c.user_id === currentUserId
+  };
+}
+
 function transformPostData(post, currentUserId) {
-  const flameCount = (post.reactions || []).filter(function (r) { return r.type === 'flame'; }).length;
-  const heartCount = (post.reactions || []).filter(function (r) { return r.type === 'heart'; }).length;
-  const userReaction = (post.reactions || []).find(function (r) { return r.user_id === currentUserId; });
+  const reactions = post.reactions || [];
+  function count(type) { return reactions.filter(function (r) { return r.type === type; }).length; }
+  function mineOf(type) { return reactions.some(function (r) { return r.type === type && r.user_id === currentUserId; }); }
+  const comments = (post.comments || [])
+    .slice()
+    .sort(function (a, b) { return new Date(a.created_at) - new Date(b.created_at); })
+    .map(function (c) { return transformComment(c, currentUserId); });
 
   return {
     id: post.id,
@@ -76,9 +93,9 @@ function transformPostData(post, currentUserId) {
     album: post.album,
     art: post.art_seed || 1,
     note: post.note,
-    reactions: { flame: flameCount, heart: heartCount },
-    reacted: userReaction ? userReaction.type : null,
-    comments: (post.comments || []).length
+    reactions: { flame: count('flame'), heart: count('heart') },
+    reacted: { flame: mineOf('flame'), heart: mineOf('heart') },
+    comments: comments
   };
 }
 
@@ -124,16 +141,92 @@ function showAuthMessage(msg, isError) {
   box.hidden = false;
 }
 
+/* Client-side throttle: slows down guessing from the UI. The real server-side
+   protection is Supabase Auth's per-IP rate limit (and optional CAPTCHA). */
+const LOGIN_GUARD = { maxFails: 5, baseLockMs: 30000, maxLockMs: 15 * 60000, forgetAfterMs: 60 * 60000 };
+let loginLockTimer = null;
+
+function readLoginGuard() {
+  try { return JSON.parse(STORE.get('loginGuard', '{}')) || {}; }
+  catch (e) { return {}; }
+}
+function writeLoginGuard(g) { STORE.set('loginGuard', JSON.stringify(g)); }
+
+function loginLockRemaining() {
+  return Math.max(0, (readLoginGuard().lockedUntil || 0) - Date.now());
+}
+
+function recordLoginFailure() {
+  let g = readLoginGuard();
+  if (g.lastFail && Date.now() - g.lastFail > LOGIN_GUARD.forgetAfterMs) g = {};
+  g.lastFail = Date.now();
+  g.fails = (g.fails || 0) + 1;
+  if (g.fails >= LOGIN_GUARD.maxFails) {
+    g.lockouts = (g.lockouts || 0) + 1;
+    g.lockedUntil = Date.now() + Math.min(LOGIN_GUARD.baseLockMs * Math.pow(2, g.lockouts - 1), LOGIN_GUARD.maxLockMs);
+    g.fails = 0;
+  }
+  writeLoginGuard(g);
+  return g;
+}
+
+function formatWait(ms) {
+  const s = Math.ceil(ms / 1000);
+  if (s < 60) return s + 's';
+  const r = s % 60;
+  return Math.floor(s / 60) + 'm ' + (r < 10 ? '0' : '') + r + 's';
+}
+
+function paintLoginLock() {
+  clearInterval(loginLockTimer);
+  const btn = document.getElementById('authLoginSubmit');
+  if (!btn) return;
+  function tick() {
+    const left = loginLockRemaining();
+    if (!btn.isConnected || left <= 0) {
+      clearInterval(loginLockTimer);
+      if (btn.isConnected) { btn.disabled = false; btn.textContent = 'Log in'; }
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Try again in ' + formatWait(left);
+  }
+  tick();
+  if (loginLockRemaining() > 0) loginLockTimer = setInterval(tick, 1000);
+}
+
+function isBadCredentials(err) {
+  return err && (err.code === 'invalid_credentials' || /invalid login credentials/i.test(err.message || ''));
+}
+
 async function handleLogin(form) {
+  if (loginLockRemaining() > 0) { paintLoginLock(); return; }
   const email = form.querySelector('#authEmail').value.trim();
   const pass = form.querySelector('#authPass').value;
   const btn = document.getElementById('authLoginSubmit');
   btn.disabled = true; btn.textContent = 'Signing in…';
   try {
     await db.auth.signIn(email, pass);
+    writeLoginGuard({});
   } catch (err) {
-    showAuthMessage(err.message || 'Could not sign in', true);
     btn.disabled = false; btn.textContent = 'Log in';
+    if (err && err.status === 429) {
+      showAuthMessage('Too many sign-in attempts from this network. Wait a few minutes and try again.', true);
+      return;
+    }
+    if (isBadCredentials(err)) {
+      const g = recordLoginFailure();
+      if (loginLockRemaining() > 0) {
+        showAuthMessage('Too many failed attempts. Sign-in is paused for ' + formatWait(loginLockRemaining()) + '.', true);
+        paintLoginLock();
+        return;
+      }
+      const left = LOGIN_GUARD.maxFails - g.fails;
+      showAuthMessage('Wrong email or password.' +
+        (left <= 2 ? ' ' + left + (left === 1 ? ' attempt' : ' attempts') + ' left before sign-in is paused.' : ''), true);
+      return;
+    }
+    showAuthMessage(err.message || 'Could not sign in', true);
   }
 }
 
@@ -246,6 +339,7 @@ function setView(name) {
   document.title = label + ' · vortex';
   syncAppearanceControls();
   updatePlayerUI();
+  if (name === 'login') paintLoginLock();
   const scroller = document.querySelector('.view-scroll');
   if (scroller) scroller.scrollTop = 0;
 }
@@ -333,6 +427,9 @@ const TOASTS = {
   signup: ['info', 'Sign-up is not live', 'Accounts arrive with the Supabase integration'],
   flags: ['info', 'No flags yet', 'Feature flags land alongside the backend'],
   postDeleted: ['success', 'Post deleted', 'It no longer shows up in anyone\'s feed'],
+  reactionFailed: ['error', 'Reaction not saved', 'Check your connection and try again'],
+  commentFailed: ['error', 'Comment not sent', 'Your text is still in the box, try again'],
+  commentRateLimited: ['error', 'Slow down', 'Max 3 comments per post per minute. Your text is still in the box'],
   login: ['error', 'Prototype login', 'The form validates, but nothing is submitted']
 };
 
@@ -409,6 +506,88 @@ function openPostForm() {
       '</div>' +
     '</div>';
   document.getElementById('postTitle').focus();
+}
+
+/* ---- reactions & comments ------------------------------------------------ */
+function findPost(postId) {
+  return DATA.feed.filter(function (p) { return p.id === postId; })[0];
+}
+
+function rerenderPost(postId) {
+  const el = document.querySelector('[data-post="' + CSS.escape(postId) + '"]');
+  const post = findPost(postId);
+  if (!el || !post) return;
+  const oldInput = el.querySelector('[data-comment-form] input');
+  const draft = oldInput ? oldInput.value : '';
+  const hadFocus = oldInput && document.activeElement === oldInput;
+  el.outerHTML = postCard(post);
+  const newInput = document.querySelector('[data-post="' + CSS.escape(postId) + '"] [data-comment-form] input');
+  if (newInput) {
+    newInput.value = draft;
+    if (hadFocus) newInput.focus();
+  }
+}
+
+const pendingReactions = {};
+
+async function toggleReaction(postId, type) {
+  const key = postId + ':' + type;
+  const post = findPost(postId);
+  if (!post || pendingReactions[key]) return;
+  pendingReactions[key] = true;
+
+  const was = post.reacted[type];
+  const base = post.reactions[type];
+  post.reacted[type] = !was;
+  post.reactions[type] = base + (was ? -1 : 1);
+  rerenderPost(postId);
+
+  try {
+    const on = await db.reactions.toggle(postId, app.session.user.id, type);
+    post.reacted[type] = on;
+    post.reactions[type] = base + (on ? 1 : 0) - (was ? 1 : 0);
+  } catch (err) {
+    console.error('Error toggling reaction:', err);
+    post.reacted[type] = was;
+    post.reactions[type] = base;
+    toast('reactionFailed');
+  }
+  delete pendingReactions[key];
+  rerenderPost(postId);
+}
+
+function toggleComments(postId) {
+  UI.openComments[postId] = !UI.openComments[postId];
+  rerenderPost(postId);
+  if (UI.openComments[postId]) {
+    const input = document.querySelector('[data-post="' + CSS.escape(postId) + '"] [data-comment-form] input');
+    if (input) input.focus();
+  }
+}
+
+async function handleCommentSubmit(form) {
+  const postId = form.dataset.commentForm;
+  const post = findPost(postId);
+  const input = form.querySelector('input');
+  const btn = form.querySelector('button');
+  const content = input.value.trim();
+  if (!post || !content) { input.focus(); return; }
+
+  input.disabled = true; btn.disabled = true;
+  try {
+    const row = await db.comments.add(postId, app.session.user.id, content);
+    row.author = { name: DATA.me.name };
+    post.comments.push(transformComment(row, app.session.user.id));
+    input.value = '';
+    rerenderPost(postId);
+    const next = document.querySelector('[data-post="' + CSS.escape(postId) + '"] [data-comment-form] input');
+    if (next) next.focus();
+  } catch (err) {
+    console.error('Error adding comment:', err);
+    input.disabled = false; btn.disabled = false;
+    input.focus();
+    toast(err && err.hint === 'rate_limited' ? 'commentRateLimited' : 'commentFailed');
+  }
 }
 
 function openDeletePost(postId) {
@@ -639,16 +818,15 @@ document.addEventListener('click', function (e) {
 
   const react = t.closest('[data-react]');
   if (react) {
-    const on = react.getAttribute('aria-pressed') !== 'true';
-    const count = react.querySelector('b');
-    count.textContent = String(Math.max(0, +count.textContent + (on ? 1 : -1)));
-    react.setAttribute('aria-pressed', String(on));
-    const sibling = react.parentElement.querySelector('[data-react][aria-pressed="true"]');
-    if (on && sibling && sibling !== react) {
-      const sc = sibling.querySelector('b');
-      sc.textContent = String(Math.max(0, +sc.textContent - 1));
-      sibling.setAttribute('aria-pressed', 'false');
-    }
+    const card = react.closest('[data-post]');
+    if (card) toggleReaction(card.dataset.post, react.dataset.react);
+    return;
+  }
+
+  const commentBtn = t.closest('[data-comment]');
+  if (commentBtn) {
+    const card = commentBtn.closest('[data-post]');
+    if (card) toggleComments(card.dataset.post);
     return;
   }
 
@@ -687,6 +865,7 @@ document.addEventListener('submit', function (e) {
   if (e.target.id === 'authLoginForm') { e.preventDefault(); handleLogin(e.target); }
   if (e.target.id === 'authSignupForm') { e.preventDefault(); handleSignup(e.target); }
   if (e.target.id === 'postForm') { e.preventDefault(); handlePostSubmit(e.target); }
+  if (e.target.dataset.commentForm) { e.preventDefault(); handleCommentSubmit(e.target); }
 });
 
 document.addEventListener('keydown', function (e) {
