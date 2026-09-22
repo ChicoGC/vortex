@@ -1,5 +1,3 @@
 {
-  "buildCommand": "echo 'Static assets only'",
-  "outputDirectory": "web",
-  "framework": "static"
+  "outputDirectory": "web"
 }
