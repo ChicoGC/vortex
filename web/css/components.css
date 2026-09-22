@@ -114,6 +114,13 @@
   color: var(--text-primary); font-size: 14px;
 }
 .field input::placeholder { color: var(--text-tertiary); }
+.field--area { height: auto; align-items: flex-start; padding: 10px 13px; }
+.field--area svg { margin-top: 2px; }
+.field textarea {
+  flex: 1; min-width: 0; min-height: 64px; resize: vertical;
+  background: none; border: 0; color: var(--text-primary); font-size: 14px; line-height: 20px;
+}
+.field textarea::placeholder { color: var(--text-tertiary); }
 .field--sm { height: 34px; padding: 0 7px 0 10px; }
 .field__kbd {
   font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary);

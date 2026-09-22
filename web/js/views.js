@@ -90,14 +90,16 @@ function postCard(p) {
       '</span>' +
       '<span class="spacer"></span>' +
       '<span class="iconbtn" data-tip="' + esc(PLATFORM_LABEL[p.platform]) + '">' + icon(p.platform, 16) + '</span>' +
-      '<button class="iconbtn" data-menu="post" aria-label="More">' + icon('dots', 16) + '</button>' +
+      (p.mine
+        ? '<button class="iconbtn" data-delete-post="' + esc(p.id) + '" data-tip="Delete post" aria-label="Delete post">' + icon('trash', 16) + '</button>'
+        : '<button class="iconbtn" data-menu="post" aria-label="More">' + icon('dots', 16) + '</button>') +
     '</div>' +
     (p.note ? '<p class="post__note t-body-s c-secondary">' + esc(p.note) + '</p>' : '') +
     '<div class="post__track">' +
       art(p.art, 'art--lg') +
       '<span class="post__meta">' +
         '<span class="t-title-s truncate">' + esc(p.track) + '</span>' +
-        '<span class="t-body-s c-secondary truncate">' + esc(p.artist) + ' · ' + esc(p.album) + '</span>' +
+        '<span class="t-body-s c-secondary truncate">' + esc(p.artist) + (p.album ? ' · ' + esc(p.album) : '') + '</span>' +
       '</span>' +
       '<button class="post__play" aria-label="Play ' + esc(p.track) + '" data-play-track="' + esc(p.track) + '">' + icon('play', 15) + '</button>' +
     '</div>' +
@@ -302,12 +304,15 @@ VIEWS.feed = function () {
   return wrap(
     pageHead('Live from your circle', 'Feed',
       tabsEl('feed', ['All', 'Friends', 'Groups'], 'All') +
-      iconBtn('filter', 'Filter', 'iconbtn--lg')),
+      iconBtn('filter', 'Filter', 'iconbtn--lg') +
+      '<button class="btn btn--primary btn--sm" data-action="new-post">' + icon('plus', 15) + 'Share a track</button>'),
     '<div class="cols cols--feed">' +
       '<div class="stack">' + (DATA.feed.length ? DATA.feed.map(postCard).join('') :
         '<section class="panel"><div class="empty"><span class="empty__well">' + icon('broadcast', 20) + '</span>' +
         '<span class="t-body-m-med">No posts yet</span>' +
-        '<p class="t-body-s c-tertiary">When you or your friends share a track, it shows up here.</p></div></section>') + '</div>' +
+        '<p class="t-body-s c-tertiary">When you or your friends share a track, it shows up here.</p>' +
+        '<button class="btn btn--secondary btn--sm" data-action="new-post">' + icon('plus', 15) + 'Share your first track</button>' +
+        '</div></section>') + '</div>' +
       '<div class="stack">' + trending + leaders + '</div>' +
     '</div>'
   );

@@ -66,6 +66,7 @@ function transformPostData(post, currentUserId) {
 
   return {
     id: post.id,
+    mine: post.user_id === currentUserId,
     user: post.author.name,
     initials: initialsFrom(post.author.name),
     time: formatTimeAgo(post.created_at),
@@ -331,6 +332,7 @@ const TOASTS = {
   forgot: ['info', 'Nothing to recover', 'This login screen has no backend yet'],
   signup: ['info', 'Sign-up is not live', 'Accounts arrive with the Supabase integration'],
   flags: ['info', 'No flags yet', 'Feature flags land alongside the backend'],
+  postDeleted: ['success', 'Post deleted', 'It no longer shows up in anyone\'s feed'],
   login: ['error', 'Prototype login', 'The form validates, but nothing is submitted']
 };
 
@@ -363,6 +365,130 @@ function closeOverlay() {
   const o = document.getElementById('overlay');
   o.innerHTML = '';
   o.hidden = true;
+}
+
+function openPostForm() {
+  const o = document.getElementById('overlay');
+  o.hidden = false;
+  o.innerHTML =
+    '<div class="scrim" data-scrim>' +
+      '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="postFormTitle">' +
+        '<div class="modal__head">' +
+          '<span class="toast__well toast__well--info">' + icon('broadcast', 15) + '</span>' +
+          '<h2 class="t-title-s" id="postFormTitle">Share a track</h2>' +
+        '</div>' +
+        '<form id="postForm" class="modal__body" novalidate>' +
+          '<div class="auth__note auth__note--error" id="postError" hidden>' + icon('close', 16) +
+            '<p class="t-body-s c-secondary" id="postErrorText"></p>' +
+          '</div>' +
+          '<div class="auth__field">' +
+            '<label class="t-label-m c-secondary" for="postTitle">Track title</label>' +
+            '<span class="field">' + icon('disc', 17) +
+              '<input id="postTitle" type="text" placeholder="Song name" maxlength="200" required></span>' +
+          '</div>' +
+          '<div class="auth__field">' +
+            '<label class="t-label-m c-secondary" for="postArtist">Artist</label>' +
+            '<span class="field">' + icon('user', 17) +
+              '<input id="postArtist" type="text" placeholder="Artist name" maxlength="200" required></span>' +
+          '</div>' +
+          '<div class="auth__field">' +
+            '<label class="t-label-m c-secondary" for="postAlbum">Album</label>' +
+            '<span class="field">' + icon('disc', 17) +
+              '<input id="postAlbum" type="text" placeholder="Optional" maxlength="200"></span>' +
+          '</div>' +
+          '<div class="auth__field">' +
+            '<label class="t-label-m c-secondary" for="postNote">Note</label>' +
+            '<span class="field field--area">' + icon('comment', 17) +
+              '<textarea id="postNote" placeholder="What do you think? (optional)" maxlength="500" rows="3"></textarea></span>' +
+          '</div>' +
+        '</form>' +
+        '<div class="modal__foot">' +
+          '<button type="button" class="btn btn--ghost btn--sm" data-close>Cancel</button>' +
+          '<button type="submit" class="btn btn--primary btn--sm" form="postForm" id="postSubmit">Share</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  document.getElementById('postTitle').focus();
+}
+
+function openDeletePost(postId) {
+  const post = DATA.feed.filter(function (p) { return p.id === postId; })[0];
+  if (!post) return;
+  const o = document.getElementById('overlay');
+  o.hidden = false;
+  o.innerHTML =
+    '<div class="scrim" data-scrim>' +
+      '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="deletePostTitle">' +
+        '<div class="modal__head">' +
+          '<span class="toast__well toast__well--error">' + icon('trash', 15) + '</span>' +
+          '<h2 class="t-title-s" id="deletePostTitle">Delete this post?</h2>' +
+        '</div>' +
+        '<div class="modal__body">' +
+          '<p class="t-body-m c-secondary">Your post of <span class="c-primary">' + esc(post.track) + '</span> by ' +
+            esc(post.artist) + ' will be removed, along with its reactions and comments. This cannot be undone.</p>' +
+          '<div class="auth__note auth__note--error" id="deletePostError" hidden>' + icon('close', 16) +
+            '<p class="t-body-s c-secondary" id="deletePostErrorText"></p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="modal__foot">' +
+          '<button type="button" class="btn btn--ghost btn--sm" data-close>Cancel</button>' +
+          '<button type="button" class="btn btn--primary btn--sm" id="deletePostConfirm">Delete post</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  const confirm = document.getElementById('deletePostConfirm');
+  confirm.addEventListener('click', function () { handleDeletePost(postId, confirm); });
+  confirm.focus();
+}
+
+async function handleDeletePost(postId, btn) {
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  try {
+    await db.posts.remove(postId);
+    closeOverlay();
+    DATA.feed = DATA.feed.filter(function (p) { return p.id !== postId; });
+    if (app.view === 'feed') setView('feed');
+    toast('postDeleted');
+  } catch (err) {
+    document.getElementById('deletePostErrorText').textContent = err.message || 'Could not delete this post.';
+    document.getElementById('deletePostError').hidden = false;
+    btn.disabled = false; btn.textContent = 'Delete post';
+  }
+}
+
+async function handlePostSubmit(form) {
+  const trackTitle = form.querySelector('#postTitle').value.trim();
+  const artist = form.querySelector('#postArtist').value.trim();
+  const album = form.querySelector('#postAlbum').value.trim();
+  const note = form.querySelector('#postNote').value.trim();
+  const errBox = document.getElementById('postError');
+  const errText = document.getElementById('postErrorText');
+
+  if (!trackTitle || !artist) {
+    errText.textContent = 'Track title and artist are required.';
+    errBox.hidden = false;
+    return;
+  }
+
+  const btn = document.getElementById('postSubmit');
+  btn.disabled = true; btn.textContent = 'Sharing…';
+  try {
+    await db.posts.create(app.session.user.id, {
+      trackTitle: trackTitle,
+      artist: artist,
+      album: album || null,
+      note: note || null,
+      artSeed: 1 + Math.floor(Math.random() * 6)
+    });
+    closeOverlay();
+    await loadFeed();
+    if (app.view === 'feed') setView('feed');
+    else location.hash = '#/feed';
+  } catch (err) {
+    errText.textContent = err.message || 'Could not share this track.';
+    errBox.hidden = false;
+    btn.disabled = false; btn.textContent = 'Share';
+  }
 }
 
 function openModal(kind) {
@@ -475,6 +601,11 @@ document.addEventListener('click', function (e) {
   const logoutBtn = t.closest('[data-action="logout"]');
   if (logoutBtn) { db.auth.signOut(); return; }
 
+  if (t.closest('[data-action="new-post"]')) { openPostForm(); return; }
+
+  const deleteBtn = t.closest('[data-delete-post]');
+  if (deleteBtn) { openDeletePost(deleteBtn.dataset.deletePost); return; }
+
   if (t.closest('#openCmdk') || t.closest('#openCmdkMobile')) { openCmdk(); return; }
   if (t.closest('#railToggle')) { setRail(document.getElementById('app').dataset.rail !== 'compact'); return; }
 
@@ -555,6 +686,7 @@ document.addEventListener('submit', function (e) {
   if (e.target.id === 'protoLogin') { e.preventDefault(); toast('login'); }
   if (e.target.id === 'authLoginForm') { e.preventDefault(); handleLogin(e.target); }
   if (e.target.id === 'authSignupForm') { e.preventDefault(); handleSignup(e.target); }
+  if (e.target.id === 'postForm') { e.preventDefault(); handlePostSubmit(e.target); }
 });
 
 document.addEventListener('keydown', function (e) {
