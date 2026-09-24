@@ -17,19 +17,20 @@ const DATA = {
     topGenre: 'Indie rock'
   },
 
+  /* status: 'disconnected' | 'idle' (connected, nothing playing) | 'track' */
   nowPlaying: {
-    title: 'Lisztomania',
-    artist: 'Phoenix',
-    album: 'Wolfgang Amadeus Phoenix',
+    status: 'disconnected',
+    id: null,
+    title: '',
+    artist: '',
+    album: '',
     art: 1,
-    elapsed: 144,
-    duration: 247,
-    platform: 'spotify',
-    alsoPlayed: [
-      { initials: 'MR', name: 'Mariana' },
-      { initials: 'RM', name: 'Rafa' },
-      { initials: 'LC', name: 'Lu' }
-    ]
+    image: null,
+    url: null,
+    elapsed: 0,
+    duration: 0,
+    playing: false,
+    platform: 'spotify'
   },
 
   friends: [

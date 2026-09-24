@@ -29,12 +29,7 @@ const STORE = {
 
 const app = {
   view: 'home',
-  session: null,
-  player: {
-    elapsed: DATA.nowPlaying.elapsed,
-    duration: DATA.nowPlaying.duration,
-    playing: true
-  }
+  session: null
 };
 
 /* ---- auth ----------------------------------------------------------------- */
@@ -106,6 +101,7 @@ async function loadCurrentUser() {
     const friendships = await db.friends.list(app.session.user.id);
 
     DATA.me.name = profile.name;
+    DATA.me.email = app.session.user.email;
     DATA.me.username = '@' + profile.username;
     DATA.me.initials = initialsFrom(profile.name);
     DATA.me.bio = profile.bio || 'No bio yet.';
@@ -250,8 +246,41 @@ async function handleSignup(form) {
 }
 
 /* ---- sidebar ------------------------------------------------------------ */
-function renderSidebar() {
+function renderNowPlayingMini() {
   const np = DATA.nowPlaying;
+  if (np.status !== 'track') {
+    const connected = np.status === 'idle';
+    return '<div class="np">' +
+      '<div class="np__top">' +
+        '<div class="art np__placeholder" style="width:38px;height:38px" aria-hidden="true">' + icon('spotify', 18) + '</div>' +
+        '<div class="np__meta">' +
+          '<span class="t-label-m truncate">' + (connected ? 'Nothing playing' : 'Spotify not connected') + '</span>' +
+          '<span class="t-caption c-tertiary truncate">' + (connected ? 'Play something on Spotify' : 'Connect to show your music') + '</span>' +
+        '</div>' +
+        (connected ? '' : '<button class="iconbtn" data-action="spotify-connect" data-tip="Connect Spotify" aria-label="Connect Spotify">' + icon('plus', 17) + '</button>') +
+      '</div>' +
+    '</div>';
+  }
+  return '<div class="np">' +
+    '<div class="np__top">' +
+      '<div class="art" data-art="' + np.art + '" style="width:38px;height:38px;' + artImageStyle(np.image) + '" aria-hidden="true"></div>' +
+      '<div class="np__meta">' +
+        '<span class="t-label-m truncate">' + esc(np.title) + '</span>' +
+        '<span class="t-caption c-tertiary truncate">' + esc(np.artist) + '</span>' +
+      '</div>' +
+      (np.playing
+        ? '<span class="eq" aria-label="Playing"><i></i><i></i><i></i></span>'
+        : '<span class="t-meta c-tertiary">Paused</span>') +
+    '</div>' +
+    '<div class="track track--thin"><i data-np-bar style="width:0%"></i></div>' +
+    '<div class="np__times">' +
+      '<span class="t-meta c-tertiary" data-np-elapsed>' + mmss(np.elapsed) + '</span>' +
+      '<span class="t-meta c-tertiary">' + mmss(np.duration) + '</span>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderSidebar() {
   const nav = NAV.map(function (n) {
     if (n.group) return '<p class="nav-group t-overline">' + n.group + '</p>';
     return '<a class="nav" href="#/' + n.id + '" data-view-link="' + n.id + '">' +
@@ -273,21 +302,7 @@ function renderSidebar() {
   '</button>' +
   '<nav class="sidebar__nav scroll">' + nav + '</nav>' +
   '<div class="sidebar__foot">' +
-    '<div class="np">' +
-      '<div class="np__top">' +
-        '<div class="art" data-art="' + np.art + '" style="width:38px;height:38px"></div>' +
-        '<div class="np__meta">' +
-          '<span class="t-label-m truncate">' + esc(np.title) + '</span>' +
-          '<span class="t-caption c-tertiary truncate">' + esc(np.artist) + '</span>' +
-        '</div>' +
-        '<button class="iconbtn" data-player-toggle aria-label="Pause">' + icon('pause', 17) + '</button>' +
-      '</div>' +
-      '<div class="track track--thin"><i data-np-bar style="width:0%"></i></div>' +
-      '<div class="np__times">' +
-        '<span class="t-meta c-tertiary" data-np-elapsed>0:00</span>' +
-        '<span class="t-meta c-tertiary">' + mmss(np.duration) + '</span>' +
-      '</div>' +
-    '</div>' +
+    renderNowPlayingMini() +
     '<button class="userchip" data-nav="profile">' +
       avatarEl(DATA.me.initials, '32', 'online') +
       '<span class="userchip__meta">' +
@@ -380,39 +395,132 @@ function syncAppearanceControls() {
   if (ambToggle) ambToggle.setAttribute('aria-checked', String(ambOn));
 }
 
-/* ---- player -------------------------------------------------------------- */
+/* ---- now playing (Spotify) ---------------------------------------------- */
 function updatePlayerUI() {
-  const p = app.player;
-  const pct = (p.elapsed / p.duration) * 100;
+  const np = DATA.nowPlaying;
+  const pct = np.duration ? (np.elapsed / np.duration) * 100 : 0;
   const bar = document.querySelector('[data-np-bar]');
   if (bar) bar.style.width = pct + '%';
   const el = document.querySelector('[data-np-elapsed]');
-  if (el) el.textContent = mmss(p.elapsed);
+  if (el) el.textContent = mmss(np.elapsed);
 
   const heroBar = document.querySelector('.hero__progress .track i');
   if (heroBar) heroBar.style.width = pct + '%';
   const heroKnob = document.querySelector('.hero__progress .slider__knob');
   if (heroKnob) heroKnob.style.left = pct + '%';
   const heroTime = document.querySelector('.hero__progress .t-meta');
-  if (heroTime) heroTime.textContent = mmss(p.elapsed);
-
-  const glyph = p.playing ? 'pause' : 'play';
-  const heroBtn = document.getElementById('heroPlay');
-  if (heroBtn) { heroBtn.innerHTML = icon(glyph, 18); heroBtn.setAttribute('aria-label', p.playing ? 'Pause' : 'Play'); }
-  const miniBtn = document.querySelector('[data-player-toggle]');
-  if (miniBtn) { miniBtn.innerHTML = icon(glyph, 17); miniBtn.setAttribute('aria-label', p.playing ? 'Pause' : 'Play'); }
+  if (heroTime) heroTime.textContent = mmss(np.elapsed);
 }
 
-function togglePlayer() {
-  app.player.playing = !app.player.playing;
+function artSeedFor(id) {
+  let h = 0;
+  for (let i = 0; i < (id || '').length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return 1 + (h % 6);
+}
+
+function paintNowPlaying() {
+  const mini = document.querySelector('#sidebar .np');
+  if (mini) mini.outerHTML = renderNowPlayingMini();
+  const hero = document.querySelector('.hero');
+  if (hero) hero.outerHTML = heroPanel();
   updatePlayerUI();
 }
 
+function setNowPlaying(track, status) {
+  const np = DATA.nowPlaying;
+  const before = [np.status, np.id, np.playing].join('|');
+  np.status = status;
+  if (track) {
+    np.id = track.id;
+    np.title = track.title;
+    np.artist = track.artist;
+    np.album = track.album;
+    np.image = track.image;
+    np.url = track.url;
+    np.art = artSeedFor(track.id);
+    np.duration = Math.round(track.durationMs / 1000);
+    np.elapsed = Math.min(Math.floor(track.progressMs / 1000), np.duration);
+    np.playing = track.playing;
+  } else {
+    np.id = null; np.image = null; np.url = null;
+    np.elapsed = 0; np.duration = 0; np.playing = false;
+  }
+  // Only rebuild markup when something visible changed; progress ticks are cheap updates.
+  if (before !== [np.status, np.id, np.playing].join('|')) paintNowPlaying();
+  else updatePlayerUI();
+}
+
+let spotifyPollTimer = null;
+let spotifyForbiddenWarned = false;
+
+async function pollSpotify() {
+  if (!app.session || !spotify.auth.isConnected()) { stopSpotifyPolling(); return; }
+  if (document.hidden) return;
+  try {
+    const track = await spotify.nowPlaying();
+    setNowPlaying(track, track ? 'track' : 'idle');
+  } catch (err) {
+    console.error('Spotify now playing failed:', err);
+    if (!spotify.auth.isConnected()) {
+      stopSpotifyPolling();
+      refreshSettingsView();
+      toast('spotifyExpired');
+    } else if (err.status === 403 && !spotifyForbiddenWarned) {
+      spotifyForbiddenWarned = true;
+      toast('spotifyForbidden');
+    }
+  }
+}
+
+function startSpotifyPolling() {
+  clearInterval(spotifyPollTimer);
+  spotifyPollTimer = null;
+  if (!app.session || !spotify.auth.isConnected()) return;
+  if (DATA.nowPlaying.status === 'disconnected') setNowPlaying(null, 'idle');
+  pollSpotify();
+  spotifyPollTimer = setInterval(pollSpotify, 15000);
+}
+
+function stopSpotifyPolling() {
+  clearInterval(spotifyPollTimer);
+  spotifyPollTimer = null;
+  setNowPlaying(null, 'disconnected');
+}
+
+function refreshSettingsView() {
+  if (app.view === 'settings') setView('settings');
+}
+
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden && spotifyPollTimer) pollSpotify();
+});
+
+// Advance the progress bar locally between polls; re-poll right as a track ends.
 setInterval(function () {
-  if (!app.player.playing) return;
-  app.player.elapsed = (app.player.elapsed + 1) % app.player.duration;
+  const np = DATA.nowPlaying;
+  if (np.status !== 'track' || !np.playing || np.elapsed >= np.duration) return;
+  np.elapsed += 1;
   updatePlayerUI();
+  if (np.elapsed === np.duration) setTimeout(pollSpotify, 1500);
 }, 1000);
+
+function fillPostFromNowPlaying() {
+  const np = DATA.nowPlaying;
+  if (np.status !== 'track') return;
+  document.getElementById('postTitle').value = np.title;
+  document.getElementById('postArtist').value = np.artist;
+  document.getElementById('postAlbum').value = np.album || '';
+  document.getElementById('postNote').focus();
+}
+
+async function connectSpotify() {
+  try {
+    await spotify.auth.connect(location.hash);
+  } catch (err) {
+    console.error('Could not start Spotify sign-in:', err);
+    toast('spotifyFailed');
+  }
+}
 
 /* ---- toasts -------------------------------------------------------------- */
 const TOASTS = {
@@ -430,6 +538,12 @@ const TOASTS = {
   reactionFailed: ['error', 'Reaction not saved', 'Check your connection and try again'],
   commentFailed: ['error', 'Comment not sent', 'Your text is still in the box, try again'],
   commentRateLimited: ['error', 'Slow down', 'Max 3 comments per post per minute. Your text is still in the box'],
+  spotifyConnected: ['success', 'Spotify connected', 'What you play now shows up in vortex'],
+  spotifyCancelled: ['info', 'Spotify not connected', 'You cancelled on the Spotify screen'],
+  spotifyFailed: ['error', 'Could not connect Spotify', 'Try again in a moment'],
+  spotifyDisconnected: ['success', 'Spotify disconnected', 'Remove full access at spotify.com/account/apps'],
+  spotifyExpired: ['error', 'Spotify session ended', 'Connect again in Settings'],
+  spotifyForbidden: ['error', 'Spotify blocked this account', 'While in development, only accounts on the tester list can connect'],
   login: ['error', 'Prototype login', 'The form validates, but nothing is submitted']
 };
 
@@ -478,6 +592,10 @@ function openPostForm() {
           '<div class="auth__note auth__note--error" id="postError" hidden>' + icon('close', 16) +
             '<p class="t-body-s c-secondary" id="postErrorText"></p>' +
           '</div>' +
+          (DATA.nowPlaying.status === 'track'
+            ? '<button type="button" class="btn btn--secondary btn--sm" data-action="post-use-np" style="justify-content:flex-start;min-width:0">' +
+                icon('spotify', 15) + '<span class="truncate">Use what\'s playing: ' + esc(DATA.nowPlaying.title) + ' · ' + esc(DATA.nowPlaying.artist) + '</span></button>'
+            : '') +
           '<div class="auth__field">' +
             '<label class="t-label-m c-secondary" for="postTitle">Track title</label>' +
             '<span class="field">' + icon('disc', 17) +
@@ -699,8 +817,7 @@ function openModal(kind) {
 
 const CMD_ACTIONS = [
   { label: 'Toggle theme', hint: 'Appearance', run: function () { setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); }, icon: 'droplet' },
-  { label: 'Toggle compact sidebar', hint: 'Navigation', run: function () { setRail(document.getElementById('app').dataset.rail !== 'compact'); }, icon: 'bars' },
-  { label: app.player.playing ? 'Pause playback' : 'Resume playback', hint: 'Player', run: togglePlayer, icon: 'pause' }
+  { label: 'Toggle compact sidebar', hint: 'Navigation', run: function () { setRail(document.getElementById('app').dataset.rail !== 'compact'); }, icon: 'bars' }
 ];
 
 function openCmdk() {
@@ -781,6 +898,17 @@ document.addEventListener('click', function (e) {
   if (logoutBtn) { db.auth.signOut(); return; }
 
   if (t.closest('[data-action="new-post"]')) { openPostForm(); return; }
+  if (t.closest('[data-action="share-now-playing"]')) { openPostForm(); fillPostFromNowPlaying(); return; }
+  if (t.closest('[data-action="post-use-np"]')) { fillPostFromNowPlaying(); return; }
+
+  if (t.closest('[data-action="spotify-connect"]')) { connectSpotify(); return; }
+  if (t.closest('[data-action="spotify-disconnect"]')) {
+    spotify.auth.disconnect();
+    stopSpotifyPolling();
+    refreshSettingsView();
+    toast('spotifyDisconnected');
+    return;
+  }
 
   const deleteBtn = t.closest('[data-delete-post]');
   if (deleteBtn) { openDeletePost(deleteBtn.dataset.deletePost); return; }
@@ -830,9 +958,6 @@ document.addEventListener('click', function (e) {
     return;
   }
 
-  const playerBtn = t.closest('[data-player-toggle], #heroPlay');
-  if (playerBtn) { togglePlayer(); return; }
-
   const playBtn = t.closest('[data-play-track]');
   if (playBtn) {
     document.querySelectorAll('[data-playing="true"]').forEach(function (r) {
@@ -845,9 +970,6 @@ document.addEventListener('click', function (e) {
       const idx = playBtn.querySelector('.row__index');
       if (idx) idx.outerHTML = '<span class="eq"><i></i><i></i><i></i></span>';
     }
-    app.player.playing = true;
-    app.player.elapsed = 0;
-    updatePlayerUI();
     return;
   }
 
@@ -878,6 +1000,13 @@ window.addEventListener('hashchange', function () { setView(currentRoute()); });
 
 /* ---- boot ---------------------------------------------------------------- */
 (async function boot() {
+  let spotifyResult = null;
+  if (location.pathname === '/callback') {
+    spotifyResult = await spotify.auth.handleCallback();
+    const back = /^#\/[\w-]*$/.test(spotifyResult.returnHash) ? spotifyResult.returnHash : '#/settings';
+    history.replaceState(null, '', '/' + back);
+  }
+
   const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
   setTheme(STORE.get('theme', prefersLight ? 'light' : 'dark'));
   document.getElementById('sidebar').innerHTML = renderSidebar();
@@ -891,10 +1020,28 @@ window.addEventListener('hashchange', function () { setView(currentRoute()); });
 
   db.auth.onChange(function (event, session) {
     app.session = session;
-    if (event === 'SIGNED_OUT') { location.hash = '#/login'; setView(currentRoute()); }
-    if (event === 'SIGNED_IN') { loadCurrentUser().then(function () { location.hash = '#/home'; setView(currentRoute()); }); }
+    if (event === 'SIGNED_OUT') {
+      // Spotify tokens are per-browser, so the next vortex account must not inherit them.
+      spotify.auth.disconnect();
+      stopSpotifyPolling();
+      location.hash = '#/login';
+      setView(currentRoute());
+    }
+    if (event === 'SIGNED_IN') {
+      loadCurrentUser().then(function () {
+        location.hash = '#/home';
+        setView(currentRoute());
+        startSpotifyPolling();
+      });
+    }
   });
 
   if (!location.hash) location.hash = app.session ? '#/home' : '#/login';
   setView(currentRoute());
+  startSpotifyPolling();
+
+  if (spotifyResult) {
+    if (spotifyResult.ok) toast('spotifyConnected');
+    else toast(spotifyResult.error === 'access_denied' ? 'spotifyCancelled' : 'spotifyFailed');
+  }
 })();

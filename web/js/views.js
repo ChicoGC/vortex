@@ -13,8 +13,15 @@ function esc(s) {
 function cx() {
   return Array.prototype.filter.call(arguments, Boolean).join(' ');
 }
-function art(n, cls) {
-  return '<div class="' + cx('art', cls) + '" data-art="' + n + '" aria-hidden="true"></div>';
+/* Only plain https URLs reach the style attribute, so a crafted value can't
+   break out of url(...). */
+function artImageStyle(image) {
+  if (typeof image !== 'string' || !/^https:\/\/[\w.-]+\/[\w\-./%]+$/.test(image)) return '';
+  return 'background-image:url(' + image + ');background-size:cover;background-position:center;';
+}
+function art(n, cls, image) {
+  const style = artImageStyle(image);
+  return '<div class="' + cx('art', cls) + '" data-art="' + n + '"' + (style ? ' style="' + style + '"' : '') + ' aria-hidden="true"></div>';
 }
 function avatarEl(initials, size, status) {
   const cls = cx('avatar', size ? 'avatar--' + size : null);
@@ -204,44 +211,54 @@ function wrap(head, body) {
    ========================================================================== */
 const VIEWS = {};
 
-VIEWS.home = function () {
+function heroPanel() {
   const np = DATA.nowPlaying;
-  const pct = Math.round((np.elapsed / np.duration) * 100);
 
-  const hero =
-    '<section class="panel hero">' +
-      art(np.art, 'art--xl') +
+  if (np.status !== 'track') {
+    const connected = np.status === 'idle';
+    return '<section class="panel hero">' +
+      '<div class="art art--xl hero__placeholder" aria-hidden="true">' + icon('spotify', 40) + '</div>' +
       '<div class="hero__body">' +
-        '<span class="t-overline c-accent">Now playing</span>' +
-        '<h2 class="t-display-m hero__title truncate">' + esc(np.title) + '</h2>' +
-        '<p class="t-body-l c-secondary truncate">' + esc(np.artist) + ' · ' + esc(np.album) + '</p>' +
-        '<div class="hero__progress">' +
-          '<span class="t-meta c-tertiary">' + mmss(np.elapsed) + '</span>' +
-          '<div class="slider" style="flex:1">' +
-            '<div class="track"><i style="width:' + pct + '%"></i></div>' +
-            '<span class="slider__knob" style="left:' + pct + '%"></span>' +
-          '</div>' +
-          '<span class="t-meta c-tertiary">' + mmss(np.duration) + '</span>' +
-        '</div>' +
-        '<div class="hero__controls">' +
-          iconBtn('shuffle', 'Shuffle', 'iconbtn--lg') +
-          iconBtn('skipBack', 'Previous', 'iconbtn--lg') +
-          '<button class="hero__play" id="heroPlay" aria-label="Pause">' + icon('pause', 18) + '</button>' +
-          iconBtn('skipForward', 'Next', 'iconbtn--lg') +
-          iconBtn('heart', 'Add to favourites', 'iconbtn--lg') +
-          '<span class="spacer"></span>' +
-          '<span class="badge"><span>' + icon('headphones', 13) + '</span>' + esc(PLATFORM_LABEL[np.platform]) + '</span>' +
+        '<span class="t-overline c-tertiary">Now playing</span>' +
+        '<h2 class="t-display-m hero__title truncate">' + (connected ? 'Nothing playing' : 'Spotify not connected') + '</h2>' +
+        '<p class="t-body-l c-secondary">' + (connected
+          ? 'Play something on Spotify and it shows up here.'
+          : 'Connect your Spotify account to show what you are listening to.') + '</p>' +
+        '<div class="hero__controls">' + (connected
+          ? '<span class="badge badge--positive"><span>' + icon('check', 13) + '</span>Spotify connected</span>'
+          : '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + 'Connect Spotify</button>') +
         '</div>' +
       '</div>' +
-      '<aside class="hero__aside">' +
-        '<span class="t-overline c-tertiary">Also played this</span>' +
-        '<div class="avatar-stack">' + np.alsoPlayed.map(function (a) {
-          return avatarEl(a.initials, '32', 'listening');
-        }).join('') + '</div>' +
-        '<p class="t-body-s c-secondary">' + esc(np.alsoPlayed.map(function (a) { return a.name; }).join(', ')) + ' played this in the last 24h.</p>' +
-        '<button class="btn btn--secondary btn--sm" data-nav="feed">' + icon('broadcast', 15) + 'See the feed</button>' +
-      '</aside>' +
     '</section>';
+  }
+
+  const pct = np.duration ? Math.round((np.elapsed / np.duration) * 100) : 0;
+  return '<section class="panel hero">' +
+    art(np.art, 'art--xl', np.image) +
+    '<div class="hero__body">' +
+      '<span class="t-overline c-accent">' + (np.playing ? 'Now playing' : 'Paused') + '</span>' +
+      '<h2 class="t-display-m hero__title truncate">' + esc(np.title) + '</h2>' +
+      '<p class="t-body-l c-secondary truncate">' + esc(np.artist) + (np.album ? ' · ' + esc(np.album) : '') + '</p>' +
+      '<div class="hero__progress">' +
+        '<span class="t-meta c-tertiary">' + mmss(np.elapsed) + '</span>' +
+        '<div class="slider" style="flex:1">' +
+          '<div class="track"><i style="width:' + pct + '%"></i></div>' +
+          '<span class="slider__knob" style="left:' + pct + '%"></span>' +
+        '</div>' +
+        '<span class="t-meta c-tertiary">' + mmss(np.duration) + '</span>' +
+      '</div>' +
+      '<div class="hero__controls">' +
+        '<button class="btn btn--secondary btn--sm" data-action="share-now-playing">' + icon('broadcast', 15) + 'Share this track</button>' +
+        (np.url && /^https:\/\//.test(np.url) ? '<a class="btn btn--ghost btn--sm" href="' + esc(np.url) + '" target="_blank" rel="noopener">' + icon('arrowUpRight', 15) + 'Open in Spotify</a>' : '') +
+        '<span class="spacer"></span>' +
+        '<span class="badge"><span>' + icon('headphones', 13) + '</span>' + esc(PLATFORM_LABEL[np.platform]) + '</span>' +
+      '</div>' +
+    '</div>' +
+  '</section>';
+}
+
+VIEWS.home = function () {
+  const hero = heroPanel();
 
   const recently =
     '<section class="panel section">' +
@@ -783,14 +800,16 @@ VIEWS.settings = function () {
       '<div class="section__body section__body--flush">' +
         row('user', 'Display name', DATA.me.name, '<button class="btn btn--secondary btn--sm">Edit</button>') +
         row('globe', 'Username', DATA.me.username, '<button class="btn btn--secondary btn--sm">Edit</button>') +
-        row('mail', 'Email', 'pietro@influi.com.br', '<button class="btn btn--secondary btn--sm">Change</button>') +
+        row('mail', 'Email', DATA.me.email || '', '<button class="btn btn--secondary btn--sm">Change</button>') +
       '</div>' +
     '</section>';
 
   const services =
     '<section class="panel section">' + sectionHead('Connected services') +
       '<div class="section__body section__body--flush">' +
-        row('spotify', 'Spotify', 'Connected · syncing every 30s', '<span class="badge badge--positive">' + icon('check', 13) + 'Connected</span>') +
+        (spotify.auth.isConnected()
+          ? row('spotify', 'Spotify', 'Connected · shows what you are playing', '<button class="btn btn--secondary btn--sm" data-action="spotify-disconnect">Disconnect</button>')
+          : row('spotify', 'Spotify', 'Not connected', '<button class="btn btn--primary btn--sm" data-action="spotify-connect">Connect</button>')) +
         row('apple', 'Apple Music', 'Not connected', '<button class="btn btn--secondary btn--sm" data-toast="connect">Connect</button>') +
         row('google', 'Google', 'Used for sign-in only', '<button class="btn btn--secondary btn--sm" data-toast="connect">Connect</button>') +
       '</div>' +
