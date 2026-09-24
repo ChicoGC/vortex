@@ -58,6 +58,8 @@ function transformComment(c, currentUserId) {
   const name = c.author ? c.author.name : 'Unknown';
   return {
     id: c.id,
+    parentId: c.parent_id || null,
+    username: c.author ? c.author.username : '',
     user: name,
     initials: initialsFrom(name),
     text: c.content,
@@ -790,19 +792,54 @@ function findPost(postId) {
   return DATA.feed.filter(function (p) { return p.id === postId; })[0];
 }
 
+function postEl(postId) {
+  return document.querySelector('[data-post="' + CSS.escape(postId) + '"]');
+}
+
+/* Re-renders one card, carrying over what was typed in its comment and reply
+   boxes (keyed by parent id, 'main' for the top-level box) and the focus. */
 function rerenderPost(postId) {
-  const el = document.querySelector('[data-post="' + CSS.escape(postId) + '"]');
+  const el = postEl(postId);
   const post = findPost(postId);
   if (!el || !post) return;
-  const oldInput = el.querySelector('[data-comment-form] input');
-  const draft = oldInput ? oldInput.value : '';
-  const hadFocus = oldInput && document.activeElement === oldInput;
+  const drafts = {};
+  let focused = null;
+  el.querySelectorAll('[data-comment-form]').forEach(function (f) {
+    const input = f.querySelector('input');
+    const key = f.dataset.parentId || 'main';
+    drafts[key] = input.value;
+    if (document.activeElement === input) focused = key;
+  });
   el.outerHTML = postCard(post);
-  const newInput = document.querySelector('[data-post="' + CSS.escape(postId) + '"] [data-comment-form] input');
-  if (newInput) {
-    newInput.value = draft;
-    if (hadFocus) newInput.focus();
-  }
+  postEl(postId).querySelectorAll('[data-comment-form]').forEach(function (f) {
+    const input = f.querySelector('input');
+    const key = f.dataset.parentId || 'main';
+    if (key in drafts) input.value = drafts[key];
+    if (key === focused) input.focus();
+  });
+}
+
+function focusReplyInput(postId) {
+  const input = postEl(postId) && postEl(postId).querySelector('[data-parent-id] input');
+  if (!input) return;
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function openReply(postId, commentId) {
+  const post = findPost(postId);
+  const c = post && post.comments.filter(function (x) { return x.id === commentId; })[0];
+  if (!c) return;
+  const threadId = c.parentId || c.id;
+  UI.replyTo[postId] = {
+    threadId: threadId,
+    name: c.user,
+    // Replies stay one level deep, so answering a reply names who it's for.
+    prefix: c.parentId && c.username ? '@' + c.username + ' ' : ''
+  };
+  UI.openReplies[threadId] = true;
+  rerenderPost(postId);
+  focusReplyInput(postId);
 }
 
 const pendingReactions = {};
@@ -837,31 +874,41 @@ function toggleComments(postId) {
   UI.openComments[postId] = !UI.openComments[postId];
   rerenderPost(postId);
   if (UI.openComments[postId]) {
-    const input = document.querySelector('[data-post="' + CSS.escape(postId) + '"] [data-comment-form] input');
+    const input = postEl(postId).querySelector('[data-comment-form]:not([data-parent-id]) input');
     if (input) input.focus();
   }
 }
 
 async function handleCommentSubmit(form) {
   const postId = form.dataset.commentForm;
+  const parentId = form.dataset.parentId || null;
   const post = findPost(postId);
   const input = form.querySelector('input');
-  const btn = form.querySelector('button');
+  const buttons = form.querySelectorAll('button');
   const content = input.value.trim();
-  if (!post || !content) { input.focus(); return; }
+  const prefix = parentId && UI.replyTo[postId] ? UI.replyTo[postId].prefix.trim() : '';
+  if (!post || !content || content === prefix) { input.focus(); return; }
 
-  input.disabled = true; btn.disabled = true;
+  input.disabled = true;
+  buttons.forEach(function (b) { b.disabled = true; });
   try {
-    const row = await db.comments.add(postId, app.session.user.id, content);
-    row.author = { name: DATA.me.name };
+    const row = await db.comments.add(postId, app.session.user.id, content, parentId);
+    row.author = { name: DATA.me.name, username: DATA.me.username.replace(/^@/, '') };
     post.comments.push(transformComment(row, app.session.user.id));
     input.value = '';
+    if (parentId) {
+      UI.replyTo[postId] = null;
+      UI.openReplies[parentId] = true;
+    }
     rerenderPost(postId);
-    const next = document.querySelector('[data-post="' + CSS.escape(postId) + '"] [data-comment-form] input');
-    if (next) next.focus();
+    if (!parentId) {
+      const next = postEl(postId).querySelector('[data-comment-form]:not([data-parent-id]) input');
+      if (next) next.focus();
+    }
   } catch (err) {
     console.error('Error adding comment:', err);
-    input.disabled = false; btn.disabled = false;
+    input.disabled = false;
+    buttons.forEach(function (b) { b.disabled = false; });
     input.focus();
     toast(err && err.hint === 'rate_limited' ? 'commentRateLimited' : 'commentFailed');
   }
@@ -1229,6 +1276,34 @@ document.addEventListener('click', function (e) {
     return;
   }
 
+  const replyBtn = t.closest('[data-reply-to]');
+  if (replyBtn) {
+    const card = replyBtn.closest('[data-post]');
+    if (card) openReply(card.dataset.post, replyBtn.dataset.replyTo);
+    return;
+  }
+
+  const cancelReply = t.closest('[data-cancel-reply]');
+  if (cancelReply) {
+    const card = cancelReply.closest('[data-post]');
+    if (card) { UI.replyTo[card.dataset.post] = null; rerenderPost(card.dataset.post); }
+    return;
+  }
+
+  const repliesBtn = t.closest('[data-toggle-replies]');
+  if (repliesBtn) {
+    const card = repliesBtn.closest('[data-post]');
+    const threadId = repliesBtn.dataset.toggleReplies;
+    const opening = !UI.openReplies[threadId];
+    UI.openReplies[threadId] = opening;
+    // Hiding a thread also closes a reply box that was open inside it.
+    if (!opening && card && UI.replyTo[card.dataset.post] && UI.replyTo[card.dataset.post].threadId === threadId) {
+      UI.replyTo[card.dataset.post] = null;
+    }
+    if (card) rerenderPost(card.dataset.post);
+    return;
+  }
+
   const commentBtn = t.closest('[data-comment]');
   if (commentBtn) {
     const card = commentBtn.closest('[data-post]');
@@ -1311,6 +1386,11 @@ document.addEventListener('keydown', function (e) {
   }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openCmdk(); return; }
   if (e.key === 'Escape' && !document.getElementById('overlay').hidden) { closeOverlay(); return; }
+  if (e.key === 'Escape' && e.target.closest && e.target.closest('[data-parent-id]')) {
+    const card = e.target.closest('[data-post]');
+    if (card) { UI.replyTo[card.dataset.post] = null; rerenderPost(card.dataset.post); }
+    return;
+  }
   if (e.key === '/' && document.activeElement === document.body) { e.preventDefault(); openCmdk(); }
 });
 

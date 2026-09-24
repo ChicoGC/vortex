@@ -94,21 +94,73 @@ function relationshipWith(profileId) {
 
 const UI = {
   openComments: {},
+  openReplies: {},  // top-level comment id -> replies expanded
+  replyTo: {},      // post id -> { threadId, name, prefix } while a reply box is open
   feedScope: 'Friends',
   friendSearch: { q: '', results: null, loading: false, error: false }
 };
 
+function commentText(text) {
+  // A leading @mention (added when replying to a reply) is highlighted.
+  return esc(text).replace(/^@[\w.-]+/, function (m) { return '<span class="c-accent">' + m + '</span>'; });
+}
+
+/* hasLine: this top-level comment has replies or a reply box shown under it,
+   so its avatar grows a connector line down into them. */
+function commentEl(c, hasLine, extraClass) {
+  return '<div class="' + cx('comment', extraClass) + '">' +
+    '<div class="comment__rail">' + avatarEl(c.initials, '24') + (hasLine ? '<span class="comment__line"></span>' : '') + '</div>' +
+    '<div class="comment__body">' +
+      '<span class="comment__who"><span class="t-label-m truncate">' + esc(c.user) + '</span>' +
+      '<span class="t-meta c-tertiary">' + esc(c.time) + '</span></span>' +
+      '<p class="t-body-s c-secondary">' + commentText(c.text) + '</p>' +
+      '<button type="button" class="comment__reply" data-reply-to="' + esc(c.id) + '">Reply</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function replyForm(postId, threadId) {
+  const r = UI.replyTo[postId];
+  return '<form class="reply-node reply-form" data-comment-form="' + esc(postId) + '" data-parent-id="' + esc(threadId) + '" novalidate>' +
+    avatarEl(DATA.me.initials, '24') +
+    '<span class="field field--sm">' +
+      '<input type="text" name="content" placeholder="Reply to ' + esc(r.name) + '…" maxlength="500" autocomplete="off" ' +
+        'aria-label="Reply to ' + esc(r.name) + '" value="' + esc(r.prefix) + '">' +
+    '</span>' +
+    '<button type="button" class="btn btn--ghost btn--sm" data-cancel-reply>Cancel</button>' +
+    '<button type="submit" class="btn btn--primary btn--sm">Reply</button>' +
+  '</form>';
+}
+
+function repliesToggle(threadId, count, open, inside) {
+  return '<button type="button" class="' + cx('comment__toggle', inside && 'reply-node', open && 'comment__toggle--open') + '" ' +
+    'data-toggle-replies="' + esc(threadId) + '" aria-expanded="' + open + '">' +
+    icon('chevronDown', 14) + (open ? 'Hide replies' : (count === 1 ? '1 reply' : count + ' replies')) +
+  '</button>';
+}
+
+function commentThread(p, c, replies) {
+  const replying = !!(UI.replyTo[p.id] && UI.replyTo[p.id].threadId === c.id);
+  const open = replying || !!UI.openReplies[c.id];
+  const below = replying || (open && replies.length > 0);
+  let html = '<div class="comment-thread">' + commentEl(c, below);
+  if (below) {
+    html += '<div class="comment-replies">' +
+      replies.map(function (r) { return commentEl(r, false, 'reply-node'); }).join('') +
+      (replying ? replyForm(p.id, c.id) : '') +
+      (replies.length ? repliesToggle(c.id, replies.length, true, true) : '') +
+    '</div>';
+  } else if (replies.length) {
+    html += repliesToggle(c.id, replies.length, false, false);
+  }
+  return html + '</div>';
+}
+
 function commentsBlock(p) {
-  const list = p.comments.length
-    ? p.comments.map(function (c) {
-        return '<div class="comment">' +
-          avatarEl(c.initials, '24') +
-          '<div class="comment__body">' +
-            '<span class="comment__who"><span class="t-label-m truncate">' + esc(c.user) + '</span>' +
-            '<span class="t-meta c-tertiary">' + esc(c.time) + '</span></span>' +
-            '<p class="t-body-s c-secondary">' + esc(c.text) + '</p>' +
-          '</div>' +
-        '</div>';
+  const top = p.comments.filter(function (c) { return !c.parentId; });
+  const list = top.length
+    ? top.map(function (c) {
+        return commentThread(p, c, p.comments.filter(function (r) { return r.parentId === c.id; }));
       }).join('')
     : '<p class="t-body-s c-tertiary">No comments yet. Say something.</p>';
   return '<div class="post__comments">' +

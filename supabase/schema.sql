@@ -247,3 +247,36 @@ drop trigger if exists comments_rate_limit on public.comments;
 create trigger comments_rate_limit
   before insert on public.comments
   for each row execute function public.enforce_comment_rate_limit();
+
+-- ==========================================================================
+-- comment replies
+-- One level deep, like YouTube: a reply points at a top-level comment on the
+-- same post. Replying to a reply attaches to that reply's parent instead.
+-- ==========================================================================
+alter table public.comments add column if not exists parent_id uuid references public.comments(id) on delete cascade;
+create index if not exists comments_parent_idx on public.comments (parent_id);
+
+create or replace function public.enforce_comment_parent()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  parent record;
+begin
+  if new.parent_id is null then
+    return new;
+  end if;
+  select post_id, parent_id into parent from public.comments where id = new.parent_id;
+  if not found or parent.post_id <> new.post_id or parent.parent_id is not null then
+    raise exception 'A reply must point to a top-level comment on the same post.'
+      using errcode = 'P0001', hint = 'invalid_parent';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists comments_parent_check on public.comments;
+create trigger comments_parent_check
+  before insert on public.comments
+  for each row execute function public.enforce_comment_parent();

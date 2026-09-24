@@ -197,10 +197,10 @@ const db = {
   },
 
   comments: {
-    async add(postId, userId, content) {
+    async add(postId, userId, content, parentId) {
       const { data, error } = await supabaseClient
         .from('comments')
-        .insert({ post_id: postId, user_id: userId, content })
+        .insert({ post_id: postId, user_id: userId, content, parent_id: parentId || null })
         .select()
         .single();
       if (error) throw error;

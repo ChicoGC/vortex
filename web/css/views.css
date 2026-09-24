@@ -168,6 +168,42 @@
 .comment__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .comment__body p { overflow-wrap: anywhere; }
 .comment__who { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.comment__reply {
+  align-self: flex-start; margin-top: 2px; padding: 2px 0;
+  font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-tertiary);
+}
+.comment__reply:hover { color: var(--text-primary); }
+
+/* ---- reply threads (YouTube-style connectors) ----------------------------
+   Geometry: avatars are 24px wide with a 9px gap, so replies are indented
+   33px and the connector runs down the parent avatar's centre (x = 12px).
+   Each .reply-node draws its own curve from that line into its avatar, at
+   --anchor px from its top; non-last nodes also continue the line downward. */
+.comment-thread { display: flex; flex-direction: column; }
+.comment__rail { display: flex; flex-direction: column; align-self: stretch; flex: none; width: 24px; }
+.comment__line { flex: 1; margin: 4px 0 0 12px; border-left: 1px solid var(--border-strong); }
+.comment-replies { display: flex; flex-direction: column; gap: 10px; padding: 10px 0 0 33px; }
+.reply-node { position: relative; --anchor: 12px; }
+.reply-node::before {
+  content: ""; position: absolute; left: -21px; top: -10px;
+  width: 17px; height: calc(10px + var(--anchor));
+  border-left: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong);
+  border-bottom-left-radius: 10px;
+}
+.reply-node:not(:last-child)::after {
+  content: ""; position: absolute; left: -21px; top: calc(var(--anchor) - 10px); bottom: 0;
+  border-left: 1px solid var(--border-strong);
+}
+.comment__toggle {
+  display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+  margin: 4px 0 0 33px; padding: 2px 0; --anchor: 10px;
+  font-size: 12px; line-height: 16px; font-weight: 600; color: var(--accent-base);
+}
+.comment__toggle.reply-node { margin: 0; }
+.comment__toggle svg { transition: transform var(--dur-fast) var(--ease-out); }
+.comment__toggle--open svg { transform: rotate(180deg); }
+.reply-form { display: flex; align-items: center; gap: 8px; --anchor: 17px; }
+.reply-form .field { flex: 1; min-width: 0; }
 
 /* ---- post form: spotify search ------------------------------------------ */
 .np__art { width: 38px; height: 38px; }
