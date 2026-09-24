@@ -33,27 +33,10 @@ const DATA = {
     platform: 'spotify'
   },
 
-  friends: [
-    { id: 'f1', name: 'Mariana Reis',  initials: 'MR', status: 'listening', track: 'Everything In Its Right Place', artist: 'Radiohead', art: 2, platform: 'spotify', time: 'now' },
-    { id: 'f2', name: 'Rafa Mendes',   initials: 'RM', status: 'listening', track: 'Kids',                          artist: 'MGMT',      art: 5, platform: 'spotify', time: 'now' },
-    { id: 'f3', name: 'Lu Carvalho',   initials: 'LC', status: 'listening', track: 'Dreams',                        artist: 'Fleetwood Mac', art: 4, platform: 'apple', time: 'now' },
-    { id: 'f4', name: 'Theo Antunes',  initials: 'TA', status: 'online',    track: 'Weird Fishes',                   artist: 'Radiohead', art: 3, platform: 'spotify', time: '8m' },
-    { id: 'f5', name: 'Bia Nogueira', initials: 'BN', status: 'online',    track: 'Midnight City',                  artist: 'M83',       art: 6, platform: 'spotify', time: '22m' },
-    { id: 'f6', name: 'Caio Duarte',   initials: 'CD', status: 'offline',   track: 'Motion Sickness',                artist: 'Phoebe Bridgers', art: 1, platform: 'apple', time: '3h' },
-    { id: 'f7', name: 'Nina Prado',    initials: 'NP', status: 'offline',   track: 'Alright',                        artist: 'Kendrick Lamar',  art: 4, platform: 'spotify', time: '5h' },
-    { id: 'f8', name: 'Vitor Salles',  initials: 'VS', status: 'offline',   track: 'Teardrop',                       artist: 'Massive Attack',  art: 3, platform: 'spotify', time: 'yesterday' }
-  ],
-
-  requests: [
-    { id: 'r1', name: 'Helena Braga', initials: 'HB', mutual: 6 },
-    { id: 'r2', name: 'Gui Ferraz',   initials: 'GF', mutual: 2 }
-  ],
-
-  suggestions: [
-    { id: 's1', name: 'Dani Rocha',   initials: 'DR', reason: '9 artists in common', compat: 82 },
-    { id: 's2', name: 'Pedro Lima',   initials: 'PL', reason: 'Follows 4 of your friends', compat: 71 },
-    { id: 's3', name: 'Alice Moura',  initials: 'AM', reason: 'Both deep in shoegaze', compat: 64 }
-  ],
+  /* Filled from Supabase: { friendshipId, id, name, username, initials } */
+  friends: [],
+  incoming: [],
+  outgoing: [],
 
   feed: [],
 

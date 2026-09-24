@@ -205,6 +205,7 @@
   top: -20%; right: -16%;
 }
 .art--alt::after { top: auto; right: auto; bottom: -20%; left: -16%; }
+.art--cover::after { display: none; }
 .art[data-art="1"] { background: linear-gradient(135deg, #FF7A54, #4A1020); }
 .art[data-art="2"] { background: linear-gradient(90deg,  #CFF262, #0E3B34); }
 .art[data-art="3"] { background: linear-gradient(135deg, #94A3B4, #1A1C2E); }

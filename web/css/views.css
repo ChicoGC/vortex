@@ -169,6 +169,22 @@
 .comment__body p { overflow-wrap: anywhere; }
 .comment__who { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 
+/* ---- post form: spotify search ------------------------------------------ */
+.np__art { width: 38px; height: 38px; }
+.post-search { display: flex; flex-direction: column; }
+.post-search:empty { display: none; }
+.post-search__row { padding: 6px 8px; }
+.post-picked {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px; border-radius: var(--radius-md);
+  background: var(--bg-inset); border: 1px solid var(--border-subtle);
+}
+.post-picked .t-body-s { flex: 1; min-width: 0; }
+
+/* ---- friends screen ----------------------------------------------------- */
+.friends__hint { padding: 6px 10px; }
+#friendResults { display: flex; flex-direction: column; }
+
 /* ---- friend row --------------------------------------------------------- */
 .friend {
   display: flex; align-items: center; gap: 10px; width: 100%;

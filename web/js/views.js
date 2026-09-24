@@ -21,7 +21,7 @@ function artImageStyle(image) {
 }
 function art(n, cls, image) {
   const style = artImageStyle(image);
-  return '<div class="' + cx('art', cls) + '" data-art="' + n + '"' + (style ? ' style="' + style + '"' : '') + ' aria-hidden="true"></div>';
+  return '<div class="' + cx('art', cls, style && 'art--cover') + '" data-art="' + n + '"' + (style ? ' style="' + style + '"' : '') + ' aria-hidden="true"></div>';
 }
 function avatarEl(initials, size, status) {
   const cls = cx('avatar', size ? 'avatar--' + size : null);
@@ -72,21 +72,31 @@ function musicRow(t, i, opts) {
   '</button>';
 }
 
-function friendRow(f) {
-  const sub = f.status === 'listening'
-    ? '<span class="friend__sub">' + icon('broadcast', 12) +
-      '<span class="t-body-s c-tertiary truncate">' + esc(f.track) + ' · ' + esc(f.artist) + '</span></span>'
-    : '<span class="t-body-s c-tertiary truncate">' + (f.status === 'online' ? 'Online · ' : '') + 'Last played ' + esc(f.time) + '</span>';
-  return '<button class="friend" data-friend="' + esc(f.id) + '">' +
-    avatarEl(f.initials, '32', f.status === 'offline' ? null : f.status) +
+function personRow(p, controls) {
+  return '<div class="friend" style="cursor:default">' +
+    avatarEl(p.initials, '32') +
     '<span class="friend__meta">' +
-      '<span class="t-body-m-med truncate">' + esc(f.name) + '</span>' + sub +
-    '</span>' +
-    (f.status === 'listening' ? art(f.art, 'art--sm art--alt') : '<span class="t-meta c-tertiary">' + esc(f.time) + '</span>') +
-  '</button>';
+      '<span class="t-body-m-med truncate">' + esc(p.name) + '</span>' +
+      '<span class="t-body-s c-tertiary truncate">@' + esc(p.username) + '</span>' +
+    '</span>' + (controls || '') +
+  '</div>';
 }
 
-const UI = { openComments: {} };
+/* { state: 'friends' | 'incoming' | 'outgoing' | null, friendshipId } */
+function relationshipWith(profileId) {
+  const lists = [['friends', DATA.friends], ['incoming', DATA.incoming], ['outgoing', DATA.outgoing]];
+  for (let i = 0; i < lists.length; i++) {
+    const hit = lists[i][1].filter(function (f) { return f.id === profileId; })[0];
+    if (hit) return { state: lists[i][0], friendshipId: hit.friendshipId };
+  }
+  return { state: null, friendshipId: null };
+}
+
+const UI = {
+  openComments: {},
+  feedScope: 'Friends',
+  friendSearch: { q: '', results: null, loading: false, error: false }
+};
 
 function commentsBlock(p) {
   const list = p.comments.length
@@ -117,7 +127,7 @@ function postCard(p) {
   const open = !!UI.openComments[p.id];
   return '<article class="panel post" data-post="' + esc(p.id) + '">' +
     '<div class="post__head">' +
-      avatarEl(p.initials, '32', 'listening') +
+      avatarEl(p.initials, '32') +
       '<span class="post__who">' +
         '<span class="t-body-m-med truncate">' + esc(p.user) + '</span>' +
         '<span class="t-meta c-tertiary">' + esc(p.time) + '</span>' +
@@ -130,12 +140,15 @@ function postCard(p) {
     '</div>' +
     (p.note ? '<p class="post__note t-body-s c-secondary">' + esc(p.note) + '</p>' : '') +
     '<div class="post__track">' +
-      art(p.art, 'art--lg') +
+      art(p.art, 'art--lg', p.image) +
       '<span class="post__meta">' +
         '<span class="t-title-s truncate">' + esc(p.track) + '</span>' +
         '<span class="t-body-s c-secondary truncate">' + esc(p.artist) + (p.album ? ' · ' + esc(p.album) : '') + '</span>' +
       '</span>' +
-      '<button class="post__play" aria-label="Play ' + esc(p.track) + '" data-play-track="' + esc(p.track) + '">' + icon('play', 15) + '</button>' +
+      (p.trackId && /^[A-Za-z0-9]{22}$/.test(p.trackId)
+        ? '<a class="post__play" href="https://open.spotify.com/track/' + p.trackId + '" target="_blank" rel="noopener" ' +
+            'data-tip="Play on Spotify" aria-label="Play ' + esc(p.track) + ' on Spotify">' + icon('play', 15) + '</a>'
+        : '') +
     '</div>' +
     '<hr class="hr">' +
     '<div class="post__foot">' +
@@ -147,7 +160,6 @@ function postCard(p) {
         icon('comment', 14) + '<b>' + p.comments.length + '</b></button>' +
       '<span class="spacer"></span>' +
       '<span class="t-meta c-tertiary">' + total + (total === 1 ? ' reaction' : ' reactions') + '</span>' +
-      '<button class="iconbtn" data-tip="Open track" aria-label="Open track">' + icon('arrowUpRight', 16) + '</button>' +
     '</div>' +
     (open ? commentsBlock(p) : '') +
   '</article>';
@@ -189,6 +201,16 @@ function weekBars() {
       '<span class="bars__slot"><i style="height:' + h + '%"></i></span>' +
       '<span>' + d.day + '</span></div>';
   }).join('') + '</div>';
+}
+
+function countLabel(n, noun) {
+  return n + ' ' + noun + (n === 1 ? '' : 's');
+}
+
+function emptyState(iconName, title, text, action) {
+  return '<div class="empty"><span class="empty__well">' + icon(iconName, 20) + '</span>' +
+    '<span class="t-body-m-med">' + esc(title) + '</span>' +
+    '<p class="t-body-s c-tertiary">' + esc(text) + '</p>' + (action || '') + '</div>';
 }
 
 function pageHead(eyebrow, title, actions) {
@@ -268,13 +290,15 @@ VIEWS.home = function () {
       '</div>' +
     '</section>';
 
-  const listening = DATA.friends.filter(function (f) { return f.status === 'listening'; });
   const friendsPanel =
     '<section class="panel section">' +
-      sectionHead('Friends', listening.length + ' listening now',
+      sectionHead('Friends', countLabel(DATA.friends.length, 'friend'),
         '<button class="btn btn--ghost btn--sm" data-nav="friends">See all</button>') +
       '<div class="section__body">' +
-        DATA.friends.slice(0, 5).map(friendRow).join('') +
+        (DATA.friends.length
+          ? DATA.friends.slice(0, 5).map(function (f) { return personRow(f); }).join('')
+          : emptyState('users', 'No friends yet', 'Find people by name or @username.',
+              '<button class="btn btn--secondary btn--sm" data-nav="friends">' + icon('plus', 15) + 'Find friends</button>')) +
       '</div>' +
     '</section>';
 
@@ -313,6 +337,21 @@ VIEWS.home = function () {
   );
 };
 
+function feedEmpty() {
+  const share = '<button class="btn btn--secondary btn--sm" data-action="new-post">' + icon('plus', 15) + 'Share a track</button>';
+  if (UI.feedScope === 'Friends' && !DATA.friends.length) {
+    return '<section class="panel">' + emptyState('users', 'Your feed is you and your friends',
+      'Add friends to see what they share, or switch to Everyone to see all posts.',
+      '<div class="rowflex" style="gap:8px;justify-content:center">' +
+        '<button class="btn btn--primary btn--sm" data-nav="friends">' + icon('plus', 15) + 'Find friends</button>' + share +
+      '</div>') + '</section>';
+  }
+  return '<section class="panel">' + emptyState('broadcast', 'No posts yet',
+    UI.feedScope === 'Friends'
+      ? 'When you or your friends share a track, it shows up here.'
+      : 'Nobody has shared a track yet. Be the first.', share) + '</section>';
+}
+
 VIEWS.feed = function () {
   const trending =
     '<section class="panel section">' +
@@ -349,78 +388,90 @@ VIEWS.feed = function () {
 
   return wrap(
     pageHead('Live from your circle', 'Feed',
-      tabsEl('feed', ['All', 'Friends', 'Groups'], 'All') +
-      iconBtn('filter', 'Filter', 'iconbtn--lg') +
+      tabsEl('feed', ['Friends', 'Everyone'], UI.feedScope) +
       '<button class="btn btn--primary btn--sm" data-action="new-post">' + icon('plus', 15) + 'Share a track</button>'),
     '<div class="cols cols--feed">' +
-      '<div class="stack">' + (DATA.feed.length ? DATA.feed.map(postCard).join('') :
-        '<section class="panel"><div class="empty"><span class="empty__well">' + icon('broadcast', 20) + '</span>' +
-        '<span class="t-body-m-med">No posts yet</span>' +
-        '<p class="t-body-s c-tertiary">When you or your friends share a track, it shows up here.</p>' +
-        '<button class="btn btn--secondary btn--sm" data-action="new-post">' + icon('plus', 15) + 'Share your first track</button>' +
-        '</div></section>') + '</div>' +
+      '<div class="stack">' + (DATA.feed.length ? DATA.feed.map(postCard).join('') : feedEmpty()) + '</div>' +
       '<div class="stack">' + trending + leaders + '</div>' +
     '</div>'
   );
 };
 
+/* The friends screen is split into independently re-renderable blocks so an
+   action (accept, add…) can refresh the lists without wiping the search box. */
+function friendSearchControls(p) {
+  const rel = relationshipWith(p.id);
+  const fid = esc(rel.friendshipId || '');
+  if (rel.state === 'friends') return '<span class="badge badge--positive"><span>' + icon('check', 13) + '</span>Friends</span>';
+  if (rel.state === 'incoming') return '<button class="btn btn--primary btn--sm" data-friend-accept="' + fid + '">Accept</button>';
+  if (rel.state === 'outgoing') return '<button class="btn btn--secondary btn--sm" data-friend-cancel="' + fid + '" data-tip="Cancel request">Requested</button>';
+  return '<button class="btn btn--primary btn--sm" data-friend-add="' + esc(p.id) + '">' + icon('plus', 14) + 'Add</button>';
+}
+
+function friendSearchResults() {
+  const s = UI.friendSearch;
+  if (s.q.replace(/^@/, '').trim().length < 2) return '<p class="t-body-s c-tertiary friends__hint">Type at least 2 letters of a name or @username.</p>';
+  if (s.loading && !s.results) return '<p class="t-body-s c-tertiary friends__hint">Searching…</p>';
+  if (s.error) return '<p class="t-body-s c-tertiary friends__hint">Search failed. Check your connection and try again.</p>';
+  if (!s.results || !s.results.length) return '<p class="t-body-s c-tertiary friends__hint">Nobody found for “' + esc(s.q.trim()) + '”.</p>';
+  return s.results.map(function (p) { return personRow(p, friendSearchControls(p)); }).join('');
+}
+
+function friendsListPanel() {
+  return '<section class="panel section" id="friendsListPanel">' +
+    sectionHead('Your friends', countLabel(DATA.friends.length, 'friend')) +
+    '<div class="section__body">' + (DATA.friends.length
+      ? DATA.friends.map(function (f) {
+          return personRow(f, '<button class="iconbtn" data-friend-remove="' + esc(f.friendshipId) + '" data-tip="Remove friend" aria-label="Remove ' + esc(f.name) + '">' + icon('close', 16) + '</button>');
+        }).join('')
+      : emptyState('users', 'No friends yet', 'Search above to add someone. Once they accept, their posts show up in your feed.')) +
+    '</div>' +
+  '</section>';
+}
+
+function friendRequestsPanel() {
+  return '<section class="panel section" id="friendRequestsPanel">' +
+    sectionHead('Requests', String(DATA.incoming.length)) +
+    '<div class="section__body">' + (DATA.incoming.length
+      ? DATA.incoming.map(function (r) {
+          return personRow(r,
+            '<button class="iconbtn" data-friend-accept="' + esc(r.friendshipId) + '" data-tip="Accept" aria-label="Accept ' + esc(r.name) + '">' + icon('check', 16) + '</button>' +
+            '<button class="iconbtn" data-friend-decline="' + esc(r.friendshipId) + '" data-tip="Decline" aria-label="Decline ' + esc(r.name) + '">' + icon('close', 16) + '</button>');
+        }).join('')
+      : '<p class="t-body-s c-tertiary friends__hint">No pending requests.</p>') +
+    '</div>' +
+  '</section>';
+}
+
+function friendSentPanel() {
+  return '<section class="panel section" id="friendSentPanel">' +
+    sectionHead('Sent', String(DATA.outgoing.length)) +
+    '<div class="section__body">' + (DATA.outgoing.length
+      ? DATA.outgoing.map(function (r) {
+          return personRow(r, '<button class="btn btn--ghost btn--sm" data-friend-cancel="' + esc(r.friendshipId) + '">Cancel</button>');
+        }).join('')
+      : '<p class="t-body-s c-tertiary friends__hint">Requests you send wait here until accepted.</p>') +
+    '</div>' +
+  '</section>';
+}
+
 VIEWS.friends = function () {
-  const live = DATA.friends.filter(function (f) { return f.status === 'listening'; });
-  const rest = DATA.friends.filter(function (f) { return f.status !== 'listening'; });
-
-  const livePanel =
+  const searchPanel =
     '<section class="panel section">' +
-      sectionHead('Listening now', live.length + ' friends') +
-      '<div class="section__body">' + live.map(friendRow).join('') + '</div>' +
-    '</section>';
-
-  const allPanel =
-    '<section class="panel section">' +
-      sectionHead('All friends', DATA.friends.length + ' total',
-        tabsEl('friends', ['Recent', 'A–Z'], 'Recent')) +
-      '<div class="section__body">' + rest.map(friendRow).join('') + '</div>' +
-    '</section>';
-
-  const reqPanel =
-    '<section class="panel section">' +
-      sectionHead('Requests', String(DATA.requests.length)) +
-      '<div class="section__body">' + DATA.requests.map(function (r) {
-        return '<div class="friend" style="cursor:default">' +
-          avatarEl(r.initials, '32') +
-          '<span class="friend__meta">' +
-            '<span class="t-body-m-med truncate">' + esc(r.name) + '</span>' +
-            '<span class="t-body-s c-tertiary">' + r.mutual + ' mutual friends</span>' +
-          '</span>' +
-          '<button class="iconbtn" data-toast="accept" data-tip="Accept">' + icon('check', 16) + '</button>' +
-          '<button class="iconbtn" data-tip="Decline">' + icon('close', 16) + '</button>' +
-        '</div>';
-      }).join('') + '</div>' +
-    '</section>';
-
-  const sugPanel =
-    '<section class="panel section">' +
-      sectionHead('People you may know') +
-      '<div class="section__body">' + DATA.suggestions.map(function (s) {
-        return '<div class="friend" style="cursor:default">' +
-          avatarEl(s.initials, '32') +
-          '<span class="friend__meta">' +
-            '<span class="t-body-m-med truncate">' + esc(s.name) + '</span>' +
-            '<span class="t-body-s c-tertiary truncate">' + esc(s.reason) + '</span>' +
-          '</span>' +
-          '<span class="badge badge--accent"><span class="badge__num">' + s.compat + '%</span></span>' +
-          '<button class="iconbtn" data-toast="request" data-tip="Add friend">' + icon('plus', 16) + '</button>' +
-        '</div>';
-      }).join('') + '</div>' +
+      sectionHead('Add friends') +
+      '<div class="section__body section__body--pad stack stack--sm">' +
+        '<label class="field">' + icon('search', 16) +
+          '<input type="search" id="friendSearch" placeholder="Search by name or @username" aria-label="Search people" autocomplete="off" maxlength="40" value="' + esc(UI.friendSearch.q) + '">' +
+        '</label>' +
+        '<div id="friendResults">' + friendSearchResults() + '</div>' +
+      '</div>' +
     '</section>';
 
   return wrap(
-    pageHead('Your circle', 'Friends',
-      '<label class="field field--sm" style="width:240px">' + icon('search', 16) +
-        '<input type="search" placeholder="Search friends" aria-label="Search friends"></label>' +
-      '<button class="btn btn--primary btn--sm" data-toast="invite">' + icon('plus', 15) + 'Invite</button>'),
+    pageHead('Your circle', 'Friends'),
     '<div class="cols cols--feed">' +
-      '<div class="stack">' + livePanel + allPanel + '</div>' +
-      '<div class="stack">' + reqPanel + sugPanel + '</div>' +
+      '<div class="stack">' + searchPanel + friendsListPanel() + '</div>' +
+      '<div class="stack">' + friendRequestsPanel() + friendSentPanel() + '</div>' +
     '</div>'
   );
 };

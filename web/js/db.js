@@ -50,6 +50,24 @@ const db = {
       return data;
     },
 
+    /* Characters outside this set are stripped: , . : ( ) are reserved in the
+       PostgREST or() filter, and % is an ilike wildcard. _ stays because it's
+       common in usernames and, as a single-char wildcard, still matches itself. */
+    async search(query, excludeId) {
+      const q = String(query || '').replace(/[^\p{L}\p{N}\s_\-]/gu, '').trim().slice(0, 40);
+      if (q.length < 2) return [];
+      let req = supabaseClient
+        .from('profiles')
+        .select('id, username, name, avatar_url')
+        .or('username.ilike.%' + q + '%,name.ilike.%' + q + '%')
+        .order('username')
+        .limit(10);
+      if (excludeId) req = req.neq('id', excludeId);
+      const { data, error } = await req;
+      if (error) throw error;
+      return data;
+    },
+
     async update(userId, fields) {
       const { data, error } = await supabaseClient
         .from('profiles')
@@ -63,6 +81,17 @@ const db = {
   },
 
   friends: {
+    /* Every relationship the user is part of, pending or accepted, in either direction. */
+    async all(userId) {
+      const { data, error } = await supabaseClient
+        .from('friendships')
+        .select('*, requester:requester_id(id, username, name, avatar_url), addressee:addressee_id(id, username, name, avatar_url)')
+        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+
     async list(userId) {
       const { data, error } = await supabaseClient
         .from('friendships')
@@ -90,38 +119,49 @@ const db = {
       if (error) throw error;
     },
 
+    // RLS turns unauthorized writes into silent no-ops, so check a row changed.
     async accept(friendshipId) {
-      const { error } = await supabaseClient
+      const { data, error } = await supabaseClient
         .from('friendships')
         .update({ status: 'accepted' })
-        .eq('id', friendshipId);
+        .eq('id', friendshipId)
+        .select('id');
       if (error) throw error;
+      if (!data || !data.length) throw new Error('Request not found, or it was not sent to you.');
     },
 
     async remove(friendshipId) {
-      const { error } = await supabaseClient
+      const { data, error } = await supabaseClient
         .from('friendships')
         .delete()
-        .eq('id', friendshipId);
+        .eq('id', friendshipId)
+        .select('id');
       if (error) throw error;
+      if (!data || !data.length) throw new Error('Friendship not found.');
     }
   },
 
   posts: {
-    async list(limit) {
-      const { data, error } = await supabaseClient
+    /* userIds limits the feed to those authors (e.g. you + friends); omit for everyone. */
+    async list(limit, userIds) {
+      let req = supabaseClient
         .from('posts')
         .select('*, author:user_id(id, username, name, avatar_url), reactions(*), comments(*, author:user_id(id, username, name))')
         .order('created_at', { ascending: false })
         .limit(limit || 30);
+      if (userIds) req = req.in('user_id', userIds);
+      const { data, error } = await req;
       if (error) throw error;
       return data;
     },
 
-    async create(userId, { trackTitle, artist, album, artSeed, note }) {
+    async create(userId, { trackTitle, artist, album, artSeed, note, albumImageUrl, spotifyTrackId }) {
       const { data, error } = await supabaseClient
         .from('posts')
-        .insert({ user_id: userId, track_title: trackTitle, artist, album, art_seed: artSeed || 1, note })
+        .insert({
+          user_id: userId, track_title: trackTitle, artist, album, art_seed: artSeed || 1, note,
+          album_image_url: albumImageUrl || null, spotify_track_id: spotifyTrackId || null
+        })
         .select()
         .single();
       if (error) throw error;

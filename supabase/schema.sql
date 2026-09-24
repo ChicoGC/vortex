@@ -76,15 +76,26 @@ create policy "users see their own friendships"
   on public.friendships for select
   using (auth.uid() = requester_id or auth.uid() = addressee_id);
 
+-- New requests must start as pending, or a requester could skip consent.
 drop policy if exists "users can send friend requests" on public.friendships;
 create policy "users can send friend requests"
   on public.friendships for insert
-  with check (auth.uid() = requester_id);
+  with check (auth.uid() = requester_id and status = 'pending');
 
+-- Only the person who received the request can accept it, and only the
+-- status column is writable (see the column grant below).
 drop policy if exists "users can respond to their requests" on public.friendships;
 create policy "users can respond to their requests"
   on public.friendships for update
-  using (auth.uid() = addressee_id or auth.uid() = requester_id);
+  using (auth.uid() = addressee_id)
+  with check (auth.uid() = addressee_id);
+
+revoke update on public.friendships from anon, authenticated;
+grant update (status) on public.friendships to authenticated;
+
+-- One relationship per pair, whichever direction it was requested in.
+create unique index if not exists friendships_pair_idx
+  on public.friendships (least(requester_id, addressee_id), greatest(requester_id, addressee_id));
 
 drop policy if exists "users can remove their friendships" on public.friendships;
 create policy "users can remove their friendships"
@@ -105,6 +116,19 @@ create table if not exists public.posts (
   note text,
   created_at timestamptz not null default now()
 );
+
+-- Cover art and track id come from the Spotify search. Restricted to Spotify's
+-- image CDN so a post can't embed an arbitrary (e.g. tracking) image URL.
+alter table public.posts add column if not exists album_image_url text;
+alter table public.posts add column if not exists spotify_track_id text;
+
+alter table public.posts drop constraint if exists posts_album_image_url_check;
+alter table public.posts add constraint posts_album_image_url_check
+  check (album_image_url is null or album_image_url ~ '^https://i\.scdn\.co/image/[A-Za-z0-9]+$');
+
+alter table public.posts drop constraint if exists posts_spotify_track_id_check;
+alter table public.posts add constraint posts_spotify_track_id_check
+  check (spotify_track_id is null or spotify_track_id ~ '^[A-Za-z0-9]{22}$');
 
 alter table public.posts enable row level security;
 

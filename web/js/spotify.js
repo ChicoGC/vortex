@@ -172,17 +172,57 @@ const spotify = {
   async nowPlaying() {
     const data = await spotify.request('/me/player/currently-playing');
     if (!data || !data.item || data.item.type !== 'track') return null;
-    const images = data.item.album.images || [];
-    return {
-      id: data.item.id,
-      title: data.item.name,
-      artist: data.item.artists.map(function (a) { return a.name; }).join(', '),
-      album: data.item.album.name,
-      image: images.length ? images[0].url : null,
-      durationMs: data.item.duration_ms,
-      progressMs: data.progress_ms || 0,
-      playing: !!data.is_playing,
-      url: data.item.external_urls ? data.item.external_urls.spotify : null
-    };
+    const track = spotifyTrack(data.item);
+    track.progressMs = data.progress_ms || 0;
+    track.playing = !!data.is_playing;
+    return track;
+  },
+
+  async searchTracks(query, limit) {
+    const q = String(query || '').trim().slice(0, 100);
+    if (q.length < 2) return [];
+    const data = await spotify.request('/search?type=track&limit=' + (limit || 6) + '&q=' + encodeURIComponent(q));
+    return (data && data.tracks ? data.tracks.items : []).filter(Boolean).map(spotifyTrack);
+  },
+
+  /* Best-effort cover lookup for posts saved without one. Results (including
+     misses) are cached per browser so each track is searched only once. */
+  async findCover(title, artist) {
+    const key = (title + '|' + artist).toLowerCase();
+    const cache = readCoverCache();
+    if (key in cache) return cache[key];
+    const clean = function (s) { return String(s || '').replace(/["']/g, '').trim(); };
+    const results = await spotify.searchTracks('track:' + clean(title) + ' artist:' + clean(artist), 1);
+    const hit = results[0] ? { image: results[0].thumb, id: results[0].id } : null;
+    writeCoverCache(key, hit);
+    return hit;
   }
 };
+
+function spotifyTrack(item) {
+  const images = (item.album && item.album.images) || [];
+  return {
+    id: item.id,
+    title: item.name,
+    artist: (item.artists || []).map(function (a) { return a.name; }).join(', '),
+    album: item.album ? item.album.name : '',
+    image: images.length ? images[0].url : null,
+    // ~300px variant: plenty for feed thumbnails at a fraction of the bytes.
+    thumb: images.length ? (images[1] || images[0]).url : null,
+    durationMs: item.duration_ms,
+    url: item.external_urls ? item.external_urls.spotify : null
+  };
+}
+
+function readCoverCache() {
+  try { return JSON.parse(localStorage.getItem('vortex.spotify.covers') || '{}') || {}; }
+  catch (e) { return {}; }
+}
+
+function writeCoverCache(key, value) {
+  const cache = readCoverCache();
+  cache[key] = value;
+  const keys = Object.keys(cache);
+  if (keys.length > 300) keys.slice(0, keys.length - 300).forEach(function (k) { delete cache[k]; });
+  try { localStorage.setItem('vortex.spotify.covers', JSON.stringify(cache)); } catch (e) { /* quota / private mode */ }
+}

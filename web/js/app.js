@@ -87,6 +87,8 @@ function transformPostData(post, currentUserId) {
     artist: post.artist,
     album: post.album,
     art: post.art_seed || 1,
+    image: post.album_image_url,
+    trackId: post.spotify_track_id,
     note: post.note,
     reactions: { flame: count('flame'), heart: count('heart') },
     reacted: { flame: mineOf('flame'), heart: mineOf('heart') },
@@ -98,14 +100,13 @@ async function loadCurrentUser() {
   if (!app.session) return;
   try {
     const profile = await db.profiles.get(app.session.user.id);
-    const friendships = await db.friends.list(app.session.user.id);
+    await loadFriends();
 
     DATA.me.name = profile.name;
     DATA.me.email = app.session.user.email;
     DATA.me.username = '@' + profile.username;
     DATA.me.initials = initialsFrom(profile.name);
     DATA.me.bio = profile.bio || 'No bio yet.';
-    DATA.me.friends = friendships.length;
 
     const joinedDate = new Date(profile.created_at);
     const month = joinedDate.toLocaleString('en-US', { month: 'long' });
@@ -118,14 +119,92 @@ async function loadCurrentUser() {
   } catch (e) { console.error('Error loading user:', e); }
 }
 
+function toPerson(profile, friendshipId) {
+  return {
+    friendshipId: friendshipId,
+    id: profile.id,
+    name: profile.name,
+    username: profile.username,
+    initials: initialsFrom(profile.name)
+  };
+}
+
+async function loadFriends() {
+  if (!app.session) return;
+  const me = app.session.user.id;
+  const rows = await db.friends.all(me);
+  const friends = [], incoming = [], outgoing = [];
+  rows.forEach(function (r) {
+    const other = r.requester_id === me ? r.addressee : r.requester;
+    if (!other) return;
+    const person = toPerson(other, r.id);
+    if (r.status === 'accepted') friends.push(person);
+    else if (r.addressee_id === me) incoming.push(person);
+    else outgoing.push(person);
+  });
+  friends.sort(function (a, b) { return a.name.localeCompare(b.name); });
+  DATA.friends = friends;
+  DATA.incoming = incoming;
+  DATA.outgoing = outgoing;
+  DATA.me.friends = friends.length;
+  updateFriendsBadge();
+}
+
+function updateFriendsBadge() {
+  const link = document.querySelector('#sidebar [data-view-link="friends"]');
+  if (!link) return;
+  let dot = link.querySelector('.nav__dot');
+  if (DATA.incoming.length && !dot) {
+    dot = document.createElement('span');
+    dot.className = 'nav__dot';
+    link.appendChild(dot);
+  } else if (!DATA.incoming.length && dot) {
+    dot.remove();
+  }
+  if (dot) dot.setAttribute('aria-label', countLabel(DATA.incoming.length, 'friend request'));
+}
+
 async function loadFeed() {
   if (!app.session) return;
   try {
-    const posts = await db.posts.list(30);
+    const me = app.session.user.id;
+    const authors = UI.feedScope === 'Friends' ? [me].concat(DATA.friends.map(function (f) { return f.id; })) : null;
+    const posts = await db.posts.list(30, authors);
     DATA.feed = posts.map(function (post) {
-      return transformPostData(post, app.session.user.id);
+      return transformPostData(post, me);
     });
+    backfillCovers();
   } catch (e) { console.error('Error loading feed:', e); }
+}
+
+function feedSignature() {
+  return DATA.feed.map(function (p) {
+    return [p.id, p.reactions.flame, p.reactions.heart, p.comments.length, p.image || ''].join(':');
+  }).join('|');
+}
+
+/* Posts saved before covers existed get one looked up on Spotify, if this
+   viewer has Spotify connected. Only in memory — posts have no update policy. */
+let coverBackfillRun = 0;
+async function backfillCovers() {
+  if (!spotify.auth.isConnected()) return;
+  const run = ++coverBackfillRun;
+  const missing = DATA.feed.filter(function (p) { return !p.image; });
+  for (let i = 0; i < missing.length; i++) {
+    if (run !== coverBackfillRun) return;
+    const p = missing[i];
+    try {
+      const hit = await spotify.findCover(p.track, p.artist);
+      if (hit && run === coverBackfillRun) {
+        p.image = hit.image;
+        if (!p.trackId) p.trackId = hit.id;
+        rerenderPost(p.id);
+      }
+    } catch (err) {
+      console.warn('Cover lookup failed:', err);
+      return;
+    }
+  }
 }
 
 function showAuthMessage(msg, isError) {
@@ -263,7 +342,7 @@ function renderNowPlayingMini() {
   }
   return '<div class="np">' +
     '<div class="np__top">' +
-      '<div class="art" data-art="' + np.art + '" style="width:38px;height:38px;' + artImageStyle(np.image) + '" aria-hidden="true"></div>' +
+      art(np.art, 'np__art', np.thumb || np.image) +
       '<div class="np__meta">' +
         '<span class="t-label-m truncate">' + esc(np.title) + '</span>' +
         '<span class="t-caption c-tertiary truncate">' + esc(np.artist) + '</span>' +
@@ -287,6 +366,8 @@ function renderSidebar() {
       icon(n.icon, 19) +
       '<span>' + n.label + '</span>' +
       (n.dot ? '<span class="nav__dot" aria-label="In development"></span>' : '') +
+      (n.id === 'friends' && DATA.incoming.length
+        ? '<span class="nav__dot" aria-label="' + countLabel(DATA.incoming.length, 'friend request') + '"></span>' : '') +
     '</a>';
   }).join('');
 
@@ -436,13 +517,14 @@ function setNowPlaying(track, status) {
     np.artist = track.artist;
     np.album = track.album;
     np.image = track.image;
+    np.thumb = track.thumb;
     np.url = track.url;
     np.art = artSeedFor(track.id);
     np.duration = Math.round(track.durationMs / 1000);
     np.elapsed = Math.min(Math.floor(track.progressMs / 1000), np.duration);
     np.playing = track.playing;
   } else {
-    np.id = null; np.image = null; np.url = null;
+    np.id = null; np.image = null; np.thumb = null; np.url = null;
     np.elapsed = 0; np.duration = 0; np.playing = false;
   }
   // Only rebuild markup when something visible changed; progress ticks are cheap updates.
@@ -510,6 +592,7 @@ function fillPostFromNowPlaying() {
   document.getElementById('postTitle').value = np.title;
   document.getElementById('postArtist').value = np.artist;
   document.getElementById('postAlbum').value = np.album || '';
+  setPostTrack({ id: np.id, image: np.thumb || np.image, title: np.title, artist: np.artist });
   document.getElementById('postNote').focus();
 }
 
@@ -538,6 +621,12 @@ const TOASTS = {
   reactionFailed: ['error', 'Reaction not saved', 'Check your connection and try again'],
   commentFailed: ['error', 'Comment not sent', 'Your text is still in the box, try again'],
   commentRateLimited: ['error', 'Slow down', 'Max 3 comments per post per minute. Your text is still in the box'],
+  friendRequested: ['success', 'Request sent', 'They show up in your friends once they accept'],
+  friendAccepted: ['success', 'You are now friends', 'Their posts now show in your feed'],
+  friendDeclined: ['info', 'Request declined', 'They will not be notified'],
+  friendCancelled: ['info', 'Request cancelled', 'You can send it again any time'],
+  friendRemoved: ['success', 'Friend removed', 'Their posts no longer show in your Friends feed'],
+  friendFailed: ['error', 'Something went wrong', 'The list was refreshed. Try again'],
   spotifyConnected: ['success', 'Spotify connected', 'What you play now shows up in vortex'],
   spotifyCancelled: ['info', 'Spotify not connected', 'You cancelled on the Spotify screen'],
   spotifyFailed: ['error', 'Could not connect Spotify', 'Try again in a moment'],
@@ -578,7 +667,68 @@ function closeOverlay() {
   o.hidden = true;
 }
 
+/* The Spotify track picked for the post being written: { id, image, title, artist } */
+let postTrack = null;
+let postSearchResults = [];
+let postSearchTimer = null;
+let postSearchSeq = 0;
+
+function setPostTrack(track) {
+  postTrack = track;
+  const el = document.getElementById('postPicked');
+  if (!el) return;
+  el.innerHTML = track
+    ? '<div class="post-picked">' +
+        art(artSeedFor(track.id), null, track.image) +
+        '<span class="t-body-s c-secondary truncate">Cover from Spotify · ' + esc(track.title) + '</span>' +
+        '<button type="button" class="iconbtn" data-action="post-clear-track" data-tip="Remove cover" aria-label="Remove cover">' + icon('close', 15) + '</button>' +
+      '</div>'
+    : '';
+}
+
+function pickPostTrack(index) {
+  const t = postSearchResults[index];
+  if (!t) return;
+  document.getElementById('postTitle').value = t.title;
+  document.getElementById('postArtist').value = t.artist;
+  document.getElementById('postAlbum').value = t.album || '';
+  setPostTrack({ id: t.id, image: t.thumb, title: t.title, artist: t.artist });
+  document.getElementById('postSpotifySearch').value = '';
+  document.getElementById('postSpotifyResults').innerHTML = '';
+  postSearchResults = [];
+  document.getElementById('postNote').focus();
+}
+
+async function runPostSearch(query) {
+  const box = document.getElementById('postSpotifyResults');
+  const seq = ++postSearchSeq;
+  if (!box) return;
+  if (query.trim().length < 2) { box.innerHTML = ''; postSearchResults = []; return; }
+  try {
+    const results = await spotify.searchTracks(query, 5);
+    if (seq !== postSearchSeq || !document.getElementById('postSpotifyResults')) return;
+    postSearchResults = results;
+    box.innerHTML = results.length
+      ? results.map(function (t, i) {
+          return '<button type="button" class="row post-search__row" data-pick-track="' + i + '">' +
+            art(artSeedFor(t.id), null, t.thumb) +
+            '<span class="row__meta">' +
+              '<span class="t-body-m-med truncate">' + esc(t.title) + '</span>' +
+              '<span class="t-body-s c-tertiary truncate">' + esc(t.artist) + (t.album ? ' · ' + esc(t.album) : '') + '</span>' +
+            '</span>' +
+          '</button>';
+        }).join('')
+      : '<p class="t-body-s c-tertiary">No songs found.</p>';
+  } catch (err) {
+    if (seq !== postSearchSeq) return;
+    console.error('Spotify search failed:', err);
+    box.innerHTML = '<p class="t-body-s c-tertiary">Spotify search failed. You can still type the song below.</p>';
+  }
+}
+
 function openPostForm() {
+  postTrack = null;
+  postSearchResults = [];
   const o = document.getElementById('overlay');
   o.hidden = false;
   o.innerHTML =
@@ -596,6 +746,15 @@ function openPostForm() {
             ? '<button type="button" class="btn btn--secondary btn--sm" data-action="post-use-np" style="justify-content:flex-start;min-width:0">' +
                 icon('spotify', 15) + '<span class="truncate">Use what\'s playing: ' + esc(DATA.nowPlaying.title) + ' · ' + esc(DATA.nowPlaying.artist) + '</span></button>'
             : '') +
+          (spotify.auth.isConnected()
+            ? '<div class="auth__field">' +
+                '<label class="t-label-m c-secondary" for="postSpotifySearch">Find on Spotify</label>' +
+                '<span class="field">' + icon('search', 17) +
+                  '<input id="postSpotifySearch" type="search" placeholder="Search a song to add its cover" autocomplete="off" maxlength="100"></span>' +
+                '<div class="post-search" id="postSpotifyResults"></div>' +
+              '</div>'
+            : '<p class="t-body-s c-tertiary">Tip: <button type="button" class="btn btn--ghost btn--sm" data-action="spotify-connect" style="display:inline-flex;padding:0 4px">connect Spotify</button> to search songs and add their cover.</p>') +
+          '<div id="postPicked"></div>' +
           '<div class="auth__field">' +
             '<label class="t-label-m c-secondary" for="postTitle">Track title</label>' +
             '<span class="field">' + icon('disc', 17) +
@@ -623,7 +782,7 @@ function openPostForm() {
         '</div>' +
       '</div>' +
     '</div>';
-  document.getElementById('postTitle').focus();
+  document.getElementById(spotify.auth.isConnected() ? 'postSpotifySearch' : 'postTitle').focus();
 }
 
 /* ---- reactions & comments ------------------------------------------------ */
@@ -708,6 +867,92 @@ async function handleCommentSubmit(form) {
   }
 }
 
+/* ---- friends ------------------------------------------------------------- */
+function refreshFriendsUI() {
+  [['friendsListPanel', friendsListPanel], ['friendRequestsPanel', friendRequestsPanel], ['friendSentPanel', friendSentPanel]]
+    .forEach(function (pair) {
+      const el = document.getElementById(pair[0]);
+      if (el) el.outerHTML = pair[1]();
+    });
+  paintFriendResults();
+  updateFriendsBadge();
+}
+
+function paintFriendResults() {
+  const el = document.getElementById('friendResults');
+  if (el) el.innerHTML = friendSearchResults();
+}
+
+let friendSearchTimer = null;
+let friendSearchSeq = 0;
+
+async function runFriendSearch() {
+  const s = UI.friendSearch;
+  const q = s.q.replace(/^@/, '').trim();
+  const seq = ++friendSearchSeq;
+  if (q.length < 2) { s.results = null; s.error = false; s.loading = false; paintFriendResults(); return; }
+  s.loading = true; s.error = false;
+  paintFriendResults();
+  try {
+    const rows = await db.profiles.search(q, app.session.user.id);
+    if (seq !== friendSearchSeq) return;
+    s.results = rows.map(function (r) { return toPerson(r, null); });
+  } catch (err) {
+    if (seq !== friendSearchSeq) return;
+    console.error('Friend search failed:', err);
+    s.error = true;
+  }
+  s.loading = false;
+  paintFriendResults();
+}
+
+async function friendAction(btn, run, okToast, reloadFeed) {
+  btn.disabled = true;
+  try {
+    await run();
+    await loadFriends();
+    refreshFriendsUI();
+    if (okToast) toast(okToast);
+    if (reloadFeed) loadFeed();
+  } catch (err) {
+    console.error('Friend action failed:', err);
+    btn.disabled = false;
+    // Their request may have crossed ours; resync so the buttons show the real state.
+    loadFriends().then(refreshFriendsUI).catch(function () {});
+    toast('friendFailed');
+  }
+}
+
+function openRemoveFriend(friendshipId) {
+  const friend = DATA.friends.filter(function (f) { return f.friendshipId === friendshipId; })[0];
+  if (!friend) return;
+  const o = document.getElementById('overlay');
+  o.hidden = false;
+  o.innerHTML =
+    '<div class="scrim" data-scrim>' +
+      '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="removeFriendTitle">' +
+        '<div class="modal__head">' +
+          '<span class="toast__well toast__well--error">' + icon('users', 15) + '</span>' +
+          '<h2 class="t-title-s" id="removeFriendTitle">Remove ' + esc(friend.name) + '?</h2>' +
+        '</div>' +
+        '<div class="modal__body">' +
+          '<p class="t-body-m c-secondary">Their posts stop showing in your Friends feed, and yours in theirs. ' +
+            'You can add each other again later.</p>' +
+        '</div>' +
+        '<div class="modal__foot">' +
+          '<button type="button" class="btn btn--ghost btn--sm" data-close>Cancel</button>' +
+          '<button type="button" class="btn btn--primary btn--sm" id="removeFriendConfirm">Remove friend</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  const confirm = document.getElementById('removeFriendConfirm');
+  confirm.addEventListener('click', function () {
+    friendAction(confirm, function () { return db.friends.remove(friendshipId); }, 'friendRemoved', true)
+      .then(closeOverlay);
+  });
+  confirm.focus();
+}
+
 function openDeletePost(postId) {
   const post = DATA.feed.filter(function (p) { return p.id === postId; })[0];
   if (!post) return;
@@ -767,6 +1012,10 @@ async function handlePostSubmit(form) {
     return;
   }
 
+  // Same shapes the database constraints accept; anything else is dropped, not rejected.
+  const image = postTrack && /^https:\/\/i\.scdn\.co\/image\/[A-Za-z0-9]+$/.test(postTrack.image || '') ? postTrack.image : null;
+  const trackId = postTrack && /^[A-Za-z0-9]{22}$/.test(postTrack.id || '') ? postTrack.id : null;
+
   const btn = document.getElementById('postSubmit');
   btn.disabled = true; btn.textContent = 'Sharing…';
   try {
@@ -775,7 +1024,9 @@ async function handlePostSubmit(form) {
       artist: artist,
       album: album || null,
       note: note || null,
-      artSeed: 1 + Math.floor(Math.random() * 6)
+      artSeed: trackId ? artSeedFor(trackId) : 1 + Math.floor(Math.random() * 6),
+      albumImageUrl: image,
+      spotifyTrackId: trackId
     });
     closeOverlay();
     await loadFeed();
@@ -869,7 +1120,7 @@ function openCmdk() {
     closeOverlay();
     if (r.kind === 'nav') location.hash = '#/' + r.id;
     else if (r.kind === 'action') r.run();
-    else toast('request');
+    else location.hash = '#/friends';
   }
 
   input.addEventListener('input', function () { paint(input.value); });
@@ -912,6 +1163,33 @@ document.addEventListener('click', function (e) {
 
   const deleteBtn = t.closest('[data-delete-post]');
   if (deleteBtn) { openDeletePost(deleteBtn.dataset.deletePost); return; }
+
+  const addFriend = t.closest('[data-friend-add]');
+  if (addFriend) {
+    friendAction(addFriend, function () { return db.friends.send(app.session.user.id, addFriend.dataset.friendAdd); }, 'friendRequested');
+    return;
+  }
+  const acceptFriend = t.closest('[data-friend-accept]');
+  if (acceptFriend) {
+    friendAction(acceptFriend, function () { return db.friends.accept(acceptFriend.dataset.friendAccept); }, 'friendAccepted', true);
+    return;
+  }
+  const declineFriend = t.closest('[data-friend-decline]');
+  if (declineFriend) {
+    friendAction(declineFriend, function () { return db.friends.remove(declineFriend.dataset.friendDecline); }, 'friendDeclined');
+    return;
+  }
+  const cancelFriend = t.closest('[data-friend-cancel]');
+  if (cancelFriend) {
+    friendAction(cancelFriend, function () { return db.friends.remove(cancelFriend.dataset.friendCancel); }, 'friendCancelled');
+    return;
+  }
+  const removeFriend = t.closest('[data-friend-remove]');
+  if (removeFriend) { openRemoveFriend(removeFriend.dataset.friendRemove); return; }
+
+  const pickTrack = t.closest('[data-pick-track]');
+  if (pickTrack) { pickPostTrack(+pickTrack.dataset.pickTrack); return; }
+  if (t.closest('[data-action="post-clear-track"]')) { setPostTrack(null); return; }
 
   if (t.closest('#openCmdk') || t.closest('#openCmdkMobile')) { openCmdk(); return; }
   if (t.closest('#railToggle')) { setRail(document.getElementById('app').dataset.rail !== 'compact'); return; }
@@ -978,9 +1256,43 @@ document.addEventListener('click', function (e) {
     tab.parentElement.querySelectorAll('[data-tab]').forEach(function (b) {
       b.setAttribute('aria-selected', String(b === tab));
     });
+    if (tab.parentElement.dataset.tabs === 'feed' && UI.feedScope !== tab.dataset.tab) {
+      UI.feedScope = tab.dataset.tab;
+      loadFeed().then(function () { if (app.view === 'feed') setView('feed'); });
+    }
     return;
   }
 });
+
+document.addEventListener('input', function (e) {
+  if (e.target.id === 'friendSearch') {
+    UI.friendSearch.q = e.target.value;
+    clearTimeout(friendSearchTimer);
+    friendSearchTimer = setTimeout(runFriendSearch, 250);
+  }
+  if (e.target.id === 'postSpotifySearch') {
+    clearTimeout(postSearchTimer);
+    postSearchTimer = setTimeout(function () { runPostSearch(e.target.value); }, 300);
+  }
+  // Hand-editing the song means the picked Spotify cover may no longer match.
+  if ((e.target.id === 'postTitle' || e.target.id === 'postArtist') && postTrack) setPostTrack(null);
+});
+
+/* Re-fetch when entering these views so new requests / posts appear without a
+   reload; only re-render when something actually changed. */
+function refreshOnEnter(name) {
+  if (!app.session) return;
+  if (name === 'friends') {
+    loadFriends().then(function () { if (app.view === 'friends') refreshFriendsUI(); })
+      .catch(function (e) { console.error('Error loading friends:', e); });
+  }
+  if (name === 'feed') {
+    const before = feedSignature();
+    loadFriends().then(loadFeed).then(function () {
+      if (app.view === 'feed' && feedSignature() !== before) setView('feed');
+    }).catch(function (e) { console.error('Error refreshing feed:', e); });
+  }
+}
 
 document.addEventListener('submit', function (e) {
   if (e.target.id === 'protoLogin') { e.preventDefault(); toast('login'); }
@@ -991,12 +1303,22 @@ document.addEventListener('submit', function (e) {
 });
 
 document.addEventListener('keydown', function (e) {
+  // Enter in the Spotify search picks the top result instead of submitting the post.
+  if (e.key === 'Enter' && e.target.id === 'postSpotifySearch') {
+    e.preventDefault();
+    if (postSearchResults.length) pickPostTrack(0);
+    return;
+  }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openCmdk(); return; }
   if (e.key === 'Escape' && !document.getElementById('overlay').hidden) { closeOverlay(); return; }
   if (e.key === '/' && document.activeElement === document.body) { e.preventDefault(); openCmdk(); }
 });
 
-window.addEventListener('hashchange', function () { setView(currentRoute()); });
+window.addEventListener('hashchange', function () {
+  const name = currentRoute();
+  setView(name);
+  refreshOnEnter(name);
+});
 
 /* ---- boot ---------------------------------------------------------------- */
 (async function boot() {
@@ -1024,6 +1346,8 @@ window.addEventListener('hashchange', function () { setView(currentRoute()); });
       // Spotify tokens are per-browser, so the next vortex account must not inherit them.
       spotify.auth.disconnect();
       stopSpotifyPolling();
+      DATA.friends = []; DATA.incoming = []; DATA.outgoing = []; DATA.feed = [];
+      UI.friendSearch = { q: '', results: null, loading: false, error: false };
       location.hash = '#/login';
       setView(currentRoute());
     }
