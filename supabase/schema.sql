@@ -290,3 +290,90 @@ drop trigger if exists comments_parent_check on public.comments;
 create trigger comments_parent_check
   before insert on public.comments
   for each row execute function public.enforce_comment_parent();
+
+-- ==========================================================================
+-- listening now
+-- Each user's current Spotify track, published by their own browser while
+-- vortex is open. Visible only to the user and their accepted friends, and
+-- only while the owner has share_listening on.
+-- ==========================================================================
+alter table public.profiles add column if not exists share_listening boolean not null default true;
+
+create table if not exists public.listening_now (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  track_id text check (track_id is null or track_id ~ '^[A-Za-z0-9]{22}$'),
+  title text not null check (char_length(title) <= 300),
+  artist text not null check (char_length(artist) <= 300),
+  album text check (album is null or char_length(album) <= 300),
+  image_url text check (image_url is null or image_url ~ '^https://i\.scdn\.co/image/[A-Za-z0-9]+$'),
+  is_playing boolean not null default false,
+  progress_ms int not null default 0 check (progress_ms >= 0),
+  duration_ms int not null default 0 check (duration_ms >= 0),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.listening_now enable row level security;
+
+drop policy if exists "listening visible to self and friends" on public.listening_now;
+create policy "listening visible to self and friends"
+  on public.listening_now for select
+  using (
+    auth.uid() = user_id
+    or (
+      exists (
+        select 1 from public.friendships f
+        where f.status = 'accepted'
+          and ((f.requester_id = auth.uid() and f.addressee_id = listening_now.user_id)
+            or (f.addressee_id = auth.uid() and f.requester_id = listening_now.user_id))
+      )
+      and exists (
+        select 1 from public.profiles p
+        where p.id = listening_now.user_id and p.share_listening
+      )
+    )
+  );
+
+drop policy if exists "users publish their own listening" on public.listening_now;
+create policy "users publish their own listening"
+  on public.listening_now for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "users update their own listening" on public.listening_now;
+create policy "users update their own listening"
+  on public.listening_now for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "users clear their own listening" on public.listening_now;
+create policy "users clear their own listening"
+  on public.listening_now for delete
+  using (auth.uid() = user_id);
+
+-- The server stamps updated_at, so a client can't fake being "live".
+create or replace function public.touch_listening_now()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists listening_now_touch on public.listening_now;
+create trigger listening_now_touch
+  before insert or update on public.listening_now
+  for each row execute function public.touch_listening_now();
+
+-- Push changes to friends over Supabase Realtime (RLS still applies).
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'listening_now'
+  ) then
+    alter publication supabase_realtime add table public.listening_now;
+  end if;
+end;
+$$;

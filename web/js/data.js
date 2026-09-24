@@ -13,6 +13,7 @@ const DATA = {
     bio: '',
     joined: '',
     friends: 0,
+    shareListening: true,
     stats: null,        // { posts, reactions, comments }
     recentPosts: []     // latest posts by this user, for the profile
   },
@@ -37,6 +38,9 @@ const DATA = {
   friends: [],
   incoming: [],
   outgoing: [],
+
+  /* Friends' current tracks by user id, as rows of public.listening_now. */
+  listening: {},
 
   feed: []
 };

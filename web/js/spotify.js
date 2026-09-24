@@ -3,7 +3,15 @@
    Tokens live in this browser's localStorage and are cleared on sign-out.
    ========================================================================== */
 
-const SPOTIFY_SCOPES = 'user-read-currently-playing user-read-playback-state';
+/* Activity and Music need the last three; accounts connected before they were
+   added are asked to reconnect (see spotify.auth.missingScopes). */
+const SPOTIFY_SCOPES = [
+  'user-read-currently-playing',
+  'user-read-playback-state',
+  'user-read-recently-played',
+  'user-top-read',
+  'playlist-read-private'
+].join(' ');
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SPOTIFY_API = 'https://api.spotify.com/v1';
@@ -119,6 +127,14 @@ const spotify = {
       spotifyStore.set('access_token', data.access_token);
       spotifyStore.set('expires_at', String(Date.now() + (data.expires_in - 60) * 1000));
       if (data.refresh_token) spotifyStore.set('refresh_token', data.refresh_token);
+      if (data.scope) spotifyStore.set('scope', data.scope);
+    },
+
+    /* Scopes this connection lacks. Tokens saved before scopes were tracked
+       count as having only the original two. */
+    missingScopes: function () {
+      const granted = (spotifyStore.get('scope') || 'user-read-currently-playing user-read-playback-state').split(/\s+/);
+      return SPOTIFY_SCOPES.split(' ').filter(function (s) { return granted.indexOf(s) === -1; });
     },
 
     async refresh() {
@@ -149,7 +165,7 @@ const spotify = {
     },
 
     disconnect: function () {
-      ['access_token', 'refresh_token', 'expires_at'].forEach(function (k) { spotifyStore.set(k, null); });
+      ['access_token', 'refresh_token', 'expires_at', 'scope'].forEach(function (k) { spotifyStore.set(k, null); });
     }
   },
 
@@ -168,14 +184,62 @@ const spotify = {
     return res.json();
   },
 
-  /* null when nothing (or a podcast/ad) is playing. */
+  /* null when nothing (or a podcast/ad) is playing. `private` is true during
+     a Spotify private session, which vortex never shares with friends. */
   async nowPlaying() {
-    const data = await spotify.request('/me/player/currently-playing');
+    const data = await spotify.request('/me/player?additional_types=track');
     if (!data || !data.item || data.item.type !== 'track') return null;
     const track = spotifyTrack(data.item);
     track.progressMs = data.progress_ms || 0;
     track.playing = !!data.is_playing;
+    track.private = !!(data.device && data.device.is_private_session);
     return track;
+  },
+
+  /* Last 50 plays (Spotify's maximum), newest first. */
+  async recentlyPlayed() {
+    const data = await spotify.request('/me/player/recently-played?limit=50');
+    return ((data && data.items) || []).filter(function (i) { return i && i.track; }).map(function (i) {
+      const t = spotifyTrack(i.track);
+      t.playedAt = i.played_at;
+      return t;
+    });
+  },
+
+  /* range: short_term (~4 weeks) | medium_term (~6 months) | long_term (all time) */
+  async topArtists(range) {
+    const data = await spotify.request('/me/top/artists?limit=20&time_range=' + encodeURIComponent(range));
+    return ((data && data.items) || []).filter(Boolean).map(function (a) {
+      const images = a.images || [];
+      return {
+        id: a.id,
+        name: a.name,
+        genres: a.genres || [],
+        image: images.length ? (images[1] || images[0]).url : null,
+        url: a.external_urls ? a.external_urls.spotify : null
+      };
+    });
+  },
+
+  async topTracks(range) {
+    const data = await spotify.request('/me/top/tracks?limit=20&time_range=' + encodeURIComponent(range));
+    return ((data && data.items) || []).filter(Boolean).map(spotifyTrack);
+  },
+
+  async playlists() {
+    const data = await spotify.request('/me/playlists?limit=24');
+    return ((data && data.items) || []).filter(Boolean).map(function (p) {
+      const images = p.images || [];
+      const count = (p.tracks && p.tracks.total) || (p.items && p.items.total) || 0;
+      return {
+        id: p.id,
+        name: p.name,
+        count: count,
+        image: images.length ? images[0].url : null,
+        owner: p.owner ? p.owner.display_name : '',
+        url: p.external_urls ? p.external_urls.spotify : null
+      };
+    });
   },
 
   async searchTracks(query, limit) {

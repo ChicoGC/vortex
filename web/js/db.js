@@ -185,6 +185,53 @@ const db = {
     }
   },
 
+  listening: {
+    /* RLS returns only your row and your friends' (when they share). */
+    async list() {
+      const { data, error } = await supabaseClient.from('listening_now').select('*');
+      if (error) throw error;
+      return data;
+    },
+
+    async publish(userId, t) {
+      const { error } = await supabaseClient.from('listening_now').upsert({
+        user_id: userId,
+        track_id: t.trackId,
+        title: t.title,
+        artist: t.artist,
+        album: t.album,
+        image_url: t.imageUrl,
+        is_playing: t.playing,
+        progress_ms: t.progressMs,
+        duration_ms: t.durationMs
+      }, { onConflict: 'user_id' });
+      if (error) throw error;
+    },
+
+    // Keeps the last track visible to friends as "last played".
+    async pause(userId) {
+      const { error } = await supabaseClient.from('listening_now').update({ is_playing: false }).eq('user_id', userId);
+      if (error) throw error;
+    },
+
+    async clear(userId) {
+      const { error } = await supabaseClient.from('listening_now').delete().eq('user_id', userId);
+      if (error) throw error;
+    },
+
+    /* Calls onChange(eventType, newRow, oldRow) for rows this user may see.
+       Returns an unsubscribe function. */
+    subscribe(onChange) {
+      const channel = supabaseClient
+        .channel('listening-now')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'listening_now' }, function (payload) {
+          onChange(payload.eventType, payload.new, payload.old);
+        })
+        .subscribe();
+      return function () { supabaseClient.removeChannel(channel); };
+    }
+  },
+
   stats: {
     /* Totals for the profile: posts shared, and reactions / comments received
        from other people on those posts. Counted server-side (head requests). */

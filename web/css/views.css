@@ -253,6 +253,10 @@
 .friend__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .friend__sub { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .friend__sub svg { color: var(--accent-base); flex: none; }
+.eq--sm { width: 12px; height: 10px; flex: none; justify-content: flex-start; }
+.listening-row > a { flex: none; border-radius: 12px; }
+.listening-row > a:hover .art { transform: scale(1.04); }
+.listening-row .art { transition: transform var(--dur-fast) var(--ease-out); }
 
 /* ---- compatibility ring ------------------------------------------------- */
 .compat { display: flex; align-items: center; gap: 14px; }

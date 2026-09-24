@@ -64,14 +64,47 @@ function postRow(p, showUser) {
   '</button>';
 }
 
-function personRow(p, controls) {
+/* sub replaces the @username line (e.g. with what they're listening to). */
+function personRow(p, controls, sub, status) {
   return '<div class="friend" style="cursor:default">' +
-    avatarEl(p.initials, '32') +
+    avatarEl(p.initials, '32', status) +
     '<span class="friend__meta">' +
       '<span class="t-body-m-med truncate">' + esc(p.name) + '</span>' +
-      '<span class="t-body-s c-tertiary truncate">@' + esc(p.username) + '</span>' +
+      (sub || '<span class="t-body-s c-tertiary truncate">@' + esc(p.username) + '</span>') +
     '</span>' + (controls || '') +
   '</div>';
+}
+
+/* A friend's listening_now row, or null. "Live" means playing with a fresh
+   heartbeat; a closed tab stops heartbeats, so it ages out to "last played". */
+const LIVE_WINDOW_MS = 150000;
+function listeningFor(userId) {
+  const r = DATA.listening[userId];
+  if (!r) return null;
+  const age = Date.now() - Date.parse(r.updated_at);
+  return { row: r, live: r.is_playing && age < LIVE_WINDOW_MS, ago: formatTimeAgo(r.updated_at) };
+}
+
+function listeningSub(l) {
+  if (!l) return null;
+  const track = esc(l.row.title) + ' · ' + esc(l.row.artist);
+  return l.live
+    ? '<span class="friend__sub listening-live"><span class="eq eq--sm" aria-label="Listening now"><i></i><i></i><i></i></span>' +
+        '<span class="t-body-s c-secondary truncate">' + track + '</span></span>'
+    : '<span class="t-body-s c-tertiary truncate">Played ' + track + ' · ' + esc(l.ago) + '</span>';
+}
+
+/* Friends ordered live first, then most recently heard, then everyone else. */
+function friendsByListening() {
+  return DATA.friends.slice().sort(function (a, b) {
+    const la = listeningFor(a.id), lb = listeningFor(b.id);
+    const score = function (l) { return l ? (l.live ? 2e13 : 0) + Date.parse(l.row.updated_at) : 0; };
+    return score(lb) - score(la);
+  });
+}
+
+function spotifyTrackUrl(id) {
+  return /^[A-Za-z0-9]{22}$/.test(id || '') ? 'https://open.spotify.com/track/' + id : null;
 }
 
 /* { state: 'friends' | 'incoming' | 'outgoing' | null, friendshipId } */
@@ -89,8 +122,15 @@ const UI = {
   openReplies: {},  // top-level comment id -> replies expanded
   replyTo: {},      // post id -> { threadId, name, prefix } while a reply box is open
   feedScope: 'Friends',
-  friendSearch: { q: '', results: null, loading: false, error: false }
+  friendSearch: { q: '', results: null, loading: false, error: false },
+  // Spotify data for Activity / Music: { status: 'loading'|'ok'|'error', data, at, error }
+  spotifyLib: { recent: null, playlists: null, topArtists: {}, topTracks: {} },
+  activityRange: 'short_term',
+  musicRange: 'short_term'
 };
+
+const RANGE_LABEL = { short_term: '4 weeks', medium_term: '6 months', long_term: 'All time' };
+const RANGE_BY_LABEL = { '4 weeks': 'short_term', '6 months': 'medium_term', 'All time': 'long_term' };
 
 function commentText(text) {
   // A leading @mention (added when replying to a reply) is highlighted.
@@ -341,6 +381,21 @@ function statsRows() {
   }).join('');
 }
 
+function homeFriendsPanel() {
+  if (!DATA.friends.length) {
+    return '<div id="homeFriendsPanel">' + ghostPanel('Friends', findFriendsButton(false)) + '</div>';
+  }
+  const live = DATA.friends.filter(function (f) { const l = listeningFor(f.id); return l && l.live; }).length;
+  return '<section class="panel section" id="homeFriendsPanel">' +
+    sectionHead('Friends', live ? live + ' listening now' : countLabel(DATA.friends.length, 'friend'),
+      '<button class="btn btn--ghost btn--sm" data-nav="friends">See all</button>') +
+    '<div class="section__body">' + friendsByListening().slice(0, 5).map(function (f) {
+      const l = listeningFor(f.id);
+      return personRow(f, null, listeningSub(l), l && l.live ? 'listening' : null);
+    }).join('') + '</div>' +
+  '</section>';
+}
+
 VIEWS.home = function () {
   const latest = DATA.feed.length
     ? '<section class="panel section">' +
@@ -349,13 +404,7 @@ VIEWS.home = function () {
       '</section>'
     : ghostPanel('Latest from your circle', sharePostButton(true) + findFriendsButton(false));
 
-  const friendsPanel = DATA.friends.length
-    ? '<section class="panel section">' +
-        sectionHead('Friends', countLabel(DATA.friends.length, 'friend'),
-          '<button class="btn btn--ghost btn--sm" data-nav="friends">See all</button>') +
-        '<div class="section__body">' + DATA.friends.slice(0, 5).map(function (f) { return personRow(f); }).join('') + '</div>' +
-      '</section>'
-    : ghostPanel('Friends', findFriendsButton(false));
+  const friendsPanel = homeFriendsPanel();
 
   const statsPanel =
     '<section class="panel section">' +
@@ -467,12 +516,40 @@ function friendSearchResults() {
   return s.results.map(function (p) { return personRow(p, friendSearchControls(p)); }).join('');
 }
 
+function friendsListeningPanel() {
+  if (!DATA.friends.length) return '<div id="friendsListeningPanel" hidden></div>';
+  const live = friendsByListening().filter(function (f) { const l = listeningFor(f.id); return l && l.live; });
+  return '<section class="panel section" id="friendsListeningPanel">' +
+    sectionHead('Listening now', live.length ? countLabel(live.length, 'friend') : 'live') +
+    '<div class="section__body">' + (live.length
+      ? live.map(function (f) {
+          const r = listeningFor(f.id).row;
+          const href = spotifyTrackUrl(r.track_id);
+          const cover = art(artSeedFor(r.track_id || r.title), 'art--lg', r.image_url);
+          return '<div class="friend listening-row" style="cursor:default">' +
+            avatarEl(f.initials, '32', 'listening') +
+            '<span class="friend__meta">' +
+              '<span class="t-body-m-med truncate">' + esc(f.name) + '</span>' +
+              listeningSub(listeningFor(f.id)) +
+              (r.album ? '<span class="t-caption c-tertiary truncate">' + esc(r.album) + '</span>' : '') +
+            '</span>' +
+            (href ? '<a href="' + href + '" target="_blank" rel="noopener" data-tip="Open in Spotify" aria-label="Open ' + esc(r.title) + ' in Spotify">' + cover + '</a>' : cover) +
+          '</div>';
+        }).join('')
+      : '<p class="t-body-s c-tertiary friends__hint">None of your friends are playing anything right now. It updates live.</p>') +
+    '</div>' +
+  '</section>';
+}
+
 function friendsListPanel() {
   return '<section class="panel section" id="friendsListPanel">' +
     sectionHead('Your friends', countLabel(DATA.friends.length, 'friend')) +
     '<div class="section__body">' + (DATA.friends.length
-      ? DATA.friends.map(function (f) {
-          return personRow(f, '<button class="iconbtn" data-friend-remove="' + esc(f.friendshipId) + '" data-tip="Remove friend" aria-label="Remove ' + esc(f.name) + '">' + icon('close', 16) + '</button>');
+      ? friendsByListening().map(function (f) {
+          const l = listeningFor(f.id);
+          return personRow(f,
+            '<button class="iconbtn" data-friend-remove="' + esc(f.friendshipId) + '" data-tip="Remove friend" aria-label="Remove ' + esc(f.name) + '">' + icon('close', 16) + '</button>',
+            listeningSub(l), l && l.live ? 'listening' : null);
         }).join('')
       : ghostEmpty(null, 'Search above to add someone. Once they accept, their posts show up in your feed.')) +
     '</div>' +
@@ -520,18 +597,223 @@ VIEWS.friends = function () {
   return wrap(
     pageHead('Your circle', 'Friends'),
     '<div class="cols cols--feed">' +
-      '<div class="stack">' + searchPanel + friendsListPanel() + '</div>' +
+      '<div class="stack">' + friendsListeningPanel() + searchPanel + friendsListPanel() + '</div>' +
       '<div class="stack">' + friendRequestsPanel() + friendSentPanel() + '</div>' +
     '</div>'
   );
 };
 
+/* ---- Spotify-backed pages (Activity, Music) ------------------------------ */
+function spotifyGate() {
+  if (!spotify.auth.isConnected()) {
+    return ghostPanel(null,
+      '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + 'Connect Spotify</button>',
+      'Connect Spotify to see your listening here.');
+  }
+  if (spotify.auth.missingScopes().length) {
+    return ghostPanel(null,
+      '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + 'Reconnect Spotify</button>',
+      'This page needs a few more Spotify permissions (recent plays, top artists and playlists). Reconnect once to allow them.');
+  }
+  return null;
+}
+
+/* Loading / error / empty handling shared by every Spotify panel. */
+function libraryBody(entry, render) {
+  if (!entry || (entry.status === 'loading' && !entry.data)) {
+    return '<p class="t-body-s c-tertiary friends__hint">Loading from Spotify…</p>';
+  }
+  if (entry.status === 'error' && !entry.data) {
+    return ghostEmpty(null, entry.error === 403
+      ? 'Spotify refused this request. While the app is in development, only accounts on its tester list can use it.'
+      : 'Could not reach Spotify. Try again in a moment.');
+  }
+  if (!entry.data.length) return ghostEmpty();
+  return render(entry.data);
+}
+
+function libraryPanel(id, title, meta, tools, entry, render) {
+  return '<section class="panel section" id="' + id + '">' + sectionHead(title, meta, tools) +
+    '<div class="section__body">' + libraryBody(entry, render) + '</div></section>';
+}
+
+function trackRow(t, lead, trailing) {
+  const href = spotifyTrackUrl(t.id);
+  const inner = (lead || '') + art(artSeedFor(t.id), null, t.thumb) +
+    '<span class="row__meta">' +
+      '<span class="t-body-m-med truncate">' + esc(t.title) + '</span>' +
+      '<span class="t-body-s c-tertiary truncate">' + esc(t.artist) + (t.album ? ' · ' + esc(t.album) : '') + '</span>' +
+    '</span>' + (trailing || '');
+  return href
+    ? '<a class="row" href="' + href + '" target="_blank" rel="noopener">' + inner + '</a>'
+    : '<div class="row" style="cursor:default">' + inner + '</div>';
+}
+
+function rankIndex(i) {
+  return '<span class="row__index">' + (i + 1) + '</span>';
+}
+
+function rangeTabs(group, range) {
+  return tabsEl(group, ['4 weeks', '6 months', 'All time'], RANGE_LABEL[range]);
+}
+
+function activitySummaryPanel() {
+  return libraryPanel('actSummary', 'Your last plays', null, null, UI.spotifyLib.recent, function (plays) {
+    const minutes = Math.round(plays.reduce(function (s, t) { return s + (t.durationMs || 0); }, 0) / 60000);
+    const counts = {};
+    plays.forEach(function (t) { counts[t.artist] = (counts[t.artist] || 0) + 1; });
+    const artists = Object.keys(counts);
+    const top = artists.sort(function (a, b) { return counts[b] - counts[a]; })[0];
+    const since = new Date(plays[plays.length - 1].playedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return '<div class="section__body--pad stack stack--sm">' +
+      '<div class="cols cols--thirds">' +
+        statTile('Minutes', minutes.toLocaleString('en-US')) +
+        statTile('Artists', String(artists.length)) +
+        statTile('Most played', top) +
+      '</div>' +
+      '<p class="t-caption c-tertiary">From your last ' + plays.length + ' plays on Spotify, since ' + esc(since) + '.</p>' +
+    '</div>';
+  });
+}
+
+function activityArtistsPanel() {
+  const range = UI.activityRange;
+  return libraryPanel('actArtists', 'Top artists', null, rangeTabs('activity-range', range), UI.spotifyLib.topArtists[range], function (artists) {
+    return artists.slice(0, 10).map(function (a, i) {
+      const inner = rankIndex(i) + art(artSeedFor(a.id), 'art--round', a.image) +
+        '<span class="row__meta"><span class="t-body-m-med truncate">' + esc(a.name) + '</span>' +
+        (a.genres.length ? '<span class="t-body-s c-tertiary truncate">' + esc(a.genres.slice(0, 2).join(', ')) + '</span>' : '') +
+        '</span>';
+      return a.url && /^https:\/\/open\.spotify\.com\//.test(a.url)
+        ? '<a class="row" href="' + esc(a.url) + '" target="_blank" rel="noopener">' + inner + '</a>'
+        : '<div class="row" style="cursor:default">' + inner + '</div>';
+    }).join('');
+  });
+}
+
+/* Genre share across your top artists. Hidden entirely when Spotify returns
+   no genres, rather than showing an empty chart. */
+function activityGenresPanel() {
+  const entry = UI.spotifyLib.topArtists[UI.activityRange];
+  const artists = entry && entry.data;
+  const counts = {};
+  let total = 0;
+  (artists || []).forEach(function (a) {
+    a.genres.forEach(function (g) { counts[g] = (counts[g] || 0) + 1; total++; });
+  });
+  if (!total) return '<div id="actGenres" hidden></div>';
+  const colors = ['var(--data-1)', 'var(--data-2)', 'var(--data-3)', 'var(--data-4)'];
+  const sorted = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+  const top = sorted.slice(0, 4).map(function (g, i) { return { name: g, n: counts[g], color: colors[i] }; });
+  const rest = total - top.reduce(function (s, g) { return s + g.n; }, 0);
+  if (rest > 0) top.push({ name: 'Other', n: rest, color: 'var(--text-tertiary)' });
+  top.forEach(function (g) { g.pct = Math.round((g.n / total) * 100); });
+  return '<section class="panel section" id="actGenres">' +
+    sectionHead('Genre mix', 'top artists · ' + RANGE_LABEL[UI.activityRange].toLowerCase()) +
+    '<div class="section__body section__body--pad stack">' +
+      '<div class="distro">' + top.map(function (g) {
+        return '<i style="width:' + g.pct + '%;background:' + g.color + '" data-tip="' + esc(g.name) + ' ' + g.pct + '%"></i>';
+      }).join('') + '</div>' +
+      '<div class="legend">' + top.map(function (g) {
+        return '<div><em style="background:' + g.color + '"></em>' +
+          '<span class="t-body-s c-secondary">' + esc(g.name) + '</span>' +
+          '<span class="t-num c-tertiary">' + g.pct + '%</span></div>';
+      }).join('') + '</div>' +
+    '</div>' +
+  '</section>';
+}
+
+function dayLabel(date) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = new Date(date); d.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - d) / 864e5);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return new Date(date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+}
+
+function activityHistoryPanel() {
+  return libraryPanel('actHistory', 'History', 'last 50 plays', null, UI.spotifyLib.recent, function (plays) {
+    const days = [];
+    plays.forEach(function (t) {
+      const label = dayLabel(t.playedAt);
+      let day = days[days.length - 1];
+      if (!day || day.label !== label) { day = { label: label, items: [] }; days.push(day); }
+      day.items.push(t);
+    });
+    return '<div class="section__body--pad"><div class="timeline">' + days.map(function (d, i) {
+      return '<div class="timeline__day" data-today="' + (i === 0 && d.label === 'Today') + '">' +
+        '<div class="timeline__label t-overline c-tertiary">' + esc(d.label) + '</div>' +
+        d.items.map(function (t) {
+          const time = new Date(t.playedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+          return trackRow(t, '<span class="t-meta c-tertiary" style="width:38px;flex:none">' + time + '</span>');
+        }).join('') +
+      '</div>';
+    }).join('') + '</div></div>';
+  });
+}
+
+function musicRecentPanel() {
+  return libraryPanel('musRecent', 'Recently played', null, null, UI.spotifyLib.recent, function (plays) {
+    return plays.slice(0, 20).map(function (t) {
+      return trackRow(t, null, '<span class="t-meta c-tertiary">' + esc(formatTimeAgo(t.playedAt)) + '</span>');
+    }).join('');
+  });
+}
+
+function musicTopPanel() {
+  const range = UI.musicRange;
+  return libraryPanel('musTop', 'Your top tracks', null, rangeTabs('music-range', range), UI.spotifyLib.topTracks[range], function (tracks) {
+    return tracks.map(function (t, i) { return trackRow(t, rankIndex(i)); }).join('');
+  });
+}
+
+function musicPlaylistsPanel() {
+  const entry = UI.spotifyLib.playlists;
+  return '<section class="panel section" id="musPlaylists">' +
+    sectionHead('Playlists', entry && entry.data ? String(entry.data.length) : null) +
+    (entry && entry.status === 'ok' && entry.data.length
+      ? '<div class="section__body section__body--pad"><div class="tilegrid">' + entry.data.map(function (p) {
+          const inner =
+            '<div class="tile__art">' + art(artSeedFor(p.id), 'art--tile', p.image) + '</div>' +
+            '<div class="tile__meta">' +
+              '<span class="t-body-m-med truncate">' + esc(p.name) + '</span>' +
+              '<span class="t-body-s c-tertiary truncate">' + countLabel(p.count, 'track') + (p.owner ? ' · ' + esc(p.owner) : '') + '</span>' +
+            '</div>';
+          return p.url && /^https:\/\/open\.spotify\.com\//.test(p.url)
+            ? '<a class="panel tile" href="' + esc(p.url) + '" target="_blank" rel="noopener">' + inner + '</a>'
+            : '<article class="panel tile">' + inner + '</article>';
+        }).join('') + '</div></div>'
+      : '<div class="section__body">' + libraryBody(entry, function () { return ''; }) + '</div>') +
+  '</section>';
+}
+
+/* [element id, renderer] pairs that paintLibraryPanels() swaps in place. */
+const LIBRARY_PANELS = [
+  ['actSummary', activitySummaryPanel],
+  ['actArtists', activityArtistsPanel],
+  ['actGenres', activityGenresPanel],
+  ['actHistory', activityHistoryPanel],
+  ['musRecent', musicRecentPanel],
+  ['musTop', musicTopPanel],
+  ['musPlaylists', musicPlaylistsPanel]
+];
+
 VIEWS.activity = function () {
-  return wrap(pageHead('How you listened', 'Activity'), ghostPanel());
+  const gate = spotifyGate();
+  return wrap(pageHead('How you listened', 'Activity'), gate ||
+    activitySummaryPanel() +
+    '<div class="cols cols--half">' +
+      activityArtistsPanel() +
+      '<div class="stack">' + activityGenresPanel() + activityHistoryPanel() + '</div>' +
+    '</div>');
 };
 
 VIEWS.music = function () {
-  return wrap(pageHead('Your library', 'Music'), ghostPanel());
+  const gate = spotifyGate();
+  return wrap(pageHead('Your library', 'Music'), gate ||
+    '<div class="cols cols--half">' + musicRecentPanel() + musicTopPanel() + '</div>' +
+    musicPlaylistsPanel());
 };
 
 VIEWS.profile = function () {
@@ -684,6 +966,15 @@ VIEWS.settings = function () {
       '</div>' +
     '</section>';
 
+  const privacy =
+    '<section class="panel section">' + sectionHead('Privacy') +
+      '<div class="section__body section__body--flush">' +
+        row('broadcast', 'Share what I\'m listening to',
+          'Friends see your current Spotify track live while vortex is open. Spotify private sessions are never shared.',
+          '<button class="toggle" data-toggle="share-listening" role="switch" aria-checked="' + !!DATA.me.shareListening + '" aria-label="Share what I am listening to"></button>') +
+      '</div>' +
+    '</section>';
+
   const session =
     '<section class="panel section">' + sectionHead('Session') +
       '<div class="section__body section__body--flush">' +
@@ -694,7 +985,7 @@ VIEWS.settings = function () {
   return wrap(
     pageHead('Preferences', 'Settings'),
     '<div class="cols cols--half">' +
-      '<div class="stack">' + account + '</div>' +
+      '<div class="stack">' + account + privacy + '</div>' +
       '<div class="stack">' + services + session + '</div>' +
     '</div>'
   );

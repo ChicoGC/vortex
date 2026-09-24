@@ -110,6 +110,7 @@ async function loadCurrentUser() {
     DATA.me.username = '@' + profile.username;
     DATA.me.initials = initialsFrom(profile.name);
     DATA.me.bio = profile.bio || '';
+    DATA.me.shareListening = profile.share_listening !== false;
 
     const joinedDate = new Date(profile.created_at);
     const month = joinedDate.toLocaleString('en-US', { month: 'long' });
@@ -473,6 +474,7 @@ function setView(name) {
   syncAppearanceControls();
   updatePlayerUI();
   if (name === 'login') paintLoginLock();
+  ensureSpotifyLibrary(name);
   const scroller = document.querySelector('.view-scroll');
   if (scroller) scroller.scrollTop = 0;
 }
@@ -572,12 +574,17 @@ function setNowPlaying(track, status) {
 let spotifyPollTimer = null;
 let spotifyForbiddenWarned = false;
 
+let lastSpotifyPoll = 0;
+
 async function pollSpotify() {
   if (!app.session || !spotify.auth.isConnected()) { stopSpotifyPolling(); return; }
-  if (document.hidden) return;
+  // In a background tab keep a slow heartbeat, so friends still see you as live.
+  if (document.hidden && Date.now() - lastSpotifyPoll < 55000) return;
+  lastSpotifyPoll = Date.now();
   try {
     const track = await spotify.nowPlaying();
     setNowPlaying(track, track ? 'track' : 'idle');
+    publishListening(track);
   } catch (err) {
     console.error('Spotify now playing failed:', err);
     if (!spotify.auth.isConnected()) {
@@ -608,6 +615,167 @@ function stopSpotifyPolling() {
 
 function refreshSettingsView() {
   if (app.view === 'settings') setView('settings');
+}
+
+/* ---- sharing what you listen to with friends ----------------------------- */
+const LISTENING_HEARTBEAT_MS = 60000;
+let lastPublished = { key: null, at: 0 };
+
+/* Writes only when the track or play state changes, plus a once-a-minute
+   heartbeat while playing so friends can tell the row is still live.
+   Private-session plays are never written. */
+async function publishListening(track) {
+  if (!app.session || !DATA.me.shareListening) return;
+  const me = app.session.user.id;
+  const sharable = track && !track.private;
+  const key = sharable ? track.id + '|' + track.playing : 'stopped';
+  const now = Date.now();
+  const heartbeatDue = sharable && track.playing && now - lastPublished.at >= LISTENING_HEARTBEAT_MS;
+  if (key === lastPublished.key && !heartbeatDue) return;
+  lastPublished = { key: key, at: now };
+  try {
+    if (!sharable) {
+      await db.listening.pause(me);
+      return;
+    }
+    await db.listening.publish(me, {
+      trackId: TRACK_ID.test(track.id || '') ? track.id : null,
+      title: String(track.title || '').slice(0, 300),
+      artist: String(track.artist || '').slice(0, 300),
+      album: track.album ? String(track.album).slice(0, 300) : null,
+      imageUrl: COVER_URL.test(track.thumb || '') ? track.thumb : null,
+      playing: track.playing,
+      progressMs: Math.max(0, Math.round(track.progressMs || 0)),
+      durationMs: Math.max(0, Math.round(track.durationMs || 0))
+    });
+  } catch (err) {
+    lastPublished.key = null;  // retry on the next poll
+    console.warn('Could not share what you are listening to:', err);
+  }
+}
+
+async function clearMyListening() {
+  lastPublished = { key: null, at: 0 };
+  if (!app.session) return;
+  try { await db.listening.clear(app.session.user.id); }
+  catch (err) { console.warn('Could not clear listening status:', err); }
+}
+
+let unsubscribeListening = null;
+
+async function reloadListening() {
+  if (!app.session) return;
+  const me = app.session.user.id;
+  try {
+    const rows = await db.listening.list();
+    DATA.listening = {};
+    rows.forEach(function (r) { if (r.user_id !== me) DATA.listening[r.user_id] = r; });
+    refreshListeningUI();
+  } catch (err) {
+    console.warn('Could not load what friends are listening to:', err);
+  }
+}
+
+async function startListeningFeed() {
+  stopListeningFeed();
+  if (!app.session) return;
+  const me = app.session.user.id;
+  await reloadListening();
+  unsubscribeListening = db.listening.subscribe(function (type, row, old) {
+    if (type === 'DELETE') {
+      if (old && old.user_id) delete DATA.listening[old.user_id];
+    } else if (row && row.user_id && row.user_id !== me) {
+      DATA.listening[row.user_id] = row;
+    }
+    refreshListeningUI();
+  });
+}
+
+function stopListeningFeed() {
+  if (unsubscribeListening) unsubscribeListening();
+  unsubscribeListening = null;
+  DATA.listening = {};
+}
+
+function refreshListeningUI() {
+  [['friendsListeningPanel', friendsListeningPanel], ['friendsListPanel', friendsListPanel], ['homeFriendsPanel', homeFriendsPanel]]
+    .forEach(function (pair) {
+      const el = document.getElementById(pair[0]);
+      if (el) el.outerHTML = pair[1]();
+    });
+}
+
+// "Live" ages out after a couple of minutes without a heartbeat; re-evaluate.
+setInterval(function () {
+  if (Object.keys(DATA.listening).length) refreshListeningUI();
+}, 30000);
+
+async function setShareListening(on) {
+  if (!app.session) return;
+  const me = app.session.user.id;
+  DATA.me.shareListening = on;
+  try {
+    await db.profiles.update(me, { share_listening: on });
+    if (on) { lastPublished = { key: null, at: 0 }; lastSpotifyPoll = 0; pollSpotify(); }
+    else await clearMyListening();
+    toast(on ? 'shareOn' : 'shareOff');
+  } catch (err) {
+    console.error('Could not change sharing:', err);
+    DATA.me.shareListening = !on;
+    refreshSettingsView();
+    toast('settingFailed');
+  }
+}
+
+/* ---- Spotify library (Activity & Music) --------------------------------- */
+const LIBRARY_TTL_MS = 60000;
+const LIBRARY_FETCH = {
+  recent: function () { return spotify.recentlyPlayed(); },
+  playlists: function () { return spotify.playlists(); },
+  topArtists: function (range) { return spotify.topArtists(range); },
+  topTracks: function (range) { return spotify.topTracks(range); }
+};
+
+function resetSpotifyLibrary() {
+  UI.spotifyLib = { recent: null, playlists: null, topArtists: {}, topTracks: {} };
+}
+
+function libraryEntry(key, range) {
+  return range ? UI.spotifyLib[key][range] : UI.spotifyLib[key];
+}
+
+function setLibraryEntry(key, range, entry) {
+  if (range) UI.spotifyLib[key][range] = entry;
+  else UI.spotifyLib[key] = entry;
+}
+
+async function loadLibrary(key, range) {
+  const cur = libraryEntry(key, range);
+  if (cur && (cur.status === 'loading' || (cur.status === 'ok' && Date.now() - cur.at < LIBRARY_TTL_MS))) return;
+  setLibraryEntry(key, range, { status: 'loading', data: cur ? cur.data : null, at: 0 });
+  let entry;
+  try {
+    entry = { status: 'ok', data: await LIBRARY_FETCH[key](range), at: Date.now() };
+  } catch (err) {
+    console.error('Spotify ' + key + ' failed:', err);
+    entry = { status: 'error', error: err.status || 0, data: cur ? cur.data : null, at: 0 };
+  }
+  setLibraryEntry(key, range, entry);
+  paintLibraryPanels();
+}
+
+function ensureSpotifyLibrary(view) {
+  if (!app.session || !spotify.auth.isConnected() || spotify.auth.missingScopes().length) return;
+  if (view === 'activity') { loadLibrary('recent'); loadLibrary('topArtists', UI.activityRange); }
+  if (view === 'music') { loadLibrary('recent'); loadLibrary('topTracks', UI.musicRange); loadLibrary('playlists'); }
+}
+
+/* Swap just the panels whose data arrived, so the page doesn't flash. */
+function paintLibraryPanels() {
+  LIBRARY_PANELS.forEach(function (pair) {
+    const el = document.getElementById(pair[0]);
+    if (el) el.outerHTML = pair[1]();
+  });
 }
 
 document.addEventListener('visibilitychange', function () {
@@ -654,6 +822,9 @@ const TOASTS = {
   friendCancelled: ['info', 'Request cancelled', 'You can send it again any time'],
   friendRemoved: ['success', 'Friend removed', 'Their posts no longer show in your Friends feed'],
   friendFailed: ['error', 'Something went wrong', 'The list was refreshed. Try again'],
+  shareOn: ['success', 'Sharing is on', 'Friends can see what you are listening to'],
+  shareOff: ['info', 'Sharing is off', 'Friends no longer see what you are listening to'],
+  settingFailed: ['error', 'Setting not saved', 'Check your connection and try again'],
   spotifyConnected: ['success', 'Spotify connected', 'What you play now shows up in vortex'],
   spotifyCancelled: ['info', 'Spotify not connected', 'You cancelled on the Spotify screen'],
   spotifyFailed: ['error', 'Could not connect Spotify', 'Try again in a moment'],
@@ -983,6 +1154,7 @@ async function friendAction(btn, run, okToast, reloadFeed) {
     await run();
     await loadFriends();
     refreshFriendsUI();
+    reloadListening();
     if (okToast) toast(okToast);
     if (reloadFeed) loadFeed();
   } catch (err) {
@@ -1191,7 +1363,11 @@ document.addEventListener('click', function (e) {
   if (navBtn) { location.hash = '#/' + navBtn.dataset.nav; return; }
 
   const logoutBtn = t.closest('[data-action="logout"]');
-  if (logoutBtn) { db.auth.signOut(); return; }
+  if (logoutBtn) {
+    // Clear the status while still signed in; afterwards RLS would refuse it.
+    clearMyListening().finally(function () { db.auth.signOut(); });
+    return;
+  }
 
   if (t.closest('[data-action="new-post"]')) { openPostForm(); return; }
   if (t.closest('[data-action="share-now-playing"]')) { openPostForm(); fillPostFromNowPlaying(); return; }
@@ -1201,6 +1377,8 @@ document.addEventListener('click', function (e) {
   if (t.closest('[data-action="spotify-disconnect"]')) {
     spotify.auth.disconnect();
     stopSpotifyPolling();
+    clearMyListening();
+    resetSpotifyLibrary();
     refreshSettingsView();
     toast('spotifyDisconnected');
     return;
@@ -1248,6 +1426,7 @@ document.addEventListener('click', function (e) {
     toggle.setAttribute('aria-checked', String(on));
     if (toggle.dataset.toggle === 'rail') setRail(on);
     if (toggle.dataset.toggle === 'ambient') setAmbient(on);
+    if (toggle.dataset.toggle === 'share-listening') setShareListening(on);
     return;
   }
 
@@ -1308,9 +1487,16 @@ document.addEventListener('click', function (e) {
     tab.parentElement.querySelectorAll('[data-tab]').forEach(function (b) {
       b.setAttribute('aria-selected', String(b === tab));
     });
-    if (tab.parentElement.dataset.tabs === 'feed' && UI.feedScope !== tab.dataset.tab) {
+    const group = tab.parentElement.dataset.tabs;
+    if (group === 'feed' && UI.feedScope !== tab.dataset.tab) {
       UI.feedScope = tab.dataset.tab;
       loadFeed().then(function () { if (app.view === 'feed') setView('feed'); });
+    }
+    if (group === 'activity-range' || group === 'music-range') {
+      const range = RANGE_BY_LABEL[tab.dataset.tab];
+      if (group === 'activity-range') UI.activityRange = range; else UI.musicRange = range;
+      paintLibraryPanels();
+      ensureSpotifyLibrary(app.view);
     }
     return;
   }
@@ -1338,6 +1524,7 @@ function refreshOnEnter(name) {
     loadFriends().then(function () { if (app.view === 'friends') refreshFriendsUI(); })
       .catch(function (e) { console.error('Error loading friends:', e); });
   }
+  if (name === 'friends' || name === 'home') reloadListening();
   if (name === 'feed') {
     const before = feedSignature();
     loadFriends().then(loadFeed).then(function () {
@@ -1413,9 +1600,11 @@ window.addEventListener('hashchange', function () {
       // Spotify tokens are per-browser, so the next vortex account must not inherit them.
       spotify.auth.disconnect();
       stopSpotifyPolling();
+      stopListeningFeed();
       DATA.friends = []; DATA.incoming = []; DATA.outgoing = []; DATA.feed = [];
       DATA.me.stats = null; DATA.me.recentPosts = [];
       UI.friendSearch = { q: '', results: null, loading: false, error: false };
+      resetSpotifyLibrary();
       location.hash = '#/login';
       setView(currentRoute());
     }
@@ -1424,6 +1613,7 @@ window.addEventListener('hashchange', function () {
         location.hash = '#/home';
         setView(currentRoute());
         startSpotifyPolling();
+        startListeningFeed();
       });
     }
   });
@@ -1431,6 +1621,7 @@ window.addEventListener('hashchange', function () {
   if (!location.hash) location.hash = app.session ? '#/home' : '#/login';
   setView(currentRoute());
   startSpotifyPolling();
+  startListeningFeed();
 
   if (spotifyResult) {
     if (spotifyResult.ok) toast('spotifyConnected');
