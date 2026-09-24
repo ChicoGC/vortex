@@ -142,6 +142,16 @@ create policy "users can create own posts"
   on public.posts for insert
   with check (auth.uid() = user_id);
 
+-- Authors may fill in the cover of their own older posts, and nothing else.
+drop policy if exists "users can update own post covers" on public.posts;
+create policy "users can update own post covers"
+  on public.posts for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+revoke update on public.posts from anon, authenticated;
+grant update (album_image_url, spotify_track_id) on public.posts to authenticated;
+
 drop policy if exists "users can delete own posts" on public.posts;
 create policy "users can delete own posts"
   on public.posts for delete

@@ -84,6 +84,7 @@ function transformPostData(post, currentUserId) {
     user: post.author.name,
     initials: initialsFrom(post.author.name),
     time: formatTimeAgo(post.created_at),
+    createdAt: post.created_at,
     platform: 'spotify',
     track: post.track_title,
     artist: post.artist,
@@ -102,13 +103,13 @@ async function loadCurrentUser() {
   if (!app.session) return;
   try {
     const profile = await db.profiles.get(app.session.user.id);
-    await loadFriends();
+    await Promise.all([loadFriends(), loadMyActivity()]);
 
     DATA.me.name = profile.name;
     DATA.me.email = app.session.user.email;
     DATA.me.username = '@' + profile.username;
     DATA.me.initials = initialsFrom(profile.name);
-    DATA.me.bio = profile.bio || 'No bio yet.';
+    DATA.me.bio = profile.bio || '';
 
     const joinedDate = new Date(profile.created_at);
     const month = joinedDate.toLocaleString('en-US', { month: 'long' });
@@ -119,6 +120,20 @@ async function loadCurrentUser() {
 
     await loadFeed();
   } catch (e) { console.error('Error loading user:', e); }
+}
+
+/* Your totals and latest shares, for Home and Profile. Failures leave the
+   previous values (or the "—" placeholders) rather than breaking the page. */
+async function loadMyActivity() {
+  if (!app.session) return;
+  const me = app.session.user.id;
+  try {
+    const results = await Promise.all([db.stats.forUser(me), db.posts.list(5, [me])]);
+    DATA.me.stats = results[0];
+    DATA.me.recentPosts = results[1].map(function (p) { return transformPostData(p, me); });
+  } catch (e) {
+    console.error('Error loading your activity:', e);
+  }
 }
 
 function toPerson(profile, friendshipId) {
@@ -186,25 +201,45 @@ function feedSignature() {
 }
 
 /* Posts saved before covers existed get one looked up on Spotify, if this
-   viewer has Spotify connected. Only in memory — posts have no update policy. */
+   viewer has Spotify connected. When the viewer is the author, the cover is
+   saved to the post so everyone else sees it too; otherwise it's only shown
+   in this browser. */
+const COVER_URL = /^https:\/\/i\.scdn\.co\/image\/[A-Za-z0-9]+$/;
+const TRACK_ID = /^[A-Za-z0-9]{22}$/;
 let coverBackfillRun = 0;
+const coversSaved = new Set();  // back-to-back feed loads shouldn't write the same cover twice
+
 async function backfillCovers() {
   if (!spotify.auth.isConnected()) return;
   const run = ++coverBackfillRun;
-  const missing = DATA.feed.filter(function (p) { return !p.image; });
-  for (let i = 0; i < missing.length; i++) {
+  const copies = {};  // the same post can sit in both the feed and your recent shares
+  DATA.feed.concat(DATA.me.recentPosts).forEach(function (p) {
+    if (!p.image) (copies[p.id] = copies[p.id] || []).push(p);
+  });
+  const ids = Object.keys(copies);
+  for (let i = 0; i < ids.length; i++) {
     if (run !== coverBackfillRun) return;
-    const p = missing[i];
+    const list = copies[ids[i]];
+    const p = list[0];
+    let hit;
     try {
-      const hit = await spotify.findCover(p.track, p.artist);
-      if (hit && run === coverBackfillRun) {
-        p.image = hit.image;
-        if (!p.trackId) p.trackId = hit.id;
-        rerenderPost(p.id);
-      }
+      hit = await spotify.findCover(p.track, p.artist);
     } catch (err) {
       console.warn('Cover lookup failed:', err);
       return;
+    }
+    if (!hit || run !== coverBackfillRun) continue;
+    list.forEach(function (copy) {
+      copy.image = hit.image;
+      if (!copy.trackId) copy.trackId = hit.id;
+    });
+    rerenderPost(p.id);
+    if (p.mine && !coversSaved.has(p.id) && COVER_URL.test(hit.image || '') && TRACK_ID.test(hit.id || '')) {
+      coversSaved.add(p.id);
+      db.posts.setCover(p.id, hit.image, hit.id).catch(function (err) {
+        coversSaved.delete(p.id);
+        console.warn('Could not save cover to post:', err);
+      });
     }
   }
 }
@@ -390,7 +425,7 @@ function renderSidebar() {
       avatarEl(DATA.me.initials, '32', 'online') +
       '<span class="userchip__meta">' +
         '<span class="t-label-m truncate">' + esc(DATA.me.name) + '</span>' +
-        '<span class="t-caption c-tertiary">' + DATA.me.streak + '-day streak</span>' +
+        '<span class="t-caption c-tertiary truncate">' + esc(DATA.me.username) + '</span>' +
       '</span>' +
       icon('chevronDown', 15) +
     '</button>' +
@@ -609,16 +644,6 @@ async function connectSpotify() {
 
 /* ---- toasts -------------------------------------------------------------- */
 const TOASTS = {
-  recap: ['success', 'Recap link copied', 'Anyone with the link can see your week'],
-  accept: ['success', 'Friend request accepted', 'You can now see each other activity'],
-  request: ['info', 'Request sent', 'We will let you know when they accept'],
-  invite: ['info', 'Invite link copied', 'Share it anywhere — it expires in 7 days'],
-  export: ['success', 'Export queued', 'Your listening history will arrive by email'],
-  connect: ['error', 'Not wired up yet', 'Service connections land with the API work'],
-  provider: ['error', 'Prototype only', 'OAuth is not connected in this build'],
-  forgot: ['info', 'Nothing to recover', 'This login screen has no backend yet'],
-  signup: ['info', 'Sign-up is not live', 'Accounts arrive with the Supabase integration'],
-  flags: ['info', 'No flags yet', 'Feature flags land alongside the backend'],
   postDeleted: ['success', 'Post deleted', 'It no longer shows up in anyone\'s feed'],
   reactionFailed: ['error', 'Reaction not saved', 'Check your connection and try again'],
   commentFailed: ['error', 'Comment not sent', 'Your text is still in the box, try again'],
@@ -634,8 +659,7 @@ const TOASTS = {
   spotifyFailed: ['error', 'Could not connect Spotify', 'Try again in a moment'],
   spotifyDisconnected: ['success', 'Spotify disconnected', 'Remove full access at spotify.com/account/apps'],
   spotifyExpired: ['error', 'Spotify session ended', 'Connect again in Settings'],
-  spotifyForbidden: ['error', 'Spotify blocked this account', 'While in development, only accounts on the tester list can connect'],
-  login: ['error', 'Prototype login', 'The form validates, but nothing is submitted']
+  spotifyForbidden: ['error', 'Spotify blocked this account', 'While in development, only accounts on the tester list can connect']
 };
 
 function toast(kind) {
@@ -1038,6 +1062,7 @@ async function handleDeletePost(postId, btn) {
     DATA.feed = DATA.feed.filter(function (p) { return p.id !== postId; });
     if (app.view === 'feed') setView('feed');
     toast('postDeleted');
+    loadMyActivity();
   } catch (err) {
     document.getElementById('deletePostErrorText').textContent = err.message || 'Could not delete this post.';
     document.getElementById('deletePostError').hidden = false;
@@ -1060,8 +1085,8 @@ async function handlePostSubmit(form) {
   }
 
   // Same shapes the database constraints accept; anything else is dropped, not rejected.
-  const image = postTrack && /^https:\/\/i\.scdn\.co\/image\/[A-Za-z0-9]+$/.test(postTrack.image || '') ? postTrack.image : null;
-  const trackId = postTrack && /^[A-Za-z0-9]{22}$/.test(postTrack.id || '') ? postTrack.id : null;
+  const image = postTrack && COVER_URL.test(postTrack.image || '') ? postTrack.image : null;
+  const trackId = postTrack && TRACK_ID.test(postTrack.id || '') ? postTrack.id : null;
 
   const btn = document.getElementById('postSubmit');
   btn.disabled = true; btn.textContent = 'Sharing…';
@@ -1076,7 +1101,7 @@ async function handlePostSubmit(form) {
       spotifyTrackId: trackId
     });
     closeOverlay();
-    await loadFeed();
+    await Promise.all([loadFeed(), loadMyActivity()]);
     if (app.view === 'feed') setView('feed');
     else location.hash = '#/feed';
   } catch (err) {
@@ -1084,33 +1109,6 @@ async function handlePostSubmit(form) {
     errBox.hidden = false;
     btn.disabled = false; btn.textContent = 'Share';
   }
-}
-
-function openModal(kind) {
-  const o = document.getElementById('overlay');
-  o.hidden = false;
-  o.innerHTML =
-    '<div class="scrim" data-scrim>' +
-      '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">' +
-        '<div class="modal__head">' +
-          '<span class="toast__well toast__well--error">' + icon('close', 15) + '</span>' +
-          '<h2 class="t-title-s" id="modalTitle">Delete your account?</h2>' +
-        '</div>' +
-        '<div class="modal__body">' +
-          '<p class="t-body-m c-secondary">This removes your profile, listening history, friends and reactions. ' +
-          'Your streak of ' + DATA.me.streak + ' days goes with it. This cannot be undone.</p>' +
-          '<span class="field"><input type="text" placeholder="Type DELETE to confirm" aria-label="Type DELETE to confirm"></span>' +
-        '</div>' +
-        '<div class="modal__foot">' +
-          '<button class="btn btn--ghost btn--sm" data-close>Cancel</button>' +
-          '<button class="btn btn--primary btn--sm" disabled>Delete account</button>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-  const input = o.querySelector('input');
-  const confirm = o.querySelector('.modal__foot .btn--primary');
-  input.addEventListener('input', function () { confirm.disabled = input.value.trim() !== 'DELETE'; });
-  input.focus();
 }
 
 const CMD_ACTIONS = [
@@ -1241,12 +1239,6 @@ document.addEventListener('click', function (e) {
   if (t.closest('#openCmdk') || t.closest('#openCmdkMobile')) { openCmdk(); return; }
   if (t.closest('#railToggle')) { setRail(document.getElementById('app').dataset.rail !== 'compact'); return; }
 
-  const modalBtn = t.closest('[data-modal]');
-  if (modalBtn) { openModal(modalBtn.dataset.modal); return; }
-
-  const toastBtn = t.closest('[data-toast]');
-  if (toastBtn) { toast(toastBtn.dataset.toast); return; }
-
   const themeBtn = t.closest('[data-theme-pick]');
   if (themeBtn) { setTheme(themeBtn.dataset.themePick); return; }
 
@@ -1311,21 +1303,6 @@ document.addEventListener('click', function (e) {
     return;
   }
 
-  const playBtn = t.closest('[data-play-track]');
-  if (playBtn) {
-    document.querySelectorAll('[data-playing="true"]').forEach(function (r) {
-      r.dataset.playing = 'false';
-      const eq = r.querySelector('.eq');
-      if (eq) eq.outerHTML = '<span class="row__index">--</span>';
-    });
-    if (playBtn.classList.contains('row')) {
-      playBtn.dataset.playing = 'true';
-      const idx = playBtn.querySelector('.row__index');
-      if (idx) idx.outerHTML = '<span class="eq"><i></i><i></i><i></i></span>';
-    }
-    return;
-  }
-
   const tab = t.closest('[data-tab]');
   if (tab) {
     tab.parentElement.querySelectorAll('[data-tab]').forEach(function (b) {
@@ -1367,10 +1344,20 @@ function refreshOnEnter(name) {
       if (app.view === 'feed' && feedSignature() !== before) setView('feed');
     }).catch(function (e) { console.error('Error refreshing feed:', e); });
   }
+  if (name === 'home' || name === 'profile') {
+    const before = homeSignature();
+    Promise.all([loadMyActivity(), loadFriends().then(loadFeed)]).then(function () {
+      if (app.view === name && homeSignature() !== before) setView(name);
+    }).catch(function (e) { console.error('Error refreshing ' + name + ':', e); });
+  }
+}
+
+function homeSignature() {
+  return JSON.stringify([DATA.me.stats, DATA.friends.length,
+    DATA.me.recentPosts.map(function (p) { return p.id + (p.image || ''); })]) + feedSignature();
 }
 
 document.addEventListener('submit', function (e) {
-  if (e.target.id === 'protoLogin') { e.preventDefault(); toast('login'); }
   if (e.target.id === 'authLoginForm') { e.preventDefault(); handleLogin(e.target); }
   if (e.target.id === 'authSignupForm') { e.preventDefault(); handleSignup(e.target); }
   if (e.target.id === 'postForm') { e.preventDefault(); handlePostSubmit(e.target); }
@@ -1427,6 +1414,7 @@ window.addEventListener('hashchange', function () {
       spotify.auth.disconnect();
       stopSpotifyPolling();
       DATA.friends = []; DATA.incoming = []; DATA.outgoing = []; DATA.feed = [];
+      DATA.me.stats = null; DATA.me.recentPosts = [];
       UI.friendSearch = { q: '', results: null, loading: false, error: false };
       location.hash = '#/login';
       setView(currentRoute());

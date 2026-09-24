@@ -51,24 +51,16 @@ function iconBtn(name, tip, cls, size) {
 }
 
 /* ---- shared pieces ------------------------------------------------------ */
-function musicRow(t, i, opts) {
-  opts = opts || {};
-  const playing = !!t.playing;
-  const lead = playing
-    ? '<span class="eq" aria-label="Playing"><i></i><i></i><i></i></span>'
-    : '<span class="row__index">' + String(i + 1).padStart(2, '0') + '</span>';
-  return '<button class="row" data-playing="' + playing + '" data-play-track="' + esc(t.title) + '">' +
-    lead +
-    art(t.art) +
+/* A shared post as a compact row; showUser adds who shared it. */
+function postRow(p, showUser) {
+  return '<button class="row" data-nav="feed">' +
+    art(p.art, null, p.image) +
     '<span class="row__meta">' +
-      '<span class="row__title t-body-m-med truncate">' + esc(t.title) + '</span>' +
-      '<span class="t-body-s c-tertiary truncate">' + esc(t.artist) + (opts.album !== false ? ' · ' + esc(t.album || '') : '') + '</span>' +
+      '<span class="t-body-m-med truncate">' + esc(p.track) + '</span>' +
+      '<span class="t-body-s c-tertiary truncate">' + esc(p.artist) +
+        (showUser ? ' · shared by ' + esc(p.mine ? 'you' : p.user) : '') + '</span>' +
     '</span>' +
-    '<span class="row__actions">' +
-      '<span class="iconbtn" data-like>' + icon('heart', 17) + '</span>' +
-      '<span class="iconbtn" data-menu="track">' + icon('dots', 17) + '</span>' +
-    '</span>' +
-    '<span class="row__time">' + esc(t.len) + '</span>' +
+    '<span class="t-meta c-tertiary">' + esc(p.time) + '</span>' +
   '</button>';
 }
 
@@ -217,52 +209,47 @@ function postCard(p) {
   '</article>';
 }
 
-function statBlock(label, value, delta, suffix) {
-  const up = delta >= 0;
+function statTile(label, value) {
   return '<div class="stat">' +
     '<span class="t-overline c-tertiary">' + esc(label) + '</span>' +
     '<span class="t-stat-m">' + esc(value) + '</span>' +
-    '<span class="stat__delta">' +
-      '<span class="' + (up ? 'c-positive' : 'c-negative') + '">' + icon(up ? 'trendingUp' : 'trendingDown', 13) + '</span>' +
-      '<span class="t-num ' + (up ? 'c-positive' : 'c-negative') + '">' + (up ? '+' : '−') + Math.abs(delta) + '%</span>' +
-      '<span class="t-caption c-tertiary">' + esc(suffix || 'vs last week') + '</span>' +
-    '</span>' +
   '</div>';
-}
-
-function ringEl(pct, small) {
-  const r = small ? 18 : 30;
-  const size = small ? 44 : 72;
-  const c = 2 * Math.PI * r;
-  const off = c * (1 - pct / 100);
-  return '<div class="' + cx('ring', small ? 'ring--sm' : null) + '">' +
-    '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' +
-      '<circle class="ring__track" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke-width="' + (small ? 4 : 5) + '"/>' +
-      '<circle class="ring__fill" cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke-width="' + (small ? 4 : 5) + '" ' +
-        'stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '"/>' +
-    '</svg>' +
-    '<span class="ring__label">' + pct + '</span>' +
-  '</div>';
-}
-
-function weekBars() {
-  const max = Math.max.apply(null, DATA.week.map(function (d) { return d.min; }));
-  return '<div class="bars">' + DATA.week.map(function (d) {
-    const h = Math.round((d.min / max) * 100);
-    return '<div data-peak="' + (d.min === max) + '" data-tip="' + d.min + ' min">' +
-      '<span class="bars__slot"><i style="height:' + h + '%"></i></span>' +
-      '<span>' + d.day + '</span></div>';
-  }).join('') + '</div>';
 }
 
 function countLabel(n, noun) {
   return n + ' ' + noun + (n === 1 ? '' : 's');
 }
 
-function emptyState(iconName, title, text, action) {
-  return '<div class="empty"><span class="empty__well">' + icon(iconName, 20) + '</span>' +
-    '<span class="t-body-m-med">' + esc(title) + '</span>' +
-    '<p class="t-body-s c-tertiary">' + esc(text) + '</p>' + (action || '') + '</div>';
+/* Dome, wavy hem, and two oval eyes cut out (evenodd) so the panel shows through. */
+const GHOST_PATH =
+  'M10 48C10 23 28 6 50 6C72 6 90 23 90 48L90 97C90 101.5 86.5 103.5 82.5 102C76 99.5 70 99.5 63.5 101.5' +
+  'C57 103.5 50 103.5 43.5 101.5C37 99.5 30 99.5 23.5 101.5C19 103 14 103 11.5 100.5C10.5 99.5 10 98 10 96Z' +
+  'M25.5 50A10 14.5 0 1 0 45.5 50A10 14.5 0 1 0 25.5 50Z' +
+  'M54.5 50A10 14.5 0 1 0 74.5 50A10 14.5 0 1 0 54.5 50Z';
+
+/* Shown wherever there isn't enough real data yet. */
+function ghostEmpty(action, hint) {
+  return '<div class="ghost-empty">' +
+    '<div class="ghost" aria-hidden="true">' +
+      '<svg viewBox="0 0 100 110" width="60" height="66"><path fill-rule="evenodd" d="' + GHOST_PATH + '"/></svg>' +
+      '<span class="ghost__shadow"></span>' +
+    '</div>' +
+    '<p class="t-body-m c-secondary">It\'s still a little quiet in here.. maybe you could check later?</p>' +
+    (hint ? '<p class="t-body-s c-tertiary">' + esc(hint) + '</p>' : '') +
+    (action ? '<div class="ghost-empty__actions">' + action + '</div>' : '') +
+  '</div>';
+}
+
+function ghostPanel(title, action, hint) {
+  return '<section class="panel section">' + (title ? sectionHead(title) : '') + ghostEmpty(action, hint) + '</section>';
+}
+
+function sharePostButton(primary) {
+  return '<button class="btn ' + (primary ? 'btn--primary' : 'btn--secondary') + ' btn--sm" data-action="new-post">' + icon('plus', 15) + 'Share a track</button>';
+}
+
+function findFriendsButton(primary) {
+  return '<button class="btn ' + (primary ? 'btn--primary' : 'btn--secondary') + ' btn--sm" data-nav="friends">' + icon('plus', 15) + 'Find friends</button>';
 }
 
 function pageHead(eyebrow, title, actions) {
@@ -331,120 +318,131 @@ function heroPanel() {
   '</section>';
 }
 
+function greeting() {
+  const h = new Date().getHours();
+  const part = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  const first = (DATA.me.name || '').trim().split(/\s+/)[0];
+  return first ? part + ', ' + esc(first) : part;
+}
+
+function statsRows() {
+  const s = DATA.me.stats;
+  const rows = [
+    ['Tracks shared', s ? s.posts : null],
+    ['Friends', DATA.friends.length],
+    ['Reactions received', s ? s.reactions : null],
+    ['Comments received', s ? s.comments : null]
+  ];
+  return rows.map(function (r) {
+    return '<div class="rowflex">' +
+      '<span class="t-body-s c-secondary">' + r[0] + '</span><span class="spacer"></span>' +
+      '<span class="t-num">' + (r[1] == null ? '—' : r[1].toLocaleString('en-US')) + '</span>' +
+    '</div>';
+  }).join('');
+}
+
 VIEWS.home = function () {
-  const hero = heroPanel();
+  const latest = DATA.feed.length
+    ? '<section class="panel section">' +
+        sectionHead('Latest from your circle', null, '<button class="btn btn--ghost btn--sm" data-nav="feed">Open feed</button>') +
+        '<div class="section__body">' + DATA.feed.slice(0, 6).map(function (p) { return postRow(p, true); }).join('') + '</div>' +
+      '</section>'
+    : ghostPanel('Latest from your circle', sharePostButton(true) + findFriendsButton(false));
 
-  const recently =
-    '<section class="panel section">' +
-      sectionHead('Recently played', null, tabsEl('recent', ['Today', 'This week', 'All'], 'Today')) +
-      '<div class="section__body">' +
-        DATA.recent.slice(0, 6).map(function (t, i) { return musicRow(t, i); }).join('') +
-      '</div>' +
-    '</section>';
+  const friendsPanel = DATA.friends.length
+    ? '<section class="panel section">' +
+        sectionHead('Friends', countLabel(DATA.friends.length, 'friend'),
+          '<button class="btn btn--ghost btn--sm" data-nav="friends">See all</button>') +
+        '<div class="section__body">' + DATA.friends.slice(0, 5).map(function (f) { return personRow(f); }).join('') + '</div>' +
+      '</section>'
+    : ghostPanel('Friends', findFriendsButton(false));
 
-  const friendsPanel =
+  const statsPanel =
     '<section class="panel section">' +
-      sectionHead('Friends', countLabel(DATA.friends.length, 'friend'),
-        '<button class="btn btn--ghost btn--sm" data-nav="friends">See all</button>') +
-      '<div class="section__body">' +
-        (DATA.friends.length
-          ? DATA.friends.slice(0, 5).map(function (f) { return personRow(f); }).join('')
-          : emptyState('users', 'No friends yet', 'Find people by name or @username.',
-              '<button class="btn btn--secondary btn--sm" data-nav="friends">' + icon('plus', 15) + 'Find friends</button>')) +
-      '</div>' +
-    '</section>';
-
-  const weekPanel =
-    '<section class="panel section">' +
-      sectionHead('Your week', null, '<span class="badge badge--positive"><span class="badge__num">+18%</span></span>') +
-      '<div class="section__body section__body--pad stack stack--sm">' +
-        weekBars() +
-        '<hr class="hr">' +
-        '<div class="rowflex">' +
-          '<span class="t-body-s c-secondary">Minutes listened</span><span class="spacer"></span>' +
-          '<span class="t-num">1,284</span>' +
-        '</div>' +
-        '<div class="rowflex">' +
-          '<span class="t-body-s c-secondary">New artists</span><span class="spacer"></span>' +
-          '<span class="t-num">23</span>' +
-        '</div>' +
-        '<div class="rowflex">' +
-          '<span class="c-accent">' + icon('flame', 15) + '</span>' +
-          '<span class="t-body-s c-secondary">Current streak</span><span class="spacer"></span>' +
-          '<span class="t-num c-accent">12 days</span>' +
-        '</div>' +
-      '</div>' +
+      sectionHead('Your vortex') +
+      '<div class="section__body section__body--pad stack stack--sm">' + statsRows() + '</div>' +
     '</section>';
 
   return wrap(
-    pageHead('Monday, 21 September', 'Good evening, Pietro',
-      iconBtn('bell', 'Notifications', 'iconbtn--lg') +
-      '<button class="btn btn--secondary btn--sm" data-toast="recap">' + icon('sparkle', 15) + 'Share recap</button>' +
-      '<button class="btn btn--primary btn--sm" data-nav="music">' + icon('play', 15) + 'Play all</button>'),
-    hero +
+    pageHead(new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }), greeting(),
+      sharePostButton(true)),
+    heroPanel() +
     '<div class="cols cols--main-rail">' +
-      '<div class="stack">' + recently + '</div>' +
-      '<div class="stack">' + friendsPanel + weekPanel + '</div>' +
+      '<div class="stack">' + latest + '</div>' +
+      '<div class="stack">' + friendsPanel + statsPanel + '</div>' +
     '</div>'
   );
 };
 
 function feedEmpty() {
-  const share = '<button class="btn btn--secondary btn--sm" data-action="new-post">' + icon('plus', 15) + 'Share a track</button>';
   if (UI.feedScope === 'Friends' && !DATA.friends.length) {
-    return '<section class="panel">' + emptyState('users', 'Your feed is you and your friends',
-      'Add friends to see what they share, or switch to Everyone to see all posts.',
-      '<div class="rowflex" style="gap:8px;justify-content:center">' +
-        '<button class="btn btn--primary btn--sm" data-nav="friends">' + icon('plus', 15) + 'Find friends</button>' + share +
-      '</div>') + '</section>';
+    return ghostPanel(null, findFriendsButton(true) + sharePostButton(false),
+      'Your feed shows you and your friends. Add friends, or switch to Everyone.');
   }
-  return '<section class="panel">' + emptyState('broadcast', 'No posts yet',
-    UI.feedScope === 'Friends'
-      ? 'When you or your friends share a track, it shows up here.'
-      : 'Nobody has shared a track yet. Be the first.', share) + '</section>';
+  return ghostPanel(null, sharePostButton(false));
+}
+
+/* Side-column insights computed from the posts currently in the feed.
+   Each block only appears once there's enough data to mean something. */
+function feedInsights() {
+  const panels = [];
+
+  if (DATA.feed.length >= 3) {
+    const byArtist = {};
+    DATA.feed.forEach(function (p) {
+      const a = byArtist[p.artist] || (byArtist[p.artist] = { name: p.artist, n: 0, art: p.art, image: null });
+      a.n++;
+      if (!a.image && p.image) a.image = p.image;
+    });
+    const artists = Object.keys(byArtist).map(function (k) { return byArtist[k]; })
+      .sort(function (a, b) { return b.n - a.n; }).slice(0, 5);
+    panels.push('<section class="panel section">' +
+      sectionHead('Most shared artists', UI.feedScope === 'Friends' ? 'you & friends' : 'everyone') +
+      '<div class="section__body">' + artists.map(function (a, i) {
+        return '<div class="row" style="cursor:default">' +
+          '<span class="row__index">' + (i + 1) + '</span>' +
+          art(a.art, 'art--round', a.image) +
+          '<span class="row__meta"><span class="t-body-m-med truncate">' + esc(a.name) + '</span>' +
+          '<span class="t-body-s c-tertiary">' + countLabel(a.n, 'share') + '</span></span>' +
+        '</div>';
+      }).join('') + '</div>' +
+    '</section>');
+  }
+
+  const weekAgo = Date.now() - 7 * 864e5;
+  const byUser = {};
+  DATA.feed.forEach(function (p) {
+    if (new Date(p.createdAt).getTime() < weekAgo) return;
+    const u = byUser[p.user] || (byUser[p.user] = { name: p.user, initials: p.initials, mine: p.mine, n: 0 });
+    u.n++;
+  });
+  const sharers = Object.keys(byUser).map(function (k) { return byUser[k]; })
+    .sort(function (a, b) { return b.n - a.n; }).slice(0, 5);
+  if (sharers.length >= 2) {
+    panels.push('<section class="panel section">' +
+      sectionHead('Top sharers', 'last 7 days') +
+      '<div class="section__body">' + sharers.map(function (u, i) {
+        return '<div class="row" style="cursor:default">' +
+          '<span class="row__index">' + (i + 1) + '</span>' +
+          avatarEl(u.initials, '32') +
+          '<span class="row__meta"><span class="' + (u.mine ? 't-body-m-med c-accent' : 't-body-m-med') + ' truncate">' +
+            esc(u.name) + (u.mine ? ' (you)' : '') + '</span></span>' +
+          '<span class="t-num c-secondary">' + u.n + '</span>' +
+        '</div>';
+      }).join('') + '</div>' +
+    '</section>');
+  }
+
+  return panels.length ? panels.join('') : ghostPanel('Insights');
 }
 
 VIEWS.feed = function () {
-  const trending =
-    '<section class="panel section">' +
-      sectionHead('Trending with friends') +
-      '<div class="section__body">' +
-        DATA.artists.slice(0, 4).map(function (a, i) {
-          return '<button class="row">' +
-            '<span class="row__index">' + (i + 1) + '</span>' +
-            art(a.art, 'art--round') +
-            '<span class="row__meta"><span class="t-body-m-med truncate">' + esc(a.name) + '</span>' +
-            '<span class="t-body-s c-tertiary">' + a.plays + ' plays this week</span></span>' +
-            '<span class="' + (a.delta >= 0 ? 'c-positive' : 'c-negative') + '">' +
-              icon(a.delta >= 0 ? 'trendingUp' : 'trendingDown', 15) + '</span>' +
-          '</button>';
-        }).join('') +
-      '</div>' +
-    '</section>';
-
-  const leaders =
-    '<section class="panel section">' +
-      sectionHead('Weekly leaderboard', 'resets Sunday') +
-      '<div class="section__body">' +
-        DATA.leaderboard.map(function (l, i) {
-          return '<div class="row" style="cursor:default">' +
-            '<span class="row__index">' + (i + 1) + '</span>' +
-            avatarEl(l.initials, '32', l.you ? 'online' : null) +
-            '<span class="row__meta"><span class="' + (l.you ? 't-body-m-med c-accent' : 't-body-m-med') + ' truncate">' +
-              esc(l.name) + (l.you ? ' (you)' : '') + '</span></span>' +
-            '<span class="t-num c-secondary">' + l.minutes.toLocaleString('en-US') + '</span>' +
-          '</div>';
-        }).join('') +
-      '</div>' +
-    '</section>';
-
   return wrap(
     pageHead('Live from your circle', 'Feed',
-      tabsEl('feed', ['Friends', 'Everyone'], UI.feedScope) +
-      '<button class="btn btn--primary btn--sm" data-action="new-post">' + icon('plus', 15) + 'Share a track</button>'),
+      tabsEl('feed', ['Friends', 'Everyone'], UI.feedScope) + sharePostButton(true)),
     '<div class="cols cols--feed">' +
       '<div class="stack">' + (DATA.feed.length ? DATA.feed.map(postCard).join('') : feedEmpty()) + '</div>' +
-      '<div class="stack">' + trending + leaders + '</div>' +
+      '<div class="stack">' + feedInsights() + '</div>' +
     '</div>'
   );
 };
@@ -476,7 +474,7 @@ function friendsListPanel() {
       ? DATA.friends.map(function (f) {
           return personRow(f, '<button class="iconbtn" data-friend-remove="' + esc(f.friendshipId) + '" data-tip="Remove friend" aria-label="Remove ' + esc(f.name) + '">' + icon('close', 16) + '</button>');
         }).join('')
-      : emptyState('users', 'No friends yet', 'Search above to add someone. Once they accept, their posts show up in your feed.')) +
+      : ghostEmpty(null, 'Search above to add someone. Once they accept, their posts show up in your feed.')) +
     '</div>' +
   '</section>';
 }
@@ -529,228 +527,41 @@ VIEWS.friends = function () {
 };
 
 VIEWS.activity = function () {
-  const minutesPanel =
-    '<section class="panel section">' +
-      sectionHead('Listening minutes', 'last 7 days',
-        '<span class="badge badge--positive"><span class="badge__num">+18%</span></span>') +
-      '<div class="section__body section__body--pad stack">' +
-        weekBars() +
-        '<hr class="hr">' +
-        '<div class="cols cols--thirds">' +
-          statBlock('Total', '1,284', 18) +
-          statBlock('Daily average', '183', 6) +
-          statBlock('Longest session', '2h 14m', -11) +
-        '</div>' +
-      '</div>' +
-    '</section>';
-
-  const genrePanel =
-    '<section class="panel section">' +
-      sectionHead('Genre mix', 'this week') +
-      '<div class="section__body section__body--pad stack">' +
-        '<div class="distro">' + DATA.genres.map(function (g) {
-          return '<i style="width:' + g.pct + '%;background:' + g.color + '" data-tip="' + esc(g.name) + ' ' + g.pct + '%"></i>';
-        }).join('') + '</div>' +
-        '<div class="legend">' + DATA.genres.map(function (g) {
-          return '<div><em style="background:' + g.color + '"></em>' +
-            '<span class="t-body-s c-secondary">' + esc(g.name) + '</span>' +
-            '<span class="t-num c-tertiary">' + g.pct + '%</span></div>';
-        }).join('') + '</div>' +
-        '<hr class="hr">' +
-        '<p class="t-body-s c-secondary">Indie rock is up 6 points from last week, mostly driven by ' +
-          '<span class="c-primary">Radiohead</span> and <span class="c-primary">Phoenix</span>.</p>' +
-      '</div>' +
-    '</section>';
-
-  const maxPlays = DATA.artists[0].plays;
-  const artistsPanel =
-    '<section class="panel section">' +
-      sectionHead('Top artists', null, tabsEl('artists', ['Week', 'Month', 'All time'], 'Week')) +
-      '<div class="section__body">' + DATA.artists.map(function (a, i) {
-        return '<div class="row" style="cursor:default">' +
-          '<span class="row__index">' + (i + 1) + '</span>' +
-          art(a.art, 'art--round') +
-          '<span class="row__meta">' +
-            '<span class="t-body-m-med truncate">' + esc(a.name) + '</span>' +
-            '<span class="track track--thin rankbar' + (i === 0 ? ' rankbar--lead' : '') + '"><i style="width:' +
-              Math.round((a.plays / maxPlays) * 100) + '%"></i></span>' +
-          '</span>' +
-          '<span class="t-num c-secondary">' + a.plays + '</span>' +
-        '</div>';
-      }).join('') + '</div>' +
-    '</section>';
-
-  const historyPanel =
-    '<section class="panel section">' +
-      sectionHead('History', null, iconBtn('calendar', 'Pick a date')) +
-      '<div class="section__body section__body--pad">' +
-        '<div class="timeline">' + DATA.timeline.map(function (d) {
-          return '<div class="timeline__day" data-today="' + !!d.today + '">' +
-            '<div class="timeline__label t-overline c-tertiary">' + esc(d.day) + '</div>' +
-            d.items.map(function (it) {
-              return '<div class="row" style="cursor:default">' +
-                '<span class="t-meta c-tertiary" style="width:34px;flex:none">' + esc(it.time) + '</span>' +
-                art(it.art) +
-                '<span class="row__meta">' +
-                  '<span class="t-body-m-med truncate">' + esc(it.title) + '</span>' +
-                  '<span class="t-body-s c-tertiary truncate">' + esc(it.artist) + '</span>' +
-                '</span>' +
-              '</div>';
-            }).join('') +
-          '</div>';
-        }).join('') + '</div>' +
-      '</div>' +
-    '</section>';
-
-  return wrap(
-    pageHead('How you listened', 'Activity',
-      tabsEl('period', ['This week', 'This month', 'All time'], 'This week') +
-      '<button class="btn btn--secondary btn--sm" data-toast="export">' + icon('arrowUpRight', 15) + 'Export</button>'),
-    '<div class="cols cols--half">' + minutesPanel + genrePanel + '</div>' +
-    '<div class="cols cols--half">' + artistsPanel + historyPanel + '</div>'
-  );
+  return wrap(pageHead('How you listened', 'Activity'), ghostPanel());
 };
 
 VIEWS.music = function () {
-  const recentPanel =
-    '<section class="panel section">' +
-      sectionHead('Recently played', null,
-        '<button class="btn btn--ghost btn--sm">' + icon('shuffle', 15) + 'Shuffle</button>') +
-      '<div class="section__body">' + DATA.recent.map(function (t, i) { return musicRow(t, i); }).join('') + '</div>' +
-    '</section>';
-
-  const favPanel =
-    '<section class="panel section">' +
-      sectionHead('Favourites', DATA.favourites.length + ' tracks') +
-      '<div class="section__body">' + DATA.favourites.map(function (t, i) { return musicRow(t, i); }).join('') + '</div>' +
-    '</section>';
-
-  const albumsPanel =
-    '<section class="panel section">' +
-      sectionHead('Albums', null, '<button class="btn btn--ghost btn--sm">See all</button>') +
-      '<div class="section__body section__body--pad">' +
-        '<div class="tilegrid">' + DATA.albums.map(function (a) {
-          return '<article class="panel tile">' +
-            '<div class="tile__art">' + art(a.art, 'art--tile') +
-              '<button class="tile__play" aria-label="Play ' + esc(a.name) + '">' + icon('play', 15) + '</button>' +
-            '</div>' +
-            '<div class="tile__meta">' +
-              '<span class="t-body-m-med truncate">' + esc(a.name) + '</span>' +
-              '<span class="t-body-s c-tertiary truncate">' + esc(a.artist) + ' · ' + a.year + '</span>' +
-            '</div>' +
-          '</article>';
-        }).join('') + '</div>' +
-      '</div>' +
-    '</section>';
-
-  const discoverPanel =
-    '<section class="panel section">' +
-      sectionHead('Discovered through friends') +
-      '<div class="section__body">' + DATA.discoveries.map(function (d, i) {
-        return '<button class="row">' +
-          '<span class="row__index">' + (i + 1) + '</span>' +
-          art(d.art) +
-          '<span class="row__meta">' +
-            '<span class="t-body-m-med truncate">' + esc(d.title) + '</span>' +
-            '<span class="t-body-s c-tertiary truncate">' + esc(d.artist) + '</span>' +
-          '</span>' +
-          '<span class="badge"><span>via ' + esc(d.via) + '</span></span>' +
-        '</button>';
-      }).join('') + '</div>' +
-    '</section>';
-
-  const playlistPanel =
-    '<section class="panel section">' +
-      sectionHead('Playlists', null, iconBtn('plus', 'New playlist')) +
-      '<div class="section__body">' + DATA.playlists.map(function (p) {
-        return '<button class="row">' + art(p.art, 'art--lg') +
-          '<span class="row__meta">' +
-            '<span class="t-body-m-med truncate">' + esc(p.name) + '</span>' +
-            '<span class="t-body-s c-tertiary">' + p.count + ' tracks</span>' +
-          '</span>' +
-          '<span class="iconbtn">' + icon('chevronRight', 16) + '</span>' +
-        '</button>';
-      }).join('') + '</div>' +
-    '</section>';
-
-  return wrap(
-    pageHead('Your library', 'Music',
-      tabsEl('library', ['Recent', 'Favourites', 'Albums', 'Playlists'], 'Recent') +
-      '<button class="btn btn--primary btn--sm">' + icon('play', 15) + 'Play all</button>'),
-    '<div class="cols cols--half">' + recentPanel + '<div class="stack">' + favPanel + discoverPanel + '</div>' + '</div>' +
-    albumsPanel + playlistPanel
-  );
+  return wrap(pageHead('Your library', 'Music'), ghostPanel());
 };
 
 VIEWS.profile = function () {
   const me = DATA.me;
+  const s = me.stats;
   const header =
     '<section class="panel section__body--pad" style="padding:22px">' +
       '<div class="rowflex" style="gap:18px;align-items:flex-start">' +
-        avatarEl(me.initials, '72', 'listening') +
+        avatarEl(me.initials, '72') +
         '<div class="stack stack--sm" style="flex:1;min-width:0;gap:6px">' +
-          '<div class="rowflex" style="gap:9px">' +
-            '<h2 class="t-title-l">' + esc(me.name) + '</h2>' +
-            '<span class="badge badge--accent">' + icon('flame', 13) + me.streak + '-day streak</span>' +
-          '</div>' +
-          '<span class="t-meta c-tertiary">' + esc(me.username) + ' · joined ' + esc(me.joined) + '</span>' +
-          '<p class="t-body-m c-secondary" style="max-width:52ch;margin-top:4px">' + esc(me.bio) + '</p>' +
-        '</div>' +
-        '<div class="rowflex" style="gap:8px">' +
-          '<button class="btn btn--secondary btn--sm">' + icon('link', 15) + 'Share profile</button>' +
-          '<button class="btn btn--secondary btn--sm btn--icon" data-nav="settings" data-tip="Edit profile" aria-label="Edit profile">' + icon('sliders', 16) + '</button>' +
+          '<h2 class="t-title-l">' + esc(me.name) + '</h2>' +
+          '<span class="t-meta c-tertiary">' + esc(me.username) + (me.joined ? ' · joined ' + esc(me.joined) : '') + '</span>' +
+          (me.bio ? '<p class="t-body-m c-secondary" style="max-width:52ch;margin-top:4px">' + esc(me.bio) + '</p>' : '') +
         '</div>' +
       '</div>' +
       '<hr class="hr" style="margin:18px 0 16px">' +
       '<div class="cols cols--thirds">' +
-        statBlock('Minutes this week', me.minutes.toLocaleString('en-US'), 18) +
-        statBlock('Friends', String(me.friends), 4, 'this month') +
-        statBlock('New artists', '23', 9) +
+        statTile('Tracks shared', s ? String(s.posts) : '—') +
+        statTile('Friends', String(DATA.friends.length)) +
+        statTile('Reactions received', s ? String(s.reactions) : '—') +
       '</div>' +
     '</section>';
 
-  const compatPanel =
-    '<section class="panel section">' +
-      sectionHead('Music compatibility', 'top matches') +
-      '<div class="section__body section__body--pad stack">' +
-        DATA.compatibility.map(function (c, i) {
-          return (i ? '<hr class="hr">' : '') +
-            '<div class="compat">' + ringEl(c.pct) +
-              '<div class="stack" style="gap:3px;min-width:0">' +
-                '<span class="t-body-m-med">' + esc(c.name) + '</span>' +
-                '<span class="t-body-s c-tertiary truncate">Shared: ' + esc(c.shared) + '</span>' +
-                '<button class="btn btn--ghost btn--sm" style="align-self:flex-start;margin-top:4px;padding-left:0">' +
-                  'Compare taste' + icon('chevronRight', 14) + '</button>' +
-              '</div>' +
-            '</div>';
-        }).join('') +
-      '</div>' +
-    '</section>';
+  const shares = me.recentPosts.length
+    ? '<section class="panel section">' + sectionHead('Your recent shares') +
+        '<div class="section__body">' + me.recentPosts.map(function (p) { return postRow(p, false); }).join('') + '</div>' +
+      '</section>'
+    : ghostPanel('Your recent shares', sharePostButton(false));
 
-  const topPanel =
-    '<section class="panel section">' +
-      sectionHead('Top artists', 'all time') +
-      '<div class="section__body">' + DATA.artists.slice(0, 5).map(function (a, i) {
-        return '<div class="row" style="cursor:default">' +
-          '<span class="row__index">' + (i + 1) + '</span>' + art(a.art, 'art--round') +
-          '<span class="row__meta"><span class="t-body-m-med truncate">' + esc(a.name) + '</span></span>' +
-          '<span class="t-num c-secondary">' + a.plays + '</span>' +
-        '</div>';
-      }).join('') + '</div>' +
-    '</section>';
-
-  const favTrack =
-    '<section class="panel section">' +
-      sectionHead('On repeat') +
-      '<div class="section__body">' + DATA.favourites.slice(0, 4).map(function (t, i) { return musicRow(t, i); }).join('') + '</div>' +
-    '</section>';
-
-  return wrap(
-    pageHead('Public profile', 'Profile',
-      '<button class="btn btn--secondary btn--sm" data-nav="appearance">' + icon('droplet', 15) + 'Appearance</button>'),
-    header +
-    '<div class="cols cols--half">' + compatPanel + '<div class="stack">' + topPanel + favTrack + '</div></div>'
-  );
+  return wrap(pageHead('Your profile', 'Profile'), header + shares);
 };
 
 VIEWS.appearance = function () {
@@ -838,72 +649,29 @@ VIEWS.appearance = function () {
 };
 
 VIEWS.experimental = function () {
-  const auth =
-    '<form class="panel panel--raised auth" id="protoLogin" novalidate>' +
-      '<div class="auth__head">' +
-        '<span class="auth__mark"><img src="assets/logo-64.png" width="30" height="30" alt=""></span>' +
-        '<h2 class="t-title-m">Sign in to vortex</h2>' +
-        '<p class="t-body-s c-tertiary">Visual prototype — nothing is sent anywhere.</p>' +
-      '</div>' +
-      '<div class="auth__note">' + icon('flask', 16) +
-        '<p class="t-body-s c-secondary">This screen has no backend yet. Authentication will be wired to Supabase once the Spotify OAuth flow is in place.</p>' +
-      '</div>' +
-      '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="authEmail">Email or username</label>' +
-        '<span class="field">' + icon('mail', 17) +
-          '<input id="authEmail" type="text" placeholder="you@example.com" autocomplete="off"></span>' +
-      '</div>' +
-      '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="authPass">Password</label>' +
-        '<span class="field">' + icon('lock', 17) +
-          '<input id="authPass" type="password" placeholder="••••••••" autocomplete="off">' +
-          '<button type="button" class="iconbtn" data-pass-toggle aria-label="Show password">' + icon('eye', 17) + '</button>' +
-        '</span>' +
-      '</div>' +
-      '<div class="auth__row">' +
-        '<button type="button" class="check" data-toggle="remember" role="checkbox" aria-checked="true">' + icon('check', 12) + '</button>' +
-        '<span class="t-body-s c-secondary">Remember me</span>' +
-        '<span class="spacer"></span>' +
-        '<button type="button" class="btn btn--ghost btn--sm" data-toast="forgot">Forgot password?</button>' +
-      '</div>' +
-      '<button type="submit" class="btn btn--primary" style="width:100%;padding:0 16px">Log in</button>' +
-      '<div class="auth__sep"><span class="t-caption">or continue with</span></div>' +
-      '<div class="auth__providers">' +
-        '<button type="button" class="btn btn--secondary btn--sm" data-toast="provider" style="justify-content:center;padding:0 10px">' + icon('spotify', 16) + 'Spotify</button>' +
-        '<button type="button" class="btn btn--secondary btn--sm" data-toast="provider" style="justify-content:center;padding:0 10px">' + icon('apple', 16) + 'Apple</button>' +
-        '<button type="button" class="btn btn--secondary btn--sm" data-toast="provider" style="justify-content:center;padding:0 10px">' + icon('google', 16) + 'Google</button>' +
-      '</div>' +
-      '<p class="t-body-s c-tertiary" style="text-align:center">No account yet? ' +
-        '<button type="button" class="btn btn--ghost btn--sm" data-toast="signup" style="padding:0 4px">Create one</button></p>' +
-    '</form>';
-
-  return '<div class="view">' +
-    pageHead('Work in progress', 'Experimental <span class="badge badge--beta" style="vertical-align:5px;margin-left:8px">Beta</span>',
-      '<button class="btn btn--ghost btn--sm" data-toast="flags">' + icon('flask', 15) + 'Feature flags</button>') +
-    '<div class="auth-wrap scroll">' + auth + '</div>' +
-  '</div>';
+  return wrap(
+    pageHead('Work in progress', 'Experimental <span class="badge badge--beta" style="vertical-align:5px;margin-left:8px">Beta</span>'),
+    ghostPanel()
+  );
 };
 
 VIEWS.settings = function () {
-  function row(iconName, title, desc, control, disabled) {
-    return '<div class="setting' + (disabled ? ' setting--disabled' : '') + '">' +
+  function row(iconName, title, desc, control) {
+    return '<div class="setting">' +
       '<span class="c-tertiary">' + icon(iconName, 18) + '</span>' +
       '<div class="setting__meta">' +
         '<span class="t-body-m-med">' + esc(title) + '</span>' +
         '<span class="t-body-s c-tertiary">' + esc(desc) + '</span>' +
-      '</div>' + control +
+      '</div>' + (control || '') +
     '</div>';
   }
-  const sw = function (id, on) {
-    return '<button class="toggle" data-toggle="' + id + '" role="switch" aria-checked="' + !!on + '" aria-label="' + id + '"></button>';
-  };
 
   const account =
     '<section class="panel section">' + sectionHead('Account') +
       '<div class="section__body section__body--flush">' +
-        row('user', 'Display name', DATA.me.name, '<button class="btn btn--secondary btn--sm">Edit</button>') +
-        row('globe', 'Username', DATA.me.username, '<button class="btn btn--secondary btn--sm">Edit</button>') +
-        row('mail', 'Email', DATA.me.email || '', '<button class="btn btn--secondary btn--sm">Change</button>') +
+        row('user', 'Display name', DATA.me.name) +
+        row('globe', 'Username', DATA.me.username) +
+        row('mail', 'Email', DATA.me.email || '') +
       '</div>' +
     '</section>';
 
@@ -913,51 +681,21 @@ VIEWS.settings = function () {
         (spotify.auth.isConnected()
           ? row('spotify', 'Spotify', 'Connected · shows what you are playing', '<button class="btn btn--secondary btn--sm" data-action="spotify-disconnect">Disconnect</button>')
           : row('spotify', 'Spotify', 'Not connected', '<button class="btn btn--primary btn--sm" data-action="spotify-connect">Connect</button>')) +
-        row('apple', 'Apple Music', 'Not connected', '<button class="btn btn--secondary btn--sm" data-toast="connect">Connect</button>') +
-        row('google', 'Google', 'Used for sign-in only', '<button class="btn btn--secondary btn--sm" data-toast="connect">Connect</button>') +
       '</div>' +
     '</section>';
 
-  const privacy =
-    '<section class="panel section">' + sectionHead('Privacy') +
-      '<div class="section__body section__body--flush">' +
-        row('broadcast', 'Share listening activity', 'Friends can see what you are playing in real time.', sw('share', true)) +
-        row('users', 'Show in leaderboards', 'Appear in the weekly ranking among your friends.', sw('leader', true)) +
-        row('eye', 'Public profile', 'Anyone with your link can see your profile.', sw('public', false)) +
-        row('clock', 'Private session', 'Pause activity sharing until you turn it back on.', sw('private', false)) +
-      '</div>' +
-    '</section>';
-
-  const notifications =
-    '<section class="panel section">' + sectionHead('Notifications') +
-      '<div class="section__body section__body--flush">' +
-        row('bell', 'Friend activity', 'When someone you follow starts listening.', sw('n1', true)) +
-        row('heart', 'Reactions', 'When a friend reacts to your track.', sw('n2', true)) +
-        row('sparkle', 'Weekly recap', 'Your listening summary every Sunday night.', sw('n3', true)) +
-        row('flame', 'Streak reminders', 'A nudge when your streak is about to break.', sw('n4', false)) +
-      '</div>' +
-    '</section>';
-
-  const danger =
-    '<section class="panel section">' + sectionHead('Danger zone') +
+  const session =
+    '<section class="panel section">' + sectionHead('Session') +
       '<div class="section__body section__body--flush">' +
         row('logout', 'Log out', 'Sign out on this device only.', '<button class="btn btn--secondary btn--sm" data-action="logout">Log out</button>') +
-        '<div class="setting">' +
-          '<span class="c-negative">' + icon('close', 18) + '</span>' +
-          '<div class="setting__meta">' +
-            '<span class="t-body-m-med c-negative">Delete account</span>' +
-            '<span class="t-body-s c-tertiary">Removes your profile, history and connections. Cannot be undone.</span>' +
-          '</div>' +
-          '<button class="btn btn--secondary btn--sm" data-modal="delete">Delete</button>' +
-        '</div>' +
       '</div>' +
     '</section>';
 
   return wrap(
     pageHead('Preferences', 'Settings'),
     '<div class="cols cols--half">' +
-      '<div class="stack">' + account + privacy + '</div>' +
-      '<div class="stack">' + services + notifications + danger + '</div>' +
+      '<div class="stack">' + account + '</div>' +
+      '<div class="stack">' + services + session + '</div>' +
     '</div>'
   );
 };

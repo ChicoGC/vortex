@@ -168,10 +168,41 @@ const db = {
       return data;
     },
 
+    async setCover(postId, albumImageUrl, spotifyTrackId) {
+      const { data, error } = await supabaseClient
+        .from('posts')
+        .update({ album_image_url: albumImageUrl, spotify_track_id: spotifyTrackId })
+        .eq('id', postId)
+        .select('id');
+      if (error) throw error;
+      if (!data || !data.length) throw new Error('Post not found, or it is not yours.');
+    },
+
     async remove(postId) {
       const { data, error } = await supabaseClient.from('posts').delete().eq('id', postId).select('id');
       if (error) throw error;
       if (!data || !data.length) throw new Error('Post not found, or you are not allowed to delete it.');
+    }
+  },
+
+  stats: {
+    /* Totals for the profile: posts shared, and reactions / comments received
+       from other people on those posts. Counted server-side (head requests). */
+    async forUser(userId) {
+      async function count(query) {
+        const { count, error } = await query;
+        if (error) throw error;
+        return count || 0;
+      }
+      const opts = { count: 'exact', head: true };
+      const [posts, reactions, comments] = await Promise.all([
+        count(supabaseClient.from('posts').select('id', opts).eq('user_id', userId)),
+        count(supabaseClient.from('reactions').select('id, posts!inner(user_id)', opts)
+          .eq('posts.user_id', userId).neq('user_id', userId)),
+        count(supabaseClient.from('comments').select('id, posts!inner(user_id)', opts)
+          .eq('posts.user_id', userId).neq('user_id', userId))
+      ]);
+      return { posts: posts, reactions: reactions, comments: comments };
     }
   },
 
