@@ -111,6 +111,7 @@ async function loadCurrentUser() {
     DATA.me.initials = initialsFrom(profile.name);
     DATA.me.bio = profile.bio || '';
     DATA.me.shareListening = profile.share_listening !== false;
+    DATA.me.shareTaste = profile.share_taste !== false;
 
     const joinedDate = new Date(profile.created_at);
     const month = joinedDate.toLocaleString('en-US', { month: 'long' });
@@ -727,8 +728,9 @@ async function setShareListening(on) {
   }
 }
 
-/* ---- Spotify library (Activity & Music) --------------------------------- */
-const LIBRARY_TTL_MS = 60000;
+/* ---- Spotify library (Activity, Music, Profile) -------------------------- */
+// Top lists move slowly; recent plays change with every song.
+const LIBRARY_TTL_MS = { recent: 60000, playlists: 300000, topArtists: 600000, topTracks: 600000 };
 const LIBRARY_FETCH = {
   recent: function () { return spotify.recentlyPlayed(); },
   playlists: function () { return spotify.playlists(); },
@@ -738,6 +740,10 @@ const LIBRARY_FETCH = {
 
 function resetSpotifyLibrary() {
   UI.spotifyLib = { recent: null, playlists: null, topArtists: {}, topTracks: {} };
+  UI.playlistItems = {};
+  UI.playlistOpen = null;
+  UI.savedPlaylist = {};
+  UI.compatOpen = null;
 }
 
 function libraryEntry(key, range) {
@@ -751,7 +757,7 @@ function setLibraryEntry(key, range, entry) {
 
 async function loadLibrary(key, range) {
   const cur = libraryEntry(key, range);
-  if (cur && (cur.status === 'loading' || (cur.status === 'ok' && Date.now() - cur.at < LIBRARY_TTL_MS))) return;
+  if (cur && (cur.status === 'loading' || (cur.status === 'ok' && Date.now() - cur.at < LIBRARY_TTL_MS[key]))) return;
   setLibraryEntry(key, range, { status: 'loading', data: cur ? cur.data : null, at: 0 });
   let entry;
   try {
@@ -762,12 +768,142 @@ async function loadLibrary(key, range) {
   }
   setLibraryEntry(key, range, entry);
   paintLibraryPanels();
+  if (entry.status === 'ok' && range === 'medium_term') maybePublishTaste();
 }
 
 function ensureSpotifyLibrary(view) {
   if (!app.session || !spotify.auth.isConnected() || spotify.auth.missingScopes().length) return;
+  // The ~6-month lists feed your DNA snapshot, so any Spotify page keeps it fresh.
+  if (view === 'activity' || view === 'music' || view === 'profile') {
+    loadLibrary('topArtists', 'medium_term');
+    loadLibrary('topTracks', 'medium_term');
+  }
   if (view === 'activity') { loadLibrary('recent'); loadLibrary('topArtists', UI.activityRange); }
-  if (view === 'music') { loadLibrary('recent'); loadLibrary('topTracks', UI.musicRange); loadLibrary('playlists'); }
+  if (view === 'music') { loadLibrary('recent'); loadLibrary('topTracks', UI.musicRange); loadLibrary('playlists'); loadTastes(); }
+  if (view === 'profile') {
+    loadLibrary('recent');
+    loadLibrary('playlists');
+    ['short_term', 'long_term'].forEach(function (r) { loadLibrary('topArtists', r); });
+    if (UI.dnaRange !== 'medium_term') loadLibrary('topArtists', UI.dnaRange);
+    loadTastes();
+  }
+}
+
+/* ---- music DNA ------------------------------------------------------------ */
+const TASTE_REPUBLISH_MS = 12 * 3600 * 1000;
+
+/* Publishes your snapshot when it changed, or at most every 12 hours. */
+async function maybePublishTaste() {
+  if (!app.session || !DATA.me.shareTaste) return;
+  const snap = mySnapshot();
+  if (!snap || !snap.artists.length) return;
+  const me = app.session.user.id;
+  const sig = JSON.stringify(snap);
+  let last = {};
+  try { last = JSON.parse(STORE.get('taste.' + me, '{}')) || {}; } catch (e) { /* corrupt entry */ }
+  if (last.sig === sig && Date.now() - (last.at || 0) < TASTE_REPUBLISH_MS) return;
+  try {
+    await db.taste.publish(me, snap);
+    STORE.set('taste.' + me, JSON.stringify({ sig: sig, at: Date.now() }));
+  } catch (err) {
+    console.warn('Could not share your music DNA:', err);
+  }
+}
+
+let tastesLoadedAt = 0;
+async function loadTastes(force) {
+  if (!app.session || (!force && Date.now() - tastesLoadedAt < 120000)) return;
+  tastesLoadedAt = Date.now();
+  const me = app.session.user.id;
+  try {
+    const rows = await db.taste.list();
+    DATA.tastes = {};
+    rows.forEach(function (r) { if (r.user_id !== me) DATA.tastes[r.user_id] = sanitizeSnapshot(r); });
+    paintLibraryPanels();
+  } catch (err) {
+    tastesLoadedAt = 0;
+    console.warn('Could not load friends\' music DNA:', err);
+  }
+}
+
+async function setShareTaste(on) {
+  if (!app.session) return;
+  const me = app.session.user.id;
+  DATA.me.shareTaste = on;
+  try {
+    await db.profiles.update(me, { share_taste: on });
+    STORE.set('taste.' + me, '{}');
+    if (on) maybePublishTaste(); else await db.taste.clear(me);
+    toast(on ? 'tasteOn' : 'tasteOff');
+  } catch (err) {
+    console.error('Could not change DNA sharing:', err);
+    DATA.me.shareTaste = !on;
+    refreshSettingsView();
+    toast('settingFailed');
+  }
+}
+
+async function openPlaylist(id) {
+  UI.playlistOpen = UI.playlistOpen === id ? null : id;
+  paintLibraryPanels();
+  if (!UI.playlistOpen) return;
+  const cur = UI.playlistItems[id];
+  if (cur && (cur.status === 'loading' || cur.status === 'ok')) return;
+  UI.playlistItems[id] = { status: 'loading' };
+  try {
+    UI.playlistItems[id] = { status: 'ok', data: await spotify.playlistItems(id, 200) };
+  } catch (err) {
+    console.error('Spotify playlist items failed:', err);
+    UI.playlistItems[id] = { status: 'error', error: err.status || 0 };
+  }
+  paintLibraryPanels();
+  const detail = document.getElementById('musPlaylistDetail');
+  if (detail && UI.playlistOpen === id) detail.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+async function saveTopTracksPlaylist() {
+  const range = UI.musicRange;
+  const tracks = libData('topTracks', range);
+  if (!tracks || !tracks.length) return;
+  UI.savedPlaylist[range] = { status: 'saving' };
+  paintLibraryPanels();
+  const month = new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+  try {
+    const res = await spotify.createPlaylist(
+      'vortex · top tracks · ' + RANGE_LABEL[range].toLowerCase() + ' (' + month + ')',
+      'Your ' + tracks.length + ' top tracks on Spotify over the last ' + RANGE_LABEL[range].toLowerCase() + ', saved from vortex.',
+      tracks.map(function (t) { return t.id; })
+    );
+    UI.savedPlaylist[range] = { status: 'ok', url: res.url };
+    UI.spotifyLib.playlists = null;
+    toast('playlistSaved');
+  } catch (err) {
+    console.error('Could not save playlist:', err);
+    UI.savedPlaylist[range] = null;
+    toast('playlistFailed');
+  }
+  paintLibraryPanels();
+  if (app.view === 'music') loadLibrary('playlists');
+}
+
+async function saveDnaImage(btn) {
+  btn.disabled = true;
+  try {
+    const blob = await renderDnaImage();
+    if (!blob) throw new Error('Canvas export failed');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'vortex-music-dna.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  } catch (err) {
+    console.error('Could not create the DNA image:', err);
+    toast('imageFailed');
+  }
+  btn.disabled = false;
 }
 
 /* Swap just the panels whose data arrived, so the page doesn't flash. */
@@ -825,6 +961,11 @@ const TOASTS = {
   shareOn: ['success', 'Sharing is on', 'Friends can see what you are listening to'],
   shareOff: ['info', 'Sharing is off', 'Friends no longer see what you are listening to'],
   settingFailed: ['error', 'Setting not saved', 'Check your connection and try again'],
+  tasteOn: ['success', 'Music DNA shared', 'Friends can now compare tastes with you'],
+  tasteOff: ['info', 'Music DNA private', 'Your snapshot was deleted from vortex'],
+  playlistSaved: ['success', 'Playlist saved', 'It\'s private, in your Spotify library'],
+  playlistFailed: ['error', 'Playlist not saved', 'Spotify refused it. Try again in a moment'],
+  imageFailed: ['error', 'Image not created', 'Your browser blocked the export. Try again'],
   spotifyConnected: ['success', 'Spotify connected', 'What you play now shows up in vortex'],
   spotifyCancelled: ['info', 'Spotify not connected', 'You cancelled on the Spotify screen'],
   spotifyFailed: ['error', 'Could not connect Spotify', 'Try again in a moment'],
@@ -1427,8 +1568,22 @@ document.addEventListener('click', function (e) {
     if (toggle.dataset.toggle === 'rail') setRail(on);
     if (toggle.dataset.toggle === 'ambient') setAmbient(on);
     if (toggle.dataset.toggle === 'share-listening') setShareListening(on);
+    if (toggle.dataset.toggle === 'share-taste') setShareTaste(on);
     return;
   }
+
+  const compatBtn = t.closest('[data-compat-open]');
+  if (compatBtn) {
+    UI.compatOpen = UI.compatOpen === compatBtn.dataset.compatOpen ? null : compatBtn.dataset.compatOpen;
+    paintLibraryPanels();
+    return;
+  }
+  const playlistBtn = t.closest('[data-playlist-open]');
+  if (playlistBtn) { openPlaylist(playlistBtn.dataset.playlistOpen); return; }
+  if (t.closest('[data-playlist-close]')) { UI.playlistOpen = null; paintLibraryPanels(); return; }
+  if (t.closest('[data-action="save-top-playlist"]')) { saveTopTracksPlaylist(); return; }
+  const imageBtn = t.closest('[data-action="save-dna-image"]');
+  if (imageBtn) { saveDnaImage(imageBtn); return; }
 
   const passBtn = t.closest('[data-pass-toggle]');
   if (passBtn) {
@@ -1492,9 +1647,11 @@ document.addEventListener('click', function (e) {
       UI.feedScope = tab.dataset.tab;
       loadFeed().then(function () { if (app.view === 'feed') setView('feed'); });
     }
-    if (group === 'activity-range' || group === 'music-range') {
+    if (group === 'activity-range' || group === 'music-range' || group === 'dna-range') {
       const range = RANGE_BY_LABEL[tab.dataset.tab];
-      if (group === 'activity-range') UI.activityRange = range; else UI.musicRange = range;
+      if (group === 'activity-range') UI.activityRange = range;
+      else if (group === 'music-range') UI.musicRange = range;
+      else UI.dnaRange = range;
       paintLibraryPanels();
       ensureSpotifyLibrary(app.view);
     }
@@ -1605,6 +1762,8 @@ window.addEventListener('hashchange', function () {
       DATA.me.stats = null; DATA.me.recentPosts = [];
       UI.friendSearch = { q: '', results: null, loading: false, error: false };
       resetSpotifyLibrary();
+      DATA.tastes = {};
+      tastesLoadedAt = 0;
       location.hash = '#/login';
       setView(currentRoute());
     }

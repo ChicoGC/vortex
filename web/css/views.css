@@ -416,6 +416,192 @@
 .mobile-bar { display: none; }
 
 /* ==========================================================================
+   music DNA
+   ========================================================================== */
+:root, [data-theme="dark"] { --tier-1: var(--slate-400); --tier-2: var(--teal-400); --tier-3: var(--ember-500); }
+[data-theme="light"] { --tier-1: var(--slate-500); --tier-2: #1F8F7C; --tier-3: var(--ember-600); }
+
+.dna-meter { position: relative; height: 6px; border-radius: var(--radius-full); background: var(--bg-inset); overflow: hidden; flex: 1; min-width: 40px; }
+.dna-meter i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--accent-base); transition: width var(--dur-slower) var(--ease-out); }
+.dna-meter--muted i { background: var(--text-tertiary); }
+.dna-meter--max i { background: var(--tier-3); }
+
+/* hero card */
+.dna-card {
+  position: relative; overflow: hidden;
+  display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 24px;
+  padding: 24px;
+}
+.dna-card::before {
+  content: ""; position: absolute; inset: -40% -10% auto auto; width: 70%; height: 140%;
+  background: radial-gradient(closest-side, var(--accent-soft), transparent 70%);
+  pointer-events: none;
+}
+.dna-card__body { position: relative; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.dna-card__title { font-size: 40px; line-height: 44px; font-weight: 600; letter-spacing: -.022em; margin-top: 2px; }
+.dna-card__tag { max-width: 46ch; }
+.dna-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.dna-chip {
+  padding: 5px 11px; border-radius: var(--radius-full);
+  background: var(--glass-raised); border: 1px solid var(--glass-border);
+  font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-secondary);
+}
+.dna-chip--lead { background: var(--accent-soft); border-color: var(--accent-border); color: var(--accent-base); }
+.dna-level { display: flex; align-items: center; gap: 16px; margin-top: 10px; max-width: 460px; }
+.dna-level__num { display: flex; flex-direction: column; gap: 2px; flex: none; }
+.dna-level__num b { font-family: var(--font-mono); font-size: 32px; line-height: 34px; font-weight: 500; letter-spacing: -.02em; }
+.dna-level__bar { flex: 1; display: flex; flex-direction: column; gap: 7px; padding-top: 16px; }
+.dna-level__bar .dna-meter { flex: none; height: 8px; }
+.dna-card__actions { display: flex; gap: 8px; margin-top: 8px; }
+.dna-card__art { position: relative; min-height: 230px; }
+.dna-cover { position: absolute; width: 150px; border-radius: var(--radius-md); box-shadow: var(--elev-raised); transition: transform var(--dur-slow) var(--ease-spring); }
+.dna-cover--1 { top: 6px; left: 64px; transform: rotate(-6deg); z-index: 3; }
+.dna-cover--2 { top: 34px; left: 128px; transform: rotate(7deg); z-index: 2; }
+.dna-cover--3 { top: 58px; left: 8px; transform: rotate(-14deg); z-index: 1; opacity: .9; }
+.dna-card:hover .dna-cover--1 { transform: rotate(-3deg) translateY(-4px); }
+.dna-card:hover .dna-cover--2 { transform: rotate(11deg) translateX(6px); }
+.dna-card:hover .dna-cover--3 { transform: rotate(-18deg) translateX(-6px); }
+.dna-card__caption { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; }
+
+/* closest unlock */
+.quest {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) 120px; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: var(--radius-md);
+  background: var(--accent-soft); border: 1px solid var(--accent-border);
+}
+.quest__icon { color: var(--accent-base); display: grid; }
+.quest__meter { background: rgba(0, 0, 0, .18); }
+[data-theme="light"] .quest__meter { background: rgba(255, 255, 255, .7); }
+
+/* badges */
+.bdg-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.bdg {
+  display: flex; gap: 12px; align-items: flex-start; padding: 12px;
+  border-radius: var(--radius-md); background: var(--bg-inset); border: 1px solid var(--border-subtle);
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.bdg:hover { border-color: var(--border-default); }
+.bdg[data-tier="3"] { border-color: color-mix(in srgb, var(--tier-3) 40%, transparent); background: color-mix(in srgb, var(--tier-3) 7%, var(--bg-inset)); }
+.bdg__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.bdg__name { font-size: 14px; line-height: 20px; font-weight: 600; letter-spacing: -.004em; }
+.bdg__name em { font-style: normal; font-family: var(--font-mono); font-size: 12px; font-weight: 500; margin-left: 4px; color: var(--tier-c, var(--text-tertiary)); }
+.bdg[data-tier="0"] .bdg__name { color: var(--text-secondary); }
+.bdg__detail { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 28px; }
+.bdg__foot { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+.bdg__foot .dna-meter { flex: none; width: 100%; height: 5px; }
+.bdg[data-tier="1"] { --tier-c: var(--tier-1); }
+.bdg[data-tier="2"] { --tier-c: var(--tier-2); }
+.bdg[data-tier="3"] { --tier-c: var(--tier-3); }
+.bdg .dna-meter i { background: var(--tier-c, var(--text-tertiary)); }
+
+.emblem { position: relative; width: 48px; height: 52px; flex: none; color: var(--tier-c, var(--text-tertiary)); }
+.emblem svg { display: block; }
+.emblem__hex { fill: color-mix(in srgb, currentColor 14%, transparent); stroke: currentColor; stroke-width: 1.5; }
+.emblem__inner { fill: none; stroke: currentColor; stroke-width: 1; opacity: .35; }
+.emblem[data-tier="0"] .emblem__hex { fill: none; stroke-dasharray: 3 3; opacity: .7; }
+.emblem[data-tier="0"] .emblem__inner { display: none; }
+.emblem[data-tier="3"] .emblem__hex { fill: color-mix(in srgb, currentColor 24%, transparent); }
+.emblem[data-tier="3"] .emblem__inner { opacity: .7; }
+.emblem__icon { position: absolute; inset: 0 0 6px; display: grid; place-items: center; }
+.emblem[data-tier="0"] .emblem__icon { opacity: .6; }
+.emblem__pips { position: absolute; left: 0; right: 0; bottom: -6px; display: flex; justify-content: center; gap: 3px; }
+.emblem__pips i { width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); }
+.emblem__pips i.on { background: currentColor; }
+.bdg[data-state="loading"] .emblem, .bdg[data-state="error"] .emblem { opacity: .45; }
+
+/* genre radar + list */
+.radar { display: block; width: 100%; max-width: 460px; height: auto; margin: 0 auto; overflow: visible; }
+.radar__ring { fill: none; stroke: var(--border-subtle); stroke-width: 1; }
+.radar__spoke { stroke: var(--border-subtle); stroke-width: 1; }
+.radar__shape { fill: var(--c); fill-opacity: .16; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; }
+.radar__dot { fill: var(--c); stroke: var(--glass-panel-strong); stroke-width: 2; }
+.radar__label { font-size: 11px; font-weight: 500; fill: var(--text-secondary); }
+.radar__pct { font-family: var(--font-mono); fill: var(--text-tertiary); }
+.genre-list { display: flex; flex-direction: column; gap: 8px; }
+.genre-list__row { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr) 36px; align-items: center; gap: 12px; }
+.genre-list__row .t-num { text-align: right; }
+
+/* evolution slope chart */
+.slope-wrap { overflow-x: auto; }
+.slope { display: block; width: 100%; min-width: 440px; height: auto; font-size: 11px; }
+.slope__head { font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; fill: var(--text-tertiary); }
+.slope__guide { stroke: var(--border-subtle); stroke-width: 1; }
+.slope__lane { font-size: 10px; fill: var(--text-tertiary); }
+.slope__line { --c: var(--text-secondary); cursor: default; }
+.slope__line[data-trend="up"] { --c: var(--accent-base); }
+.slope__line[data-trend="down"] { --c: var(--text-tertiary); }
+.slope__line polyline { fill: none; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; transition: opacity var(--dur-fast); }
+.slope__line circle { fill: var(--c); stroke: var(--glass-panel-strong); stroke-width: 2; }
+.slope__line text { fill: var(--text-secondary); font-weight: 500; }
+.slope__line[data-trend="up"] text { fill: var(--text-primary); }
+.slope:hover .slope__line { opacity: .3; }
+.slope:hover .slope__line:hover { opacity: 1; }
+.slope:hover .slope__line:hover polyline { stroke-width: 3; }
+.slope-legend em { height: 3px; width: 14px; border-radius: 2px; }
+.lg-up { background: var(--accent-base); }
+.lg-flat { background: var(--text-secondary); }
+.lg-down { background: var(--text-tertiary); }
+.evo-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.evo-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 10px; border-top: 2px solid var(--c); }
+.evo-col--up { --c: var(--accent-base); }
+.evo-col--flat { --c: var(--text-secondary); }
+.evo-col--down { --c: var(--border-strong); }
+.evo-col .t-overline { color: var(--text-secondary); }
+.evo-col__list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+
+/* artist chips */
+.achips { display: flex; flex-wrap: wrap; gap: 6px; }
+.achip {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0;
+  padding: 4px 10px 4px 4px; border-radius: var(--radius-full);
+  background: var(--glass-panel); border: 1px solid var(--glass-border);
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+a:hover > .achip { background: var(--glass-raised); border-color: var(--glass-border-strong); }
+.achip .art--sm { width: 26px; height: 26px; }
+.achip__meta { display: flex; flex-direction: column; min-width: 0; }
+.evo-col__list .achip { border-radius: var(--radius-sm); }
+
+/* compatibility */
+.compat-item { border-radius: var(--radius-md); border: 1px solid transparent; transition: background var(--dur-fast), border-color var(--dur-fast); }
+.compat-item--open { background: var(--bg-inset); border-color: var(--border-subtle); }
+.compat-row { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 10px; border-radius: var(--radius-md); text-align: left; }
+.compat-row:not(:disabled):hover { background: var(--glass-panel); }
+.compat-row:disabled { cursor: default; }
+.compat-row:disabled .avatar { opacity: .6; }
+.compat-row__chev { color: var(--text-tertiary); display: grid; transition: transform var(--dur-fast) var(--ease-out); }
+.compat-row[aria-expanded="true"] .compat-row__chev { transform: rotate(180deg); }
+.compat-detail { display: flex; flex-direction: column; gap: 16px; padding: 6px 14px 14px; }
+.compat-detail__bars { display: flex; flex-direction: column; gap: 9px; }
+.compat-bar { display: grid; grid-template-columns: 120px minmax(0, 1fr) 96px; align-items: center; gap: 12px; }
+.compat-bar .t-num { text-align: right; }
+.compat-detail__radar { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+
+/* playlists */
+.tile__art .pl-tag { position: absolute; top: 8px; left: 8px; }
+.pl-tag {
+  padding: 2px 7px; border-radius: var(--radius-full);
+  font-size: 10px; line-height: 14px; font-weight: 600; letter-spacing: .02em;
+  background: rgba(8, 8, 10, .72); color: #F2F1EE; backdrop-filter: blur(8px);
+}
+.pl-tag--own { background: var(--accent-base); color: var(--text-on-accent); }
+.pl-tag--muted { color: rgba(242, 241, 238, .7); }
+button.tile { text-align: left; font: inherit; color: inherit; cursor: pointer; }
+button.tile[aria-pressed="true"] { border-color: var(--accent-border); background: var(--accent-soft); }
+.pl-detail {
+  display: flex; flex-direction: column; gap: 16px; padding: 14px;
+  border-radius: var(--radius-lg); background: var(--bg-inset); border: 1px solid var(--border-default);
+}
+.pl-detail__head { display: flex; align-items: center; gap: 12px; }
+.pl-detail__grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; }
+.pl-stats .t-stat-m { font-size: 17px; }
+.save-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 6px 4px 2px; padding: 10px 8px 4px; border-top: 1px solid var(--border-subtle);
+}
+.save-bar .t-body-s { flex: 1; min-width: 180px; }
+
+/* ==========================================================================
    responsive
    ========================================================================== */
 @media (max-width: 1280px) {
@@ -435,6 +621,10 @@
   .bottomnav { display: block; }
   .mobile-bar { display: flex; align-items: center; gap: 10px; flex: none; }
   .cols--half, .cols--thirds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cols--half:has(#dnaGenres), .cols--half:has(#dnaCompat) { grid-template-columns: minmax(0, 1fr); }
+  .dna-card { grid-template-columns: minmax(0, 1fr); }
+  .dna-card__art { order: -1; min-height: 190px; max-width: 290px; }
+  .pl-detail__grid { grid-template-columns: minmax(0, 1fr); }
   .hero { flex-direction: column; gap: 16px; }
   .art--xl { width: 116px; height: 116px; }
 
@@ -466,4 +656,14 @@
   .auth { padding: 18px; }
   .auth__providers { grid-template-columns: minmax(0, 1fr); }
   .scrim { padding: 8vh 12px 12px; }
+  .dna-card { padding: 16px; gap: 14px; }
+  .dna-card__title { font-size: 30px; line-height: 34px; }
+  .dna-cover { width: 120px; }
+  .dna-card__art { min-height: 206px; }
+  .quest { grid-template-columns: auto minmax(0, 1fr); }
+  .quest__meter { grid-column: 1 / -1; }
+  .bdg-grid { grid-template-columns: minmax(0, 1fr); }
+  .evo-cols { grid-template-columns: minmax(0, 1fr); }
+  .compat-bar { grid-template-columns: 104px minmax(0, 1fr) 44px; gap: 10px; }
+  .genre-list__row { grid-template-columns: minmax(0, 110px) minmax(0, 1fr) 36px; }
 }

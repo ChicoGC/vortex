@@ -129,8 +129,9 @@ const UI = {
   musicRange: 'short_term'
 };
 
-const RANGE_LABEL = { short_term: '4 weeks', medium_term: '6 months', long_term: 'All time' };
-const RANGE_BY_LABEL = { '4 weeks': 'short_term', '6 months': 'medium_term', 'All time': 'long_term' };
+/* Spotify's long_term covers ~1 year of data, not all time. */
+const RANGE_LABEL = { short_term: '4 weeks', medium_term: '6 months', long_term: '1 year' };
+const RANGE_BY_LABEL = { '4 weeks': 'short_term', '6 months': 'medium_term', '1 year': 'long_term' };
 
 function commentText(text) {
   // A leading @mention (added when replying to a reply) is highlighted.
@@ -654,7 +655,7 @@ function rankIndex(i) {
 }
 
 function rangeTabs(group, range) {
-  return tabsEl(group, ['4 weeks', '6 months', 'All time'], RANGE_LABEL[range]);
+  return tabsEl(group, ['4 weeks', '6 months', '1 year'], RANGE_LABEL[range]);
 }
 
 function activitySummaryPanel() {
@@ -764,24 +765,34 @@ function musicRecentPanel() {
 function musicTopPanel() {
   const range = UI.musicRange;
   return libraryPanel('musTop', 'Your top tracks', null, rangeTabs('music-range', range), UI.spotifyLib.topTracks[range], function (tracks) {
-    return tracks.map(function (t, i) { return trackRow(t, rankIndex(i)); }).join('');
+    return tracks.slice(0, 20).map(function (t, i) { return trackRow(t, rankIndex(i)); }).join('') +
+      topTracksSaveBar(range, tracks);
   });
 }
 
+/* Your own and collaborative playlists open an in-app breakdown; followed
+   ones link out, because Spotify won't hand their tracks to apps. */
 function musicPlaylistsPanel() {
   const entry = UI.spotifyLib.playlists;
+  const list = entry && entry.status === 'ok' ? entry.data : null;
+  const open = list && list.filter(function (p) { return p.id === UI.playlistOpen; })[0];
+  const own = list ? list.filter(function (p) { return p.readable; }).length : 0;
   return '<section class="panel section" id="musPlaylists">' +
-    sectionHead('Playlists', entry && entry.data ? String(entry.data.length) : null) +
-    (entry && entry.status === 'ok' && entry.data.length
-      ? '<div class="section__body section__body--pad"><div class="tilegrid">' + entry.data.map(function (p) {
+    sectionHead('Playlists', list ? list.length + (own ? ' · ' + own + ' yours to explore' : '') : null) +
+    (list && list.length
+      ? '<div class="section__body section__body--pad stack">' + (open ? playlistDetail(open) : '') +
+        '<div class="tilegrid">' + list.map(function (p) {
           const inner =
-            '<div class="tile__art">' + art(artSeedFor(p.id), 'art--tile', p.image) + '</div>' +
+            '<div class="tile__art">' + art(artSeedFor(p.id), 'art--tile', p.image) + playlistTag(p) + '</div>' +
             '<div class="tile__meta">' +
               '<span class="t-body-m-med truncate">' + esc(p.name) + '</span>' +
-              '<span class="t-body-s c-tertiary truncate">' + countLabel(p.count, 'track') + (p.owner ? ' · ' + esc(p.owner) : '') + '</span>' +
+              '<span class="t-body-s c-tertiary truncate">' + countLabel(p.count, 'track') + (p.owned ? '' : p.owner ? ' · ' + esc(p.owner) : '') + '</span>' +
             '</div>';
+          if (p.readable) {
+            return '<button class="panel tile" data-playlist-open="' + esc(p.id) + '" aria-pressed="' + (p.id === UI.playlistOpen) + '">' + inner + '</button>';
+          }
           return p.url && /^https:\/\/open\.spotify\.com\//.test(p.url)
-            ? '<a class="panel tile" href="' + esc(p.url) + '" target="_blank" rel="noopener">' + inner + '</a>'
+            ? '<a class="panel tile" href="' + esc(p.url) + '" target="_blank" rel="noopener" data-tip="Opens in Spotify">' + inner + '</a>'
             : '<article class="panel tile">' + inner + '</article>';
         }).join('') + '</div></div>'
       : '<div class="section__body">' + libraryBody(entry, function () { return ''; }) + '</div>') +
@@ -843,7 +854,7 @@ VIEWS.profile = function () {
       '</section>'
     : ghostPanel('Your recent shares', sharePostButton(false));
 
-  return wrap(pageHead('Your profile', 'Profile'), header + shares);
+  return wrap(pageHead('Your profile', 'Profile'), header + dnaSection() + shares);
 };
 
 VIEWS.appearance = function () {
@@ -972,6 +983,9 @@ VIEWS.settings = function () {
         row('broadcast', 'Share what I\'m listening to',
           'Friends see your current Spotify track live while vortex is open. Spotify private sessions are never shared.',
           '<button class="toggle" data-toggle="share-listening" role="switch" aria-checked="' + !!DATA.me.shareListening + '" aria-label="Share what I am listening to"></button>') +
+        row('sparkle', 'Share my music DNA',
+          'Friends can compare tastes with you: your top 50 artists and tracks from the last ~6 months. Turning it off deletes the copy vortex keeps.',
+          '<button class="toggle" data-toggle="share-taste" role="switch" aria-checked="' + !!DATA.me.shareTaste + '" aria-label="Share my music DNA"></button>') +
       '</div>' +
     '</section>';
 

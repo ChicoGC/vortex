@@ -12,6 +12,9 @@ const SPOTIFY_SCOPES = [
   'user-top-read',
   'playlist-read-private'
 ].join(' ');
+/* Requested on every new connection but never required: only "Save as
+   playlist" needs it, so older connections aren't forced to reconnect. */
+const SPOTIFY_OPTIONAL_SCOPES = 'playlist-modify-private';
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SPOTIFY_API = 'https://api.spotify.com/v1';
@@ -67,6 +70,7 @@ async function spotifyTokenRequest(params) {
 }
 
 let spotifyRefreshing = null;
+let spotifyUserId = null;
 
 const spotify = {
   auth: {
@@ -87,7 +91,7 @@ const spotify = {
         code_challenge_method: 'S256',
         code_challenge: await sha256Base64Url(verifier),
         state: state,
-        scope: SPOTIFY_SCOPES
+        scope: SPOTIFY_SCOPES + ' ' + SPOTIFY_OPTIONAL_SCOPES
       });
       location.assign(SPOTIFY_AUTH_URL + '?' + params.toString());
     },
@@ -133,8 +137,12 @@ const spotify = {
     /* Scopes this connection lacks. Tokens saved before scopes were tracked
        count as having only the original two. */
     missingScopes: function () {
+      return SPOTIFY_SCOPES.split(' ').filter(function (s) { return !spotify.auth.hasScope(s); });
+    },
+
+    hasScope: function (scope) {
       const granted = (spotifyStore.get('scope') || 'user-read-currently-playing user-read-playback-state').split(/\s+/);
-      return SPOTIFY_SCOPES.split(' ').filter(function (s) { return granted.indexOf(s) === -1; });
+      return granted.indexOf(scope) > -1;
     },
 
     async refresh() {
@@ -166,22 +174,38 @@ const spotify = {
 
     disconnect: function () {
       ['access_token', 'refresh_token', 'expires_at', 'scope'].forEach(function (k) { spotifyStore.set(k, null); });
+      spotifyUserId = null;
     }
   },
 
-  async request(path) {
-    let res = await fetch(SPOTIFY_API + path, {
-      headers: { Authorization: 'Bearer ' + await spotify.auth.getValidToken() }
-    });
+  /* body (optional) is sent as JSON, which makes it a POST. */
+  async request(path, body) {
+    async function send() {
+      const opts = { headers: { Authorization: 'Bearer ' + await spotify.auth.getValidToken() } };
+      if (body !== undefined) {
+        opts.method = 'POST';
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      return fetch(SPOTIFY_API + path, opts);
+    }
+    let res = await send();
     if (res.status === 401) {
       spotifyStore.set('expires_at', '0');
-      res = await fetch(SPOTIFY_API + path, {
-        headers: { Authorization: 'Bearer ' + await spotify.auth.getValidToken() }
-      });
+      res = await send();
     }
     if (res.status === 204) return null;
     if (!res.ok) throw new SpotifyError('Spotify request failed (' + res.status + ')', res.status);
     return res.json();
+  },
+
+  /* The Spotify account id, used to tell playlists you own from ones you follow. */
+  async userId() {
+    if (!spotifyUserId) {
+      const me = await spotify.request('/me');
+      spotifyUserId = me && me.id;
+    }
+    return spotifyUserId;
   },
 
   /* null when nothing (or a podcast/ad) is playing. `private` is true during
@@ -206,9 +230,10 @@ const spotify = {
     });
   },
 
-  /* range: short_term (~4 weeks) | medium_term (~6 months) | long_term (all time) */
+  /* range: short_term (~4 weeks) | medium_term (~6 months) | long_term (~1 year,
+     per Spotify's docs — not all-time). 50 is the API maximum. */
   async topArtists(range) {
-    const data = await spotify.request('/me/top/artists?limit=20&time_range=' + encodeURIComponent(range));
+    const data = await spotify.request('/me/top/artists?limit=50&time_range=' + encodeURIComponent(range));
     return ((data && data.items) || []).filter(Boolean).map(function (a) {
       const images = a.images || [];
       return {
@@ -222,24 +247,61 @@ const spotify = {
   },
 
   async topTracks(range) {
-    const data = await spotify.request('/me/top/tracks?limit=20&time_range=' + encodeURIComponent(range));
+    const data = await spotify.request('/me/top/tracks?limit=50&time_range=' + encodeURIComponent(range));
     return ((data && data.items) || []).filter(Boolean).map(spotifyTrack);
   },
 
+  /* `readable`: Spotify only lets apps read the tracks of playlists you own
+     or collaborate on; followed playlists come back as metadata only. */
   async playlists() {
-    const data = await spotify.request('/me/playlists?limit=24');
+    const results = await Promise.all([spotify.request('/me/playlists?limit=50'), spotify.userId()]);
+    const data = results[0], myId = results[1];
     return ((data && data.items) || []).filter(Boolean).map(function (p) {
       const images = p.images || [];
-      const count = (p.tracks && p.tracks.total) || (p.items && p.items.total) || 0;
+      const count = (p.items && p.items.total) || (p.tracks && p.tracks.total) || 0;
+      const owned = !!(p.owner && p.owner.id === myId);
       return {
         id: p.id,
         name: p.name,
         count: count,
         image: images.length ? images[0].url : null,
         owner: p.owner ? p.owner.display_name : '',
+        owned: owned,
+        collaborative: !!p.collaborative,
+        readable: owned || !!p.collaborative,
         url: p.external_urls ? p.external_urls.spotify : null
       };
     });
+  },
+
+  /* Up to `max` tracks of a playlist you own or collaborate on, 50 per page. */
+  async playlistItems(id, max) {
+    const out = [];
+    let total = 0;
+    for (let offset = 0; offset < (max || 200); offset += 50) {
+      const data = await spotify.request('/playlists/' + encodeURIComponent(id) + '/items?limit=50&offset=' + offset);
+      const items = (data && data.items) || [];
+      total = (data && data.total) || total;
+      items.forEach(function (i) {
+        const t = i && (i.item || i.track);
+        if (!t || t.type !== 'track' || i.is_local) return;
+        const track = spotifyTrack(t);
+        track.artistNames = (t.artists || []).map(function (a) { return a.name; });
+        track.addedAt = i.added_at || null;
+        out.push(track);
+      });
+      if (!data || !data.next) break;
+    }
+    return { tracks: out, total: total };
+  },
+
+  /* Creates a private playlist in the user's account and fills it. */
+  async createPlaylist(name, description, trackIds) {
+    const playlist = await spotify.request('/me/playlists', { name: name, description: description, public: false });
+    const uris = trackIds.filter(function (id) { return /^[A-Za-z0-9]{22}$/.test(id); })
+      .map(function (id) { return 'spotify:track:' + id; });
+    if (uris.length) await spotify.request('/playlists/' + encodeURIComponent(playlist.id) + '/items', { uris: uris.slice(0, 100) });
+    return { id: playlist.id, url: playlist.external_urls ? playlist.external_urls.spotify : null };
   },
 
   async searchTracks(query, limit) {
@@ -269,6 +331,7 @@ function spotifyTrack(item) {
     id: item.id,
     title: item.name,
     artist: (item.artists || []).map(function (a) { return a.name; }).join(', '),
+    artistIds: (item.artists || []).map(function (a) { return a.id; }).filter(Boolean),
     album: item.album ? item.album.name : '',
     image: images.length ? images[0].url : null,
     // ~300px variant: plenty for feed thumbnails at a fraction of the bytes.

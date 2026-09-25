@@ -14,6 +14,7 @@ const DATA = {
     joined: '',
     friends: 0,
     shareListening: true,
+    shareTaste: true,
     stats: null,        // { posts, reactions, comments }
     recentPosts: []     // latest posts by this user, for the profile
   },
@@ -41,6 +42,9 @@ const DATA = {
 
   /* Friends' current tracks by user id, as rows of public.listening_now. */
   listening: {},
+
+  /* Friends' music DNA snapshots by user id (sanitized public.taste_profiles). */
+  tastes: {},
 
   feed: []
 };

@@ -366,6 +366,67 @@ create trigger listening_now_touch
   before insert or update on public.listening_now
   for each row execute function public.touch_listening_now();
 
+-- ==========================================================================
+-- taste profiles ("music DNA")
+-- A snapshot of each user's Spotify top artists and tracks (~6 months),
+-- published by their own browser. Spotify only hands a user's data to that
+-- user's token, so friends compare tastes through this table. Visible to the
+-- owner and accepted friends, only while the owner has share_taste on.
+-- ==========================================================================
+alter table public.profiles add column if not exists share_taste boolean not null default true;
+
+create table if not exists public.taste_profiles (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  artists jsonb not null default '[]'::jsonb
+    check (jsonb_typeof(artists) = 'array' and jsonb_array_length(artists) <= 50),
+  tracks jsonb not null default '[]'::jsonb
+    check (jsonb_typeof(tracks) = 'array' and jsonb_array_length(tracks) <= 50),
+  updated_at timestamptz not null default now(),
+  check (pg_column_size(artists) + pg_column_size(tracks) < 60000)
+);
+
+alter table public.taste_profiles enable row level security;
+
+drop policy if exists "taste visible to self and friends" on public.taste_profiles;
+create policy "taste visible to self and friends"
+  on public.taste_profiles for select
+  using (
+    auth.uid() = user_id
+    or (
+      exists (
+        select 1 from public.friendships f
+        where f.status = 'accepted'
+          and ((f.requester_id = auth.uid() and f.addressee_id = taste_profiles.user_id)
+            or (f.addressee_id = auth.uid() and f.requester_id = taste_profiles.user_id))
+      )
+      and exists (
+        select 1 from public.profiles p
+        where p.id = taste_profiles.user_id and p.share_taste
+      )
+    )
+  );
+
+drop policy if exists "users publish their own taste" on public.taste_profiles;
+create policy "users publish their own taste"
+  on public.taste_profiles for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "users update their own taste" on public.taste_profiles;
+create policy "users update their own taste"
+  on public.taste_profiles for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "users clear their own taste" on public.taste_profiles;
+create policy "users clear their own taste"
+  on public.taste_profiles for delete
+  using (auth.uid() = user_id);
+
+drop trigger if exists taste_profiles_touch on public.taste_profiles;
+create trigger taste_profiles_touch
+  before insert or update on public.taste_profiles
+  for each row execute function public.touch_listening_now();
+
 -- Push changes to friends over Supabase Realtime (RLS still applies).
 do $$
 begin

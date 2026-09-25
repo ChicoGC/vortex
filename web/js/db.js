@@ -232,6 +232,27 @@ const db = {
     }
   },
 
+  taste: {
+    /* Your snapshot plus friends who share theirs (RLS decides). */
+    async list() {
+      const { data, error } = await supabaseClient.from('taste_profiles').select('*');
+      if (error) throw error;
+      return data;
+    },
+
+    async publish(userId, snapshot) {
+      const { error } = await supabaseClient.from('taste_profiles').upsert({
+        user_id: userId, artists: snapshot.artists, tracks: snapshot.tracks
+      }, { onConflict: 'user_id' });
+      if (error) throw error;
+    },
+
+    async clear(userId) {
+      const { error } = await supabaseClient.from('taste_profiles').delete().eq('user_id', userId);
+      if (error) throw error;
+    }
+  },
+
   stats: {
     /* Totals for the profile: posts shared, and reactions / comments received
        from other people on those posts. Counted server-side (head requests). */
