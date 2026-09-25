@@ -32,20 +32,76 @@ create policy "users can insert own profile"
   on public.profiles for insert
   with check (auth.uid() = id);
 
+-- ==========================================================================
+-- username rules
+-- Usernames are what #/u/<username> resolves, so the format and uniqueness
+-- rules live in the database: signUp can be called directly, bypassing the
+-- signup form's pattern. Allowed: 3-20 of A-Z a-z 0-9 _, unique ignoring
+-- case (so "PietroG" can't sit next to "pietrog").
+--
+-- Both statements below fail if existing rows break the rules. Run these
+-- first and fix (rename) anything they return:
+--
+--   select id, username from public.profiles
+--   where username !~ '^[A-Za-z0-9_]{3,20}$';
+--
+--   select lower(username) as handle, array_agg(username) as clashes
+--   from public.profiles
+--   group by lower(username)
+--   having count(*) > 1;
+-- ==========================================================================
+alter table public.profiles drop constraint if exists profiles_username_format_check;
+alter table public.profiles add constraint profiles_username_format_check
+  check (username ~ '^[A-Za-z0-9_]{3,20}$');
+
+create unique index if not exists profiles_username_lower_idx
+  on public.profiles (lower(username));
+
 -- Auto-create a profile row whenever a new auth user signs up.
+-- A valid username from the signup metadata is used as-is; if it's taken the
+-- unique index rejects the signup, rather than silently handing out a
+-- different handle than the one the person picked. A missing or invalid one
+-- falls back to the email's local part with disallowed characters stripped,
+-- cut to 20 and padded to 3, plus a short random suffix on collision.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer set search_path = public
 as $$
+declare
+  requested text := new.raw_user_meta_data->>'username';
+  display_name text := coalesce(new.raw_user_meta_data->>'name', nullif(split_part(new.email, '@', 1), ''));
+  base text;
+  candidate text;
+  attempts int := 0;
 begin
-  insert into public.profiles (id, username, name)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1))
-  );
-  return new;
+  if requested ~ '^[A-Za-z0-9_]{3,20}$' then
+    insert into public.profiles (id, username, name)
+    values (new.id, requested, coalesce(display_name, requested));
+    return new;
+  end if;
+
+  base := left(regexp_replace(coalesce(split_part(new.email, '@', 1), ''), '[^A-Za-z0-9_]', '', 'g'), 20);
+  if char_length(base) < 3 then
+    base := 'user' || base;
+  end if;
+  candidate := base;
+
+  loop
+    begin
+      insert into public.profiles (id, username, name)
+      values (new.id, candidate, coalesce(display_name, candidate));
+      return new;
+    exception when unique_violation then
+      -- Retrying on the violation itself (not a prior "exists" check) also
+      -- covers two signups racing for the same fallback handle.
+      attempts := attempts + 1;
+      if attempts >= 5 then
+        raise;
+      end if;
+      candidate := left(base, 15) || '_' || substr(md5(random()::text), 1, 4);
+    end;
+  end loop;
 end;
 $$;
 
