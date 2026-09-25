@@ -23,9 +23,16 @@ function art(n, cls, image) {
   const style = artImageStyle(image);
   return '<div class="' + cx('art', cls, style && 'art--cover') + '" data-art="' + n + '"' + (style ? ' style="' + style + '"' : '') + ' aria-hidden="true"></div>';
 }
-function avatarEl(initials, size, status) {
+/* Only vortex's own Supabase storage bucket is trusted for a profile photo,
+   so a crafted value can't point at an arbitrary (e.g. tracking) image. The
+   initials always sit underneath: if the photo 404s, onerror removes the
+   broken <img> and the initials show through instead of a blank circle. */
+const AVATAR_URL = /^https:\/\/hpblrmnturpihyrhwzih\.supabase\.co\/storage\/v1\/object\/public\/avatars\/[A-Za-z0-9/_.-]+$/;
+function avatarEl(initials, size, status, image) {
   const cls = cx('avatar', size ? 'avatar--' + size : null);
-  return '<div class="' + cls + '"' + (status ? ' data-status="' + status + '"' : '') + '>' + esc(initials) + '</div>';
+  const photo = typeof image === 'string' && AVATAR_URL.test(image)
+    ? '<img src="' + esc(image) + '" alt="" loading="lazy" onerror="this.remove()">' : '';
+  return '<div class="' + cls + '"' + (status ? ' data-status="' + status + '"' : '') + '>' + esc(initials) + photo + '</div>';
 }
 function mmss(sec) {
   const m = Math.floor(sec / 60);
@@ -66,13 +73,15 @@ function postRow(p, showUser) {
 
 /* sub replaces the @username line (e.g. with what they're listening to). */
 function personRow(p, controls, sub, status) {
-  return '<div class="friend" style="cursor:default">' +
-    avatarEl(p.initials, '32', status) +
+  const inner = avatarEl(p.initials, '32', status, p.avatarUrl) +
     '<span class="friend__meta">' +
       '<span class="t-body-m-med truncate">' + esc(p.name) + '</span>' +
       (sub || '<span class="t-body-s c-tertiary truncate">@' + esc(p.username) + '</span>') +
-    '</span>' + (controls || '') +
-  '</div>';
+    '</span>';
+  const head = p.username
+    ? '<a class="friend__link" href="#/u/' + esc(p.username) + '">' + inner + '</a>'
+    : '<div class="friend__link">' + inner + '</div>';
+  return '<div class="friend">' + head + (controls || '') + '</div>';
 }
 
 /* A friend's listening_now row, or null. "Live" means playing with a fresh
@@ -126,7 +135,9 @@ const UI = {
   // Spotify data for Activity / Music: { status: 'loading'|'ok'|'error', data, at, error }
   spotifyLib: { recent: null, playlists: null, topArtists: {}, topTracks: {} },
   activityRange: 'short_term',
-  musicRange: 'short_term'
+  musicRange: 'short_term',
+  // { username, status: 'loading'|'ok'|'notfound'|'error', profile, stats, posts, at }
+  friendProfile: null
 };
 
 /* Spotify's long_term covers ~1 year of data, not all time. */
@@ -142,7 +153,7 @@ function commentText(text) {
    so its avatar grows a connector line down into them. */
 function commentEl(c, hasLine, extraClass) {
   return '<div class="' + cx('comment', extraClass) + '">' +
-    '<div class="comment__rail">' + avatarEl(c.initials, '24') + (hasLine ? '<span class="comment__line"></span>' : '') + '</div>' +
+    '<div class="comment__rail">' + avatarEl(c.initials, '24', null, c.avatarUrl) + (hasLine ? '<span class="comment__line"></span>' : '') + '</div>' +
     '<div class="comment__body">' +
       '<span class="comment__who"><span class="t-label-m truncate">' + esc(c.user) + '</span>' +
       '<span class="t-meta c-tertiary">' + esc(c.time) + '</span></span>' +
@@ -155,7 +166,7 @@ function commentEl(c, hasLine, extraClass) {
 function replyForm(postId, threadId) {
   const r = UI.replyTo[postId];
   return '<form class="reply-node reply-form" data-comment-form="' + esc(postId) + '" data-parent-id="' + esc(threadId) + '" novalidate>' +
-    avatarEl(DATA.me.initials, '24') +
+    avatarEl(DATA.me.initials, '24', null, DATA.me.avatarUrl) +
     '<span class="field field--sm">' +
       '<input type="text" name="content" placeholder="Reply to ' + esc(r.name) + '…" maxlength="500" autocomplete="off" ' +
         'aria-label="Reply to ' + esc(r.name) + '" value="' + esc(r.prefix) + '">' +
@@ -210,13 +221,16 @@ function commentsBlock(p) {
 function postCard(p) {
   const total = p.reactions.flame + p.reactions.heart;
   const open = !!UI.openComments[p.id];
+  const who = avatarEl(p.initials, '32', null, p.avatarUrl) +
+    '<span class="post__who">' +
+      '<span class="t-body-m-med truncate">' + esc(p.user) + '</span>' +
+      '<span class="t-meta c-tertiary">' + esc(p.time) + '</span>' +
+    '</span>';
   return '<article class="panel post" data-post="' + esc(p.id) + '">' +
     '<div class="post__head">' +
-      avatarEl(p.initials, '32') +
-      '<span class="post__who">' +
-        '<span class="t-body-m-med truncate">' + esc(p.user) + '</span>' +
-        '<span class="t-meta c-tertiary">' + esc(p.time) + '</span>' +
-      '</span>' +
+      (!p.mine && p.username
+        ? '<a class="post__author" href="#/u/' + esc(p.username) + '">' + who + '</a>'
+        : '<div class="post__author">' + who + '</div>') +
       '<span class="spacer"></span>' +
       '<span class="iconbtn" data-tip="' + esc(PLATFORM_LABEL[p.platform]) + '">' + icon(p.platform, 16) + '</span>' +
       (p.mine
@@ -463,7 +477,7 @@ function feedInsights() {
   const byUser = {};
   DATA.feed.forEach(function (p) {
     if (new Date(p.createdAt).getTime() < weekAgo) return;
-    const u = byUser[p.user] || (byUser[p.user] = { name: p.user, initials: p.initials, mine: p.mine, n: 0 });
+    const u = byUser[p.user] || (byUser[p.user] = { name: p.user, initials: p.initials, avatarUrl: p.avatarUrl, username: p.username, mine: p.mine, n: 0 });
     u.n++;
   });
   const sharers = Object.keys(byUser).map(function (k) { return byUser[k]; })
@@ -472,13 +486,14 @@ function feedInsights() {
     panels.push('<section class="panel section">' +
       sectionHead('Top sharers', 'last 7 days') +
       '<div class="section__body">' + sharers.map(function (u, i) {
-        return '<div class="row" style="cursor:default">' +
-          '<span class="row__index">' + (i + 1) + '</span>' +
-          avatarEl(u.initials, '32') +
+        const row = '<span class="row__index">' + (i + 1) + '</span>' +
+          avatarEl(u.initials, '32', null, u.avatarUrl) +
           '<span class="row__meta"><span class="' + (u.mine ? 't-body-m-med c-accent' : 't-body-m-med') + ' truncate">' +
             esc(u.name) + (u.mine ? ' (you)' : '') + '</span></span>' +
-          '<span class="t-num c-secondary">' + u.n + '</span>' +
-        '</div>';
+          '<span class="t-num c-secondary">' + u.n + '</span>';
+        return !u.mine && u.username
+          ? '<a class="row" href="#/u/' + esc(u.username) + '">' + row + '</a>'
+          : '<div class="row" style="cursor:default">' + row + '</div>';
       }).join('') + '</div>' +
     '</section>');
   }
@@ -528,7 +543,7 @@ function friendsListeningPanel() {
           const href = spotifyTrackUrl(r.track_id);
           const cover = art(artSeedFor(r.track_id || r.title), 'art--lg', r.image_url);
           return '<div class="friend listening-row" style="cursor:default">' +
-            avatarEl(f.initials, '32', 'listening') +
+            avatarEl(f.initials, '32', 'listening', f.avatarUrl) +
             '<span class="friend__meta">' +
               '<span class="t-body-m-med truncate">' + esc(f.name) + '</span>' +
               listeningSub(listeningFor(f.id)) +
@@ -833,7 +848,13 @@ VIEWS.profile = function () {
   const header =
     '<section class="panel section__body--pad" style="padding:22px">' +
       '<div class="rowflex" style="gap:18px;align-items:flex-start">' +
-        avatarEl(me.initials, '72') +
+        '<div class="avatar-edit">' +
+          avatarEl(me.initials, '72', null, me.avatarUrl) +
+          '<label class="avatar-edit__btn" data-tip="Change photo" aria-label="Change profile photo">' +
+            icon('camera', 14) +
+            '<input type="file" id="avatarFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>' +
+          '</label>' +
+        '</div>' +
         '<div class="stack stack--sm" style="flex:1;min-width:0;gap:6px">' +
           '<h2 class="t-title-l">' + esc(me.name) + '</h2>' +
           '<span class="t-meta c-tertiary">' + esc(me.username) + (me.joined ? ' · joined ' + esc(me.joined) : '') + '</span>' +
@@ -855,6 +876,69 @@ VIEWS.profile = function () {
     : ghostPanel('Your recent shares', sharePostButton(false));
 
   return wrap(pageHead('Your profile', 'Profile'), header + dnaSection() + shares);
+};
+
+function friendProfileLoading() {
+  return '<section class="panel section"><div class="section__body section__body--pad">' + dnaLoading('Loading profile…') + '</div></section>';
+}
+
+function friendProfileHeader(profile, stats, relation) {
+  const controls = relation.state === 'friends'
+    ? '<span class="badge badge--positive">' + icon('check', 13) + 'Friends</span>' +
+      '<button class="iconbtn" data-friend-remove="' + esc(relation.friendshipId) + '" data-tip="Remove friend" aria-label="Remove friend">' + icon('close', 16) + '</button>'
+    : relation.state === 'incoming'
+      ? '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(relation.friendshipId) + '">Accept</button>' +
+        '<button class="btn btn--ghost btn--sm" data-friend-decline="' + esc(relation.friendshipId) + '">Decline</button>'
+      : relation.state === 'outgoing'
+        ? '<button class="btn btn--secondary btn--sm" data-friend-cancel="' + esc(relation.friendshipId) + '">Requested</button>'
+        : '<button class="btn btn--primary btn--sm" data-friend-add="' + esc(profile.id) + '">' + icon('plus', 14) + 'Add friend</button>';
+
+  const joinedDate = new Date(profile.created_at);
+  const joined = joinedDate.toLocaleString('en-US', { month: 'long' }) + ' ' + joinedDate.getFullYear();
+
+  return '<section class="panel section__body--pad" style="padding:22px">' +
+    '<div class="rowflex" style="gap:18px;align-items:flex-start;flex-wrap:wrap">' +
+      avatarEl(initialsFrom(profile.name), '72', null, profile.avatar_url) +
+      '<div class="stack stack--sm" style="flex:1;min-width:180px;gap:6px">' +
+        '<h2 class="t-title-l">' + esc(profile.name) + '</h2>' +
+        '<span class="t-meta c-tertiary">@' + esc(profile.username) + ' · joined ' + esc(joined) + '</span>' +
+        (profile.bio ? '<p class="t-body-m c-secondary" style="max-width:52ch;margin-top:4px">' + esc(profile.bio) + '</p>' : '') +
+      '</div>' +
+      '<div class="rowflex" style="gap:8px;flex:none">' + controls + '</div>' +
+    '</div>' +
+    '<hr class="hr" style="margin:18px 0 16px">' +
+    '<div class="cols cols--thirds">' +
+      statTile('Tracks shared', stats ? String(stats.posts) : '—') +
+      statTile('Reactions received', stats ? String(stats.reactions) : '—') +
+      statTile('Comments received', stats ? String(stats.comments) : '—') +
+    '</div>' +
+  '</section>';
+}
+
+VIEWS.friendProfile = function () {
+  const username = friendProfileUsername();
+  const state = UI.friendProfile;
+  if (!state || state.username !== username || state.status === 'loading') {
+    return wrap(pageHead('Profile', 'Loading…'), friendProfileLoading());
+  }
+  if (state.status === 'notfound') {
+    return wrap(pageHead('Profile', 'Not found'), ghostPanel(null, findFriendsButton(true), 'No vortex profile found for “' + esc(username) + '”.'));
+  }
+  if (state.status === 'error') {
+    return wrap(pageHead('Profile', 'Profile'), ghostPanel(null, null, 'Could not load this profile. Try again in a moment.'));
+  }
+
+  const profile = state.profile;
+  const relation = relationshipWith(profile.id);
+  const first = profile.name.split(/\s+/)[0];
+  const shares = state.posts.length
+    ? '<section class="panel section">' + sectionHead(first + '’s recent shares') +
+        '<div class="section__body">' + state.posts.map(function (p) { return postRow(p, false); }).join('') + '</div>' +
+      '</section>'
+    : ghostPanel(first + '’s recent shares', null, 'Nothing shared yet.');
+
+  return wrap(pageHead('Profile', esc(profile.name)),
+    friendProfileHeader(profile, state.stats, relation) + friendDnaSectionAuto() + shares);
 };
 
 VIEWS.appearance = function () {

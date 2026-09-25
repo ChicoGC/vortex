@@ -141,6 +141,8 @@
 .post { padding: 13px 14px; display: flex; flex-direction: column; gap: 12px; }
 .post:hover { background: var(--glass-raised); border-color: var(--glass-border-strong); box-shadow: var(--elev-raised); }
 .post__head { display: flex; align-items: center; gap: 9px; }
+.post__author { display: flex; align-items: center; gap: 9px; min-width: 0; color: inherit; text-decoration: none; border-radius: var(--radius-sm); }
+a.post__author:hover .t-body-m-med { text-decoration: underline; }
 .post__who { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .post__track { display: flex; align-items: center; gap: 12px; }
 .post__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -250,6 +252,7 @@
   transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .friend:hover { background: var(--glass-panel); border-color: var(--glass-border); }
+.friend__link { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; color: inherit; text-decoration: none; }
 .friend__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .friend__sub { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .friend__sub svg { color: var(--accent-base); flex: none; }
@@ -462,6 +465,20 @@
 .dna-card:hover .dna-cover--2 { transform: rotate(11deg) translateX(6px); }
 .dna-card:hover .dna-cover--3 { transform: rotate(-18deg) translateX(-6px); }
 .dna-card__caption { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; }
+.dna-card--friend { grid-template-columns: minmax(0, 1fr); padding-bottom: 20px; }
+
+/* profile photo upload */
+.avatar-edit { position: relative; flex: none; }
+.avatar-edit__btn {
+  position: absolute; right: -2px; bottom: -2px; z-index: 1;
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--glass-raised); border: 1px solid var(--glass-border-strong);
+  color: var(--text-secondary); cursor: pointer; box-shadow: var(--elev-raised);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.avatar-edit__btn:hover { background: var(--accent-base); color: var(--text-on-accent); border-color: transparent; }
+.avatar-edit--busy .avatar-edit__btn { pointer-events: none; animation: avatar-busy-spin 900ms linear infinite; }
+@keyframes avatar-busy-spin { to { transform: rotate(360deg); } }
 
 /* closest unlock */
 .quest {

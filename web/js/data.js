@@ -10,6 +10,7 @@ const DATA = {
     username: '',
     email: '',
     initials: '',
+    avatarUrl: null,
     bio: '',
     joined: '',
     friends: 0,

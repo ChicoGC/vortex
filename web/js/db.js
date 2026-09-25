@@ -77,6 +77,35 @@ const db = {
         .single();
       if (error) throw error;
       return data;
+    },
+
+    async getByUsername(username) {
+      const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('username', username)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    }
+  },
+
+  storage: {
+    async uploadAvatar(userId, file, ext) {
+      const path = userId + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+      const { error } = await supabaseClient.storage.from('avatars')
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+      return { path: path, url: data.publicUrl };
+    },
+
+    // Best-effort: removes older avatar files for this user so storage doesn't grow forever.
+    async pruneAvatars(userId, keepPath) {
+      const { data, error } = await supabaseClient.storage.from('avatars').list(userId);
+      if (error || !data) return;
+      const stale = data.map(function (f) { return userId + '/' + f.name; }).filter(function (p) { return p !== keepPath; });
+      if (stale.length) await supabaseClient.storage.from('avatars').remove(stale);
     }
   },
 
@@ -146,7 +175,7 @@ const db = {
     async list(limit, userIds) {
       let req = supabaseClient
         .from('posts')
-        .select('*, author:user_id(id, username, name, avatar_url), reactions(*), comments(*, author:user_id(id, username, name))')
+        .select('*, author:user_id(id, username, name, avatar_url), reactions(*), comments(*, author:user_id(id, username, name, avatar_url))')
         .order('created_at', { ascending: false })
         .limit(limit || 30);
       if (userIds) req = req.in('user_id', userIds);

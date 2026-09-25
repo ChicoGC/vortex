@@ -262,7 +262,7 @@ function dnaEvolutionPanel() {
     '<div class="section__body">' + body + '</div></section>';
 }
 
-function compatDetail(f, c) {
+function compatDetail(f, c, showProfileLink) {
   const axes = [];
   c.mine.list.slice(0, 4).concat(c.theirs.list.slice(0, 4)).forEach(function (g) {
     if (axes.length < 6 && axes.indexOf(g.name) === -1) axes.push(g.name);
@@ -297,6 +297,8 @@ function compatDetail(f, c) {
       }).join('') + '</div></div>' : '') +
     (c.newToYou.length ? '<div class="stack stack--sm"><span class="t-overline c-tertiary">From ' + first + '\'s top 50, new to you</span>' +
       '<div class="achips">' + c.newToYou.map(function (a) { return artistChip(a, a.genres[0] || null); }).join('') + '</div></div>' : '') +
+    (showProfileLink && f.username ? '<a class="btn btn--secondary btn--sm" href="#/u/' + esc(f.username) + '" style="align-self:flex-start">' +
+      icon('user', 15) + 'View ' + first + '\'s profile</a>' : '') +
     '<p class="t-caption c-tertiary">How it\'s scored: 45% genre similarity, 40% shared artists, 15% shared tracks, from each person\'s top 50 over ~6 months. Shared counts rise on a curve, so a few matches already register.</p>' +
   '</div>';
 }
@@ -317,12 +319,12 @@ function dnaCompatPanel() {
         : r.has ? 'Not enough listening data yet' : 'No DNA yet. It appears once they open vortex with Spotify connected';
       return '<div class="compat-item' + (open ? ' compat-item--open' : '') + '">' +
         '<button class="compat-row" ' + (r.c ? 'data-compat-open="' + esc(r.f.id) + '" aria-expanded="' + !!open + '"' : 'disabled') + '>' +
-          avatarEl(r.f.initials, '32') +
+          avatarEl(r.f.initials, '32', null, r.f.avatarUrl) +
           '<span class="friend__meta"><span class="t-body-m-med truncate">' + esc(r.f.name) + '</span>' +
           '<span class="t-body-s c-tertiary truncate">' + esc(sub) + '</span></span>' +
           (r.c ? ringEl(r.c.score, true) + '<span class="compat-row__chev">' + icon('chevronDown', 16) + '</span>' : '') +
         '</button>' +
-        (open ? compatDetail(r.f, r.c) : '') +
+        (open ? compatDetail(r.f, r.c, true) : '') +
       '</div>';
     }).join('');
   }
@@ -363,6 +365,118 @@ function dnaSection() {
   return dnaCardPanel() + dnaBadgesPanel() +
     '<div class="cols cols--half">' + dnaGenresPanel() + dnaEvolutionPanel() + '</div>' +
     '<div class="cols cols--half">' + dnaCompatPanel() + dnaCirclePanel() + '</div>';
+}
+
+/* ---- Friend profile: a smaller DNA view built only from their published
+   snapshot (top 50 artists/tracks, ~6 months). Badges and taste evolution
+   need Spotify ranges and recent plays that only the owner's browser can
+   read, so those stay on your own profile — this shows only what a friend
+   actually shares. */
+function friendGenrePanel(theirs, name) {
+  const g = genreShares(theirs.artists);
+  if (g.list.length < 3) {
+    return ghostEmpty(null, g.tagged
+      ? 'Spotify lists fewer than 3 genres for ' + esc(name) + '\'s top artists.'
+      : esc(name) + '\'s top artists have no genre listed on Spotify.');
+  }
+  const axes = g.list.slice(0, 6).map(function (x) { return x.name; });
+  const values = {};
+  g.list.forEach(function (x) { values[x.name] = x.share; });
+  return '<div class="stack stack--sm">' +
+    radarSvg(axes, [{ name: name, color: 'var(--accent-base)', values: values }]) +
+    '<div class="genre-list">' + g.list.slice(0, 6).map(function (x, i) {
+      return '<div class="genre-list__row"><span class="t-body-s' + (i === 0 ? ' c-primary' : ' c-secondary') + ' truncate">' + esc(x.name) + '</span>' +
+        dnaMeter(x.share, i === 0 ? null : 'dna-meter--muted') + '<span class="t-num c-tertiary">' + pct(x.share) + '%</span></div>';
+    }).join('') + '</div>' +
+  '</div>';
+}
+
+function trackChip(t) {
+  const href = spotifyTrackUrl(t.id);
+  const inner = '<span class="achip">' + art(artSeedFor(t.id), 'art--sm', t.image) +
+    '<span class="achip__meta"><span class="t-label-s truncate">' + esc(t.title) + '</span>' +
+    '<span class="t-caption c-tertiary truncate">' + esc(t.artist) + '</span></span></span>';
+  return href ? '<a href="' + href + '" target="_blank" rel="noopener">' + inner + '</a>' : inner;
+}
+
+function friendCompatPanel(person, theirs) {
+  if (!spotify.auth.isConnected()) {
+    return ghostEmpty('<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + 'Connect Spotify</button>',
+      'Connect Spotify to see how your tastes compare.');
+  }
+  const mine = mySnapshot();
+  if (!mine) {
+    return libFailed('topArtists', 'medium_term') || libFailed('topTracks', 'medium_term')
+      ? ghostEmpty(null, 'Could not reach Spotify. Try again in a moment.')
+      : dnaLoading();
+  }
+  const c = compatibility(mine, theirs);
+  if (!c) return ghostEmpty(null, 'Not enough listening data yet to compare.');
+  return '<div class="stack stack--sm">' +
+    '<div class="compat">' + ringEl(c.score) +
+      '<div class="stack" style="gap:2px"><span class="t-body-m-med">' + esc(c.label) + '</span>' +
+      '<span class="t-body-s c-tertiary">' + plural(c.artists.n, 'shared artist') + '</span></div>' +
+    '</div>' +
+    compatDetail(person, c) +
+  '</div>';
+}
+
+/* Registered in LIBRARY_PANELS so it repaints once your Spotify data or their
+   snapshot finishes loading — both arrive after this view's first render. */
+function friendDnaSectionAuto() {
+  const fp = UI.friendProfile;
+  if (!fp || fp.status !== 'ok') return '<div id="friendDna" hidden></div>';
+  return '<div class="stack" id="friendDna">' + friendDnaSection(fp.profile, relationshipWith(fp.profile.id)) + '</div>';
+}
+
+function friendDnaSection(profile, relation) {
+  const first = esc(profile.name.split(/\s+/)[0]);
+  if (relation.state !== 'friends') {
+    const action = relation.state === 'incoming'
+      ? '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(relation.friendshipId) + '">Accept request</button>'
+      : relation.state === 'outgoing' ? null
+      : '<button class="btn btn--primary btn--sm" data-friend-add="' + esc(profile.id) + '">' + icon('plus', 15) + 'Add friend</button>';
+    const hint = relation.state === 'outgoing'
+      ? 'Once ' + first + ' accepts, you\'ll be able to compare music DNA.'
+      : 'Add ' + first + ' as a friend to see their top artists, genres, and how your tastes compare.';
+    return ghostPanel('Music DNA', action, hint);
+  }
+
+  if (tastesStatus === 'idle') {
+    return '<section class="panel section">' + sectionHead('Music DNA') +
+      '<div class="section__body section__body--pad">' + dnaLoading('Loading music DNA…') + '</div></section>';
+  }
+  if (tastesStatus === 'error') {
+    return ghostPanel('Music DNA', null, 'Could not load ' + first + '\'s music DNA. Try again in a moment.');
+  }
+  const theirs = DATA.tastes[profile.id];
+  if (!theirs) {
+    return ghostPanel('Music DNA', null, first + ' hasn\'t shared their music DNA yet. It appears once they open vortex with Spotify connected.');
+  }
+
+  return '<section class="panel dna-card dna-card--friend">' +
+      '<div class="dna-card__body">' +
+        '<span class="t-overline c-accent">Music DNA · last 6 months</span>' +
+        '<h2 class="dna-card__title" style="font-size:32px">' + first + '\'s sound</h2>' +
+        '<p class="t-body-l c-secondary dna-card__tag">Top genres, top artists, and how your taste lines up with theirs.</p>' +
+      '</div>' +
+    '</section>' +
+    '<div class="cols cols--half">' +
+      '<section class="panel section">' + sectionHead('Genre fingerprint') +
+        '<div class="section__body section__body--pad">' + friendGenrePanel(theirs, first) + '</div></section>' +
+      '<section class="panel section">' + sectionHead('Compatibility with you') +
+        '<div class="section__body section__body--pad">' + friendCompatPanel({ name: profile.name }, theirs) + '</div></section>' +
+    '</div>' +
+    '<div class="cols cols--half">' +
+      '<section class="panel section">' + sectionHead('Top artists', 'last 6 months') +
+        '<div class="section__body section__body--pad">' + (theirs.artists.length
+          ? '<div class="achips">' + theirs.artists.slice(0, 12).map(function (a) { return artistChip(a, a.genres[0] || null); }).join('') + '</div>'
+          : ghostEmpty()) + '</div></section>' +
+      '<section class="panel section">' + sectionHead('Top tracks', 'last 6 months') +
+        '<div class="section__body section__body--pad">' + (theirs.tracks.length
+          ? '<div class="achips">' + theirs.tracks.slice(0, 10).map(trackChip).join('') + '</div>'
+          : ghostEmpty()) + '</div></section>' +
+    '</div>';
 }
 
 /* ---- Music: playlists and top tracks --------------------------------------- */
@@ -412,7 +526,7 @@ function playlistDetail(p) {
           '<span class="t-body-s c-tertiary">' + pct(s.match) + '% of these tracks are by artists in your 6-month top 50.</span></div></div>' : '') +
         (s.friends.length ? '<div class="stack stack--sm"><span class="t-overline c-tertiary">Friends who\'d get it</span>' +
           s.friends.map(function (x) {
-            return '<div class="rowflex">' + avatarEl(x.friend.initials, '24') +
+            return '<div class="rowflex">' + avatarEl(x.friend.initials, '24', null, x.friend.avatarUrl) +
               '<span class="t-body-s c-secondary">' + esc(x.friend.name) + ' has ' + plural(x.n, 'of these artists', 'of these artists') + ' in their top 50</span></div>';
           }).join('') + '</div>' : '') +
       '</div>' +
@@ -453,7 +567,8 @@ LIBRARY_PANELS.push(
   ['dnaGenres', dnaGenresPanel],
   ['dnaEvolution', dnaEvolutionPanel],
   ['dnaCompat', dnaCompatPanel],
-  ['dnaCircle', dnaCirclePanel]
+  ['dnaCircle', dnaCirclePanel],
+  ['friendDna', friendDnaSectionAuto]
 );
 
 /* ---- shareable image --------------------------------------------------------- */

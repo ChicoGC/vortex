@@ -438,3 +438,40 @@ begin
   end if;
 end;
 $$;
+
+-- ==========================================================================
+-- avatars (Storage)
+-- Profile photos, one folder per user (<user id>/<file>). The bucket is
+-- public — a profile photo is meant to be visible to anyone with the link,
+-- same as a username — but only the owner can write inside their own folder.
+-- ==========================================================================
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
+
+drop policy if exists "avatar images are publicly readable" on storage.objects;
+create policy "avatar images are publicly readable"
+  on storage.objects for select
+  using (bucket_id = 'avatars');
+
+drop policy if exists "users can upload their own avatar" on storage.objects;
+create policy "users can upload their own avatar"
+  on storage.objects for insert
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "users can replace their own avatar" on storage.objects;
+create policy "users can replace their own avatar"
+  on storage.objects for update
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "users can delete their own avatar" on storage.objects;
+create policy "users can delete their own avatar"
+  on storage.objects for delete
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Only Supabase's own storage CDN URLs are trusted for a profile photo, so a
+-- direct API call can't point avatar_url at an arbitrary (e.g. tracking) image.
+alter table public.profiles drop constraint if exists profiles_avatar_url_check;
+alter table public.profiles add constraint profiles_avatar_url_check
+  check (avatar_url is null or avatar_url ~ '^https://hpblrmnturpihyrhwzih\.supabase\.co/storage/v1/object/public/avatars/[A-Za-z0-9/_.-]+$');

@@ -62,6 +62,7 @@ function transformComment(c, currentUserId) {
     username: c.author ? c.author.username : '',
     user: name,
     initials: initialsFrom(name),
+    avatarUrl: c.author ? c.author.avatar_url : null,
     text: c.content,
     time: formatTimeAgo(c.created_at),
     createdAt: c.created_at,
@@ -81,8 +82,11 @@ function transformPostData(post, currentUserId) {
   return {
     id: post.id,
     mine: post.user_id === currentUserId,
+    userId: post.user_id,
+    username: post.author.username,
     user: post.author.name,
     initials: initialsFrom(post.author.name),
+    avatarUrl: post.author.avatar_url,
     time: formatTimeAgo(post.created_at),
     createdAt: post.created_at,
     platform: 'spotify',
@@ -109,6 +113,7 @@ async function loadCurrentUser() {
     DATA.me.email = app.session.user.email;
     DATA.me.username = '@' + profile.username;
     DATA.me.initials = initialsFrom(profile.name);
+    DATA.me.avatarUrl = profile.avatar_url || null;
     DATA.me.bio = profile.bio || '';
     DATA.me.shareListening = profile.share_listening !== false;
     DATA.me.shareTaste = profile.share_taste !== false;
@@ -144,7 +149,8 @@ function toPerson(profile, friendshipId) {
     id: profile.id,
     name: profile.name,
     username: profile.username,
-    initials: initialsFrom(profile.name)
+    initials: initialsFrom(profile.name),
+    avatarUrl: profile.avatar_url || null
   };
 }
 
@@ -424,7 +430,7 @@ function renderSidebar() {
   '<div class="sidebar__foot">' +
     renderNowPlayingMini() +
     '<button class="userchip" data-nav="profile">' +
-      avatarEl(DATA.me.initials, '32', 'online') +
+      avatarEl(DATA.me.initials, '32', 'online', DATA.me.avatarUrl) +
       '<span class="userchip__meta">' +
         '<span class="t-label-m truncate">' + esc(DATA.me.name) + '</span>' +
         '<span class="t-caption c-tertiary truncate">' + esc(DATA.me.username) + '</span>' +
@@ -449,8 +455,15 @@ function renderMobileBar() {
 }
 
 /* ---- routing ------------------------------------------------------------ */
+/* #/u/<username> is the only dynamic route: a friend's (or anyone's) profile. */
+function friendProfileUsername() {
+  const raw = (location.hash || '').replace(/^#\/?/, '').trim();
+  return raw.slice(0, 2) === 'u/' ? decodeURIComponent(raw.slice(2)).trim() : '';
+}
+
 function currentRoute() {
   const raw = (location.hash || '').replace(/^#\/?/, '').trim();
+  if (raw.slice(0, 2) === 'u/' && raw.length > 2) return app.session ? 'friendProfile' : 'login';
   const target = VIEWS[raw] ? raw : 'home';
   const isPublic = PUBLIC_VIEWS.indexOf(target) > -1;
   if (!app.session && !isPublic) return 'login';
@@ -470,7 +483,9 @@ function setView(name) {
   document.getElementById('sidebar').hidden = !authed;
   document.getElementById('bottomnav').hidden = !authed;
   document.getElementById('mobilebar').hidden = !authed;
-  const label = (NAV.filter(function (n) { return n.id === name; })[0] || {}).label || 'vortex';
+  const label = name === 'friendProfile'
+    ? (UI.friendProfile && UI.friendProfile.status === 'ok' && UI.friendProfile.username === friendProfileUsername() ? UI.friendProfile.profile.name : 'Profile')
+    : (NAV.filter(function (n) { return n.id === name; })[0] || {}).label || 'vortex';
   document.title = label + ' · vortex';
   syncAppearanceControls();
   updatePlayerUI();
@@ -772,9 +787,13 @@ async function loadLibrary(key, range) {
 }
 
 function ensureSpotifyLibrary(view) {
-  if (!app.session || !spotify.auth.isConnected() || spotify.auth.missingScopes().length) return;
+  if (!app.session) return;
+  // A friend's profile needs their snapshot (and yours, for compatibility) but
+  // not your Spotify connection, so it loads even before you connect one.
+  if (view === 'friendProfile') { loadFriendProfile(friendProfileUsername()); loadTastes(); }
+  if (!spotify.auth.isConnected() || spotify.auth.missingScopes().length) return;
   // The ~6-month lists feed your DNA snapshot, so any Spotify page keeps it fresh.
-  if (view === 'activity' || view === 'music' || view === 'profile') {
+  if (view === 'activity' || view === 'music' || view === 'profile' || view === 'friendProfile') {
     loadLibrary('topArtists', 'medium_term');
     loadLibrary('topTracks', 'medium_term');
   }
@@ -787,6 +806,40 @@ function ensureSpotifyLibrary(view) {
     if (UI.dnaRange !== 'medium_term') loadLibrary('topArtists', UI.dnaRange);
     loadTastes();
   }
+}
+
+const FRIEND_PROFILE_TTL_MS = 60000;
+
+/* Loads a profile by username for the #/u/<username> route: the profile row,
+   sharing totals, and a few recent shares. Their music DNA comes separately
+   from DATA.tastes (loadTastes), same source the compatibility panel uses. */
+async function loadFriendProfile(username) {
+  if (!username || !app.session) return;
+  const cur = UI.friendProfile;
+  if (cur && cur.username === username && (cur.status === 'loading' ||
+    (cur.status !== 'error' && Date.now() - (cur.at || 0) < FRIEND_PROFILE_TTL_MS))) return;
+  UI.friendProfile = { username: username, status: 'loading' };
+  try {
+    const profile = await db.profiles.getByUsername(username);
+    if (!profile) {
+      UI.friendProfile = { username: username, status: 'notfound', at: Date.now() };
+    } else if (profile.id === app.session.user.id) {
+      // Viewing your own username through this route: send them to the real thing.
+      location.hash = '#/profile';
+      return;
+    } else {
+      const results = await Promise.all([db.stats.forUser(profile.id), db.posts.list(6, [profile.id])]);
+      UI.friendProfile = {
+        username: username, status: 'ok', at: Date.now(), profile: profile,
+        stats: results[0],
+        posts: results[1].map(function (p) { return transformPostData(p, app.session.user.id); })
+      };
+    }
+  } catch (err) {
+    console.error('Could not load profile:', err);
+    UI.friendProfile = { username: username, status: 'error', at: Date.now() };
+  }
+  if (app.view === 'friendProfile' && friendProfileUsername() === username) setView('friendProfile');
 }
 
 /* ---- music DNA ------------------------------------------------------------ */
@@ -810,7 +863,8 @@ async function maybePublishTaste() {
   }
 }
 
-let tastesLoadedAt = 0;
+let tastesLoadedAt = 0;   // throttle: when the last request started
+let tastesStatus = 'idle'; // 'idle' until the first answer, then 'ok' or 'error'
 async function loadTastes(force) {
   if (!app.session || (!force && Date.now() - tastesLoadedAt < 120000)) return;
   tastesLoadedAt = Date.now();
@@ -819,11 +873,13 @@ async function loadTastes(force) {
     const rows = await db.taste.list();
     DATA.tastes = {};
     rows.forEach(function (r) { if (r.user_id !== me) DATA.tastes[r.user_id] = sanitizeSnapshot(r); });
-    paintLibraryPanels();
+    tastesStatus = 'ok';
   } catch (err) {
     tastesLoadedAt = 0;
+    if (tastesStatus !== 'ok') tastesStatus = 'error';
     console.warn('Could not load friends\' music DNA:', err);
   }
+  paintLibraryPanels();
 }
 
 async function setShareTaste(on) {
@@ -884,6 +940,32 @@ async function saveTopTracksPlaylist() {
   }
   paintLibraryPanels();
   if (app.view === 'music') loadLibrary('playlists');
+}
+
+const AVATAR_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
+async function handleAvatarFile(file) {
+  if (!app.session) return;
+  const ext = AVATAR_TYPES[file.type];
+  if (!ext) { toast('avatarInvalid'); return; }
+  if (file.size > AVATAR_MAX_BYTES) { toast('avatarTooBig'); return; }
+  const me = app.session.user.id;
+  const wrap = document.querySelector('.avatar-edit');
+  if (wrap) wrap.classList.add('avatar-edit--busy');
+  try {
+    const up = await db.storage.uploadAvatar(me, file, ext);
+    await db.profiles.update(me, { avatar_url: up.url });
+    DATA.me.avatarUrl = up.url;
+    db.storage.pruneAvatars(me, up.path).catch(function () {});
+    document.getElementById('sidebar').innerHTML = renderSidebar();
+    if (app.view === 'profile') setView('profile');
+    toast('avatarUpdated');
+  } catch (err) {
+    console.error('Could not update avatar:', err);
+    if (wrap) wrap.classList.remove('avatar-edit--busy');
+    toast('avatarFailed');
+  }
 }
 
 async function saveDnaImage(btn) {
@@ -966,6 +1048,10 @@ const TOASTS = {
   playlistSaved: ['success', 'Playlist saved', 'It\'s private, in your Spotify library'],
   playlistFailed: ['error', 'Playlist not saved', 'Spotify refused it. Try again in a moment'],
   imageFailed: ['error', 'Image not created', 'Your browser blocked the export. Try again'],
+  avatarUpdated: ['success', 'Photo updated', 'Your new photo is now visible to everyone'],
+  avatarFailed: ['error', 'Photo not saved', 'Check your connection and try again'],
+  avatarInvalid: ['error', 'Unsupported file', 'Use a PNG, JPEG, WebP or GIF image'],
+  avatarTooBig: ['error', 'Image too large', 'Photos must be 5MB or smaller'],
   spotifyConnected: ['success', 'Spotify connected', 'What you play now shows up in vortex'],
   spotifyCancelled: ['info', 'Spotify not connected', 'You cancelled on the Spotify screen'],
   spotifyFailed: ['error', 'Could not connect Spotify', 'Try again in a moment'],
@@ -1296,6 +1382,7 @@ async function friendAction(btn, run, okToast, reloadFeed) {
     await loadFriends();
     refreshFriendsUI();
     reloadListening();
+    if (app.view === 'friendProfile') setView('friendProfile');
     if (okToast) toast(okToast);
     if (reloadFeed) loadFeed();
   } catch (err) {
@@ -1673,6 +1760,14 @@ document.addEventListener('input', function (e) {
   if ((e.target.id === 'postTitle' || e.target.id === 'postArtist') && postTrack) setPostTrack(null);
 });
 
+document.addEventListener('change', function (e) {
+  if (e.target.id === 'avatarFile') {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (file) handleAvatarFile(file);
+  }
+});
+
 /* Re-fetch when entering these views so new requests / posts appear without a
    reload; only re-render when something actually changed. */
 function refreshOnEnter(name) {
@@ -1764,6 +1859,8 @@ window.addEventListener('hashchange', function () {
       resetSpotifyLibrary();
       DATA.tastes = {};
       tastesLoadedAt = 0;
+      tastesStatus = 'idle';
+      UI.friendProfile = null;
       location.hash = '#/login';
       setView(currentRoute());
     }
