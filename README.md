@@ -1,6 +1,6 @@
 # vortex
 
-A social music app — see what your friends are listening to, in real time.
+Low budget project, hope yall enjoy tho :v
 
 ## Layout
 
@@ -84,3 +84,5 @@ npm run dev
 The UI is a working prototype with mock data. Not wired up yet: Spotify OAuth,
 Supabase reads and writes, and the Experimental login screen (deliberately a
 visual prototype — it submits nothing).
+
+## 🇧🇷❗
