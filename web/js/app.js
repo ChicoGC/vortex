@@ -978,6 +978,7 @@ function startNotifications() {
   if (!app.session) return;
   refreshNotifCount();
   unsubscribeNotifications = db.notifications.subscribe(app.session.user.id, function () {
+    sounds.notify();
     if (app.view === 'notifications') { loadNotifications(true); return; }
     DATA.notifications.unread++;
     DATA.notifications.status = 'idle';
@@ -1361,7 +1362,7 @@ const TOASTS = {
   avatarFailed: ['error', 'Photo not saved', 'Check your connection and try again'],
   avatarInvalid: ['error', 'Unsupported file', 'Use a PNG, JPEG, WebP or GIF image'],
   avatarTooBig: ['error', 'Image too large', 'Photos must be 5MB or smaller'],
-  lookReset: ['info', 'Back to defaults', 'Accent, glass, density, animations and sidebar were reset'],
+  lookReset: ['info', 'Back to defaults', 'Accent, glass, density, animations, sound and sidebar were reset'],
   pinSaved: ['success', 'Song pinned', 'It\'s the first thing people see on your profile'],
   pinCleared: ['info', 'Song unpinned', 'Pin another one any time from your profile'],
   recapNoShare: ['info', 'Saved instead', 'This browser can\'t share images, so the recap was downloaded'],
@@ -1376,6 +1377,7 @@ const TOASTS = {
 function toast(kind) {
   const spec = TOASTS[kind];
   if (!spec) return;
+  if (spec[0] === 'error') sounds.error(); else sounds.success();
   const glyph = { success: 'check', info: 'broadcast', error: 'close' }[spec[0]];
   const el = document.createElement('div');
   el.className = 'toast';
@@ -1592,6 +1594,7 @@ async function toggleReaction(postId, type) {
   const base = post.reactions[type];
   post.reacted[type] = !was;
   post.reactions[type] = base + (was ? -1 : 1);
+  if (was) sounds.tap(); else sounds.pop();
   rerenderPost(postId);
 
   try {
@@ -1901,6 +1904,11 @@ function openCmdk() {
 document.addEventListener('click', function (e) {
   const t = e.target;
 
+  // Switches and the sound picker play their own sounds; in-app links play one on navigation.
+  const tappable = t.closest('button, a, [role="radio"], .tab, .chip');
+  if (tappable && !tappable.closest('[data-toggle], [data-sound-pick], [data-sound-test], [role="switch"]') &&
+      !(tappable.tagName === 'A' && (tappable.getAttribute('href') || '').indexOf('#/') === 0)) sounds.tap();
+
   const closeBtn = t.closest('[data-close]');
   const scrim = t.closest('[data-scrim]');
   if (closeBtn || (scrim && t === scrim)) { closeOverlay(); return; }
@@ -1998,6 +2006,10 @@ document.addEventListener('click', function (e) {
   if (densityBtn) { setLook('density', densityBtn.dataset.densityPick); return; }
   const motionBtn = t.closest('[data-motion-pick]');
   if (motionBtn) { setLook('motion', motionBtn.dataset.motionPick); return; }
+  const soundTest = t.closest('[data-sound-test]');
+  if (soundTest) { sounds.preview(soundTest.dataset.soundTest); return; }
+  const soundPick = t.closest('[data-sound-pick]');
+  if (soundPick) { setSoundPref('variant', soundPick.dataset.soundPick); sounds.preview(soundPick.dataset.soundPick); return; }
   if (t.closest('[data-action="look-reset"]')) { resetLook(); toast('lookReset'); return; }
   const navMove = t.closest('[data-nav-move]');
   if (navMove) {
@@ -2018,6 +2030,13 @@ document.addEventListener('click', function (e) {
     if (toggle.dataset.toggle === 'ambient') setAmbient(on);
     if (toggle.dataset.toggle === 'share-listening') setShareListening(on);
     if (toggle.dataset.toggle === 'share-taste') setShareTaste(on);
+    if (toggle.dataset.toggle === 'sounds') {
+      if (!on) sounds.off();
+      setSoundPref('sounds', on ? 'on' : 'off');
+      if (on) sounds.on();
+    } else {
+      (on ? sounds.on : sounds.off)();
+    }
     return;
   }
 
@@ -2244,6 +2263,7 @@ document.addEventListener('keydown', function (e) {
 
 window.addEventListener('hashchange', function () {
   const name = currentRoute();
+  if (name !== app.view) sounds.navigate();
   setView(name);
   refreshOnEnter(name);
 });

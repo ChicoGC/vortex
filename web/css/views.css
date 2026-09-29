@@ -1029,6 +1029,22 @@ button.tile[aria-pressed="true"] { border-color: var(--accent-border); backgroun
 @keyframes motion-orbit { to { translate: 22px 0; } }
 [data-motion="reduced"] .motionrow__dot, [data-motion="reduced"] .eq i { animation: none; }
 
+/* sound effects */
+.soundpicks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.soundcard { position: relative; display: flex; }
+.soundcard__pick {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 10px 10px; text-align: left;
+  border-radius: var(--radius-lg); border: 1px solid var(--glass-border); background: var(--glass-panel); color: var(--text-tertiary);
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast);
+}
+.soundcard__pick:hover { border-color: var(--glass-border-strong); background: var(--glass-raised); }
+.soundcard__pick[aria-checked="true"] { border-color: var(--accent-border); background: var(--accent-soft); color: var(--accent-base); }
+.soundcard__wave { width: 44px; height: auto; margin-bottom: 8px; }
+.soundcard__pick .t-body-m-med { color: var(--text-primary); }
+.soundcard__play { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; }
+.soundcard__play:hover { color: var(--accent-base); }
+@media (max-width: 560px) { .soundpicks { grid-template-columns: 1fr; } .soundcard__pick { flex-direction: row; align-items: center; gap: 12px; padding-right: 44px; } .soundcard__wave { margin: 0; flex: none; } }
+
 /* sidebar editor */
 .navedit { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: start; }
 .navedit__col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }

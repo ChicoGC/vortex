@@ -61,6 +61,7 @@ function setLook(key, value) {
 function resetLook() {
   Object.keys(LOOK_DEFAULTS).forEach(function (k) { STORE.set('look.' + k, String(LOOK_DEFAULTS[k])); });
   STORE.set('navLayout', '{}');
+  Object.keys(SOUND_DEFAULTS).forEach(function (k) { STORE.set('sound.' + k, String(SOUND_DEFAULTS[k])); });
   applyLook();
   repaintSidebar();
   if (app.view === 'customization') setView('customization');
@@ -275,6 +276,19 @@ function themePreview(kind) {
   '</div>';
 }
 
+/* A sine wave with more cycles for higher voices. */
+function soundWave(cycles) {
+  const w = 64, mid = 12, amp = 8, steps = 64;
+  let d = '';
+  for (let i = 0; i <= steps; i++) {
+    const x = i / steps;
+    const y = mid - Math.sin(x * cycles * Math.PI * 2) * amp * Math.sin(x * Math.PI);
+    d += (i ? 'L' : 'M') + (x * w).toFixed(1) + ' ' + y.toFixed(2);
+  }
+  return '<svg class="soundcard__wave" viewBox="0 0 ' + w + ' 24" width="64" height="24" aria-hidden="true"><path d="' + d +
+    '" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
 function settingRow(iconName, title, desc, control) {
   return '<div class="setting">' +
     '<span class="c-tertiary">' + icon(iconName, 18) + '</span>' +
@@ -360,6 +374,27 @@ VIEWS.customization = function () {
       '</div>' +
     '</section>';
 
+  const soundVariant = soundPref('variant');
+  const soundPanel =
+    '<section class="panel section">' + sectionHead('Sound effects') +
+      '<div class="section__body section__body--flush">' +
+        settingRow('bell', 'Sound effects', 'Soft tones for taps, switches, alerts and new notifications.',
+          '<button class="toggle" data-toggle="sounds" aria-checked="' + soundPref('sounds') + '" role="switch" aria-label="Sound effects"></button>') +
+      '</div>' +
+      '<div class="section__body section__body--pad stack stack--sm">' +
+        '<div class="soundpicks" role="radiogroup" aria-label="Sound pitch">' + SOUND_VARIANTS.map(function (v) {
+          return '<div class="soundcard">' +
+            '<button class="soundcard__pick" role="radio" data-sound-pick="' + v.id + '" aria-checked="' + (v.id === soundVariant) + '">' +
+              soundWave(v.cycles) +
+              '<span class="t-body-m-med">' + v.name + '</span><span class="t-caption c-tertiary">' + v.hint + '</span>' +
+            '</button>' +
+            '<button class="iconbtn soundcard__play" data-sound-test="' + v.id + '" data-tip="Preview" aria-label="Preview ' + v.name + '">' + icon('play', 13) + '</button>' +
+          '</div>';
+        }).join('') + '</div>' +
+        '<p class="t-body-s c-tertiary">Picking a voice plays it. Previews play even when effects are off.</p>' +
+      '</div>' +
+    '</section>';
+
   const sidebarPanel =
     '<section class="panel section">' + sectionHead('Sidebar') +
       '<div class="section__body section__body--flush">' +
@@ -375,7 +410,7 @@ VIEWS.customization = function () {
     themePanel +
     '<div class="cols cols--half">' +
       '<div class="stack">' + accentPanel + surfacePanel + '</div>' +
-      '<div class="stack">' + densityPanel + motionPanel + '</div>' +
+      '<div class="stack">' + densityPanel + motionPanel + soundPanel + '</div>' +
     '</div>' +
     sidebarPanel
   );
@@ -385,9 +420,14 @@ VIEWS.customization = function () {
    isn't replaced under your pointer. */
 function syncCustomization() {
   const accent = lookPref('accent'), density = lookPref('density'), motion = lookPref('motion');
+  const soundVariant = soundPref('variant');
+  const soundsOn = soundPref('sounds');
   document.querySelectorAll('[data-accent-pick]').forEach(function (b) { b.setAttribute('aria-checked', String(b.dataset.accentPick === accent)); });
   document.querySelectorAll('[data-density-pick]').forEach(function (b) { b.setAttribute('aria-checked', String(b.dataset.densityPick === density)); });
   document.querySelectorAll('[data-motion-pick]').forEach(function (b) { b.setAttribute('aria-checked', String(b.dataset.motionPick === motion)); });
+  document.querySelectorAll('[data-sound-pick]').forEach(function (b) { b.setAttribute('aria-checked', String(b.dataset.soundPick === soundVariant)); });
+  const soundsToggle = document.querySelector('[data-toggle="sounds"]');
+  if (soundsToggle) soundsToggle.setAttribute('aria-checked', String(soundsOn));
   const hint = document.getElementById('motionHint');
   if (hint) hint.textContent = motionHint(motion);
   ['glass', 'blur'].forEach(function (k) {
