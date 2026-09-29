@@ -149,13 +149,13 @@ async function renderRecapImage() {
   const label = await loadImage(d.top.image);
 
   const W = 1080, H = 1920, P = 80;
-  const INK = '#F2F1EE', INK2 = 'rgba(242,241,238,.64)', INK3 = 'rgba(242,241,238,.40)', EMBER = '#FF5C35';
+  const INK = '#F2F1EE', INK2 = 'rgba(242,241,238,.64)', INK3 = 'rgba(242,241,238,.40)', EMBER = signalColor();
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const ctx = c.getContext('2d');
   ctx.fillStyle = '#0B0B0D';
   ctx.fillRect(0, 0, W, H);
-  [[980, 260, 760, 'rgba(255,92,53,.34)'], [60, 1700, 820, 'rgba(63,191,168,.18)']].forEach(function (g) {
+  [[980, 260, 760, hexAlpha(EMBER, .34)], [60, 1700, 820, 'rgba(63,191,168,.18)']].forEach(function (g) {
     const grad = ctx.createRadialGradient(g[0], g[1], 0, g[0], g[1], g[2]);
     grad.addColorStop(0, g[3]); grad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);

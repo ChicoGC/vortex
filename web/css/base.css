@@ -167,10 +167,32 @@ svg { display: block; flex: none; }
 .page-head__eyebrow { color: var(--text-tertiary); }
 .page-head__actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-8); }
 
+/* Motion (Customization): "system" follows the OS setting, "full" keeps
+   everything even when the OS asks for less, "reduced" stops the looping
+   decoration but keeps responses to what you do, "off" stops all of it. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  :root:not([data-motion="full"]) *,
+  :root:not([data-motion="full"]) *::before,
+  :root:not([data-motion="full"]) *::after {
     animation-duration: .001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: .001ms !important;
   }
+}
+[data-motion="off"] *, [data-motion="off"] *::before, [data-motion="off"] *::after {
+  animation-duration: .001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+}
+[data-motion="reduced"] .ambient i,
+[data-motion="reduced"] .ghost svg,
+[data-motion="reduced"] .ghost__shadow,
+[data-motion="reduced"] .poster__label,
+[data-motion="reduced"] .recap-teaser__disc span,
+[data-motion="reduced"] .view { animation: none !important; }
+
+/* Blur at zero turns frosted glass off entirely, which is what saves the GPU. */
+[data-blur="off"] *, [data-blur="off"] *::before, [data-blur="off"] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }

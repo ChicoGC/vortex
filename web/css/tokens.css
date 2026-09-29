@@ -35,6 +35,10 @@
   --ember-600: #E8431D;
   --ember-700: #B93314;
 
+  /* The accent as it reads on a dark surface, in both themes: used by the
+     always-dark recap card and exported images. */
+  --accent-signal: var(--ember-500);
+
   --lime-300: #E3F8A4;
   --lime-400: #CFF262;
   --lime-500: #B9E33D;
@@ -94,9 +98,10 @@
   --bg-canvas-deep: var(--graphite-1000);
   --bg-inset: rgba(255, 255, 255, .035);
 
-  --glass-panel: rgba(255, 255, 255, .055);
-  --glass-panel-strong: rgba(16, 16, 18, .80);
-  --glass-raised: rgba(255, 255, 255, .09);
+  /* --glass-k (0–2, set from Customization) scales how solid glass reads. */
+  --glass-panel: rgba(255, 255, 255, calc(.02 + .035 * var(--glass-k, 1)));
+  --glass-panel-strong: rgba(16, 16, 18, calc(.6 + .2 * var(--glass-k, 1)));
+  --glass-raised: rgba(255, 255, 255, calc(.05 + .04 * var(--glass-k, 1)));
   --glass-border: rgba(255, 255, 255, .08);
   --glass-border-strong: rgba(255, 255, 255, .14);
   --glass-highlight: rgba(255, 255, 255, .22);
@@ -165,9 +170,9 @@
   --bg-canvas-deep: var(--paper-200);
   --bg-inset: rgba(20, 20, 22, .04);
 
-  --glass-panel: rgba(255, 255, 255, .68);
-  --glass-panel-strong: rgba(255, 255, 255, .86);
-  --glass-raised: rgba(255, 255, 255, .94);
+  --glass-panel: rgba(255, 255, 255, calc(.40 + .28 * var(--glass-k, 1)));
+  --glass-panel-strong: rgba(255, 255, 255, calc(.70 + .16 * var(--glass-k, 1)));
+  --glass-raised: rgba(255, 255, 255, min(1, calc(.80 + .14 * var(--glass-k, 1))));
   --glass-border: rgba(20, 20, 22, .07);
   --glass-border-strong: rgba(20, 20, 22, .12);
   --glass-highlight: rgba(255, 255, 255, .90);
@@ -223,4 +228,59 @@
   --ambient-2: rgba(63, 191, 168, .12);
   --ambient-3: rgba(185, 227, 61, .10);
   --ambient-4: rgba(124, 140, 161, .07);
+}
+
+/* ==========================================================================
+   accent choices (Customization). Ember is the default above. Teal and lime
+   are left out on purpose: they already mean "your friend" in comparisons
+   and "success" in states.
+   ========================================================================== */
+[data-accent="magenta"] { --accent-signal: #EE55AE; --ambient-1: rgba(238, 85, 174, .13); }
+[data-theme="dark"][data-accent="magenta"] {
+  --accent-base: #EE55AE; --accent-hover: #F57BC2; --accent-press: #D43893;
+  --accent-soft: rgba(238, 85, 174, .14); --accent-border: rgba(238, 85, 174, .34);
+  --text-on-accent: #22061A; --focus-ring: rgba(245, 123, 194, .55); --data-1: #EE55AE;
+}
+[data-theme="light"][data-accent="magenta"] {
+  --accent-base: #C22A82; --accent-hover: #D63D95; --accent-press: #9E1F69;
+  --accent-soft: rgba(194, 42, 130, .10); --accent-border: rgba(194, 42, 130, .26);
+  --text-on-accent: #FFF3FA; --focus-ring: rgba(194, 42, 130, .45); --data-1: #C22A82;
+}
+
+[data-accent="violet"] { --accent-signal: #9077FF; --ambient-1: rgba(144, 119, 255, .15); }
+[data-theme="dark"][data-accent="violet"] {
+  --accent-base: #9077FF; --accent-hover: #A794FF; --accent-press: #765BF0;
+  --accent-soft: rgba(144, 119, 255, .15); --accent-border: rgba(144, 119, 255, .36);
+  --text-on-accent: #0F0828; --focus-ring: rgba(167, 148, 255, .55); --data-1: #9077FF;
+}
+[data-theme="light"][data-accent="violet"] {
+  --accent-base: #6548E8; --accent-hover: #785EF5; --accent-press: #5034CC;
+  --accent-soft: rgba(101, 72, 232, .10); --accent-border: rgba(101, 72, 232, .26);
+  --text-on-accent: #F6F3FF; --focus-ring: rgba(101, 72, 232, .45); --data-1: #6548E8;
+}
+
+[data-accent="azure"] { --accent-signal: #4192FF; --ambient-1: rgba(65, 146, 255, .14); }
+[data-theme="dark"][data-accent="azure"] {
+  --accent-base: #4192FF; --accent-hover: #66A8FF; --accent-press: #2B78E6;
+  --accent-soft: rgba(65, 146, 255, .14); --accent-border: rgba(65, 146, 255, .34);
+  --text-on-accent: #03142C; --focus-ring: rgba(102, 168, 255, .55); --data-1: #4192FF;
+}
+[data-theme="light"][data-accent="azure"] {
+  --accent-base: #1C6BDD; --accent-hover: #2F7FF0; --accent-press: #1455B5;
+  --accent-soft: rgba(28, 107, 221, .10); --accent-border: rgba(28, 107, 221, .26);
+  --text-on-accent: #F2F7FF; --focus-ring: rgba(28, 107, 221, .45); --data-1: #1C6BDD;
+}
+
+/* Mono: the accent becomes the ink colour itself. */
+[data-accent="mono"] { --accent-signal: #F2F1EE; --ambient-1: rgba(242, 241, 238, .06); }
+[data-theme="dark"][data-accent="mono"] {
+  --accent-base: #F2F1EE; --accent-hover: #FFFFFF; --accent-press: #D6D6DA;
+  --accent-soft: rgba(242, 241, 238, .10); --accent-border: rgba(242, 241, 238, .30);
+  --text-on-accent: #0B0B0D; --focus-ring: rgba(242, 241, 238, .5); --data-1: #F2F1EE;
+}
+[data-theme="light"][data-accent="mono"] {
+  --accent-base: #15151A; --accent-hover: #2C2C33; --accent-press: #000000;
+  --accent-soft: rgba(21, 21, 26, .07); --accent-border: rgba(21, 21, 26, .22);
+  --text-on-accent: #FFFFFF; --focus-ring: rgba(21, 21, 26, .40); --data-1: #15151A;
+  --ambient-1: rgba(21, 21, 26, .05);
 }

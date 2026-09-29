@@ -13,7 +13,7 @@ const NAV = [
   { group: 'You' },
   { id: 'profile',      label: 'Profile',      icon: 'user' },
   { id: 'recap',        label: 'Recap',        icon: 'sparkle' },
-  { id: 'appearance',   label: 'Appearance',   icon: 'droplet' },
+  { id: 'customization', label: 'Customization', icon: 'droplet' },
   { id: 'experimental', label: 'Experimental', icon: 'flask', dot: true },
   { id: 'settings',     label: 'Settings',     icon: 'sliders' }
 ];
@@ -126,7 +126,7 @@ async function loadCurrentUser() {
     const year = joinedDate.getFullYear();
     DATA.me.joined = month + ' ' + year;
 
-    document.getElementById('sidebar').innerHTML = renderSidebar();
+    repaintSidebar();
 
     await loadFeed();
   } catch (e) { console.error('Error loading user:', e); }
@@ -409,8 +409,10 @@ function renderNowPlayingMini() {
 }
 
 function renderSidebar() {
-  const nav = NAV.map(function (n) {
-    if (n.group) return '<p class="nav-group t-overline">' + n.group + '</p>';
+  const layout = navLayout();
+  const byId = {};
+  NAV.forEach(function (n) { if (n.id) byId[n.id] = n; });
+  function link(n) {
     return '<a class="nav" href="#/' + n.id + '" data-view-link="' + n.id + '">' +
       icon(n.icon, 19) +
       '<span>' + n.label + '</span>' +
@@ -419,7 +421,18 @@ function renderSidebar() {
         ? '<span class="nav__dot" aria-label="' + countLabel(DATA.incoming.length, 'friend request') + '"></span>' : '') +
       (n.id === 'notifications' ? notifCountEl() : '') +
     '</a>';
+  }
+  let nav = layout.groups.map(function (g) {
+    const items = g.ids.filter(function (id) { return !layout.hidden[id]; }).map(function (id) { return link(byId[id]); });
+    return items.length ? '<p class="nav-group t-overline">' + g.name + '</p>' + items.join('') : '';
   }).join('');
+  const pinned = layout.pins.map(function (u) { return DATA.friends.filter(function (f) { return f.username === u; })[0]; }).filter(Boolean);
+  if (pinned.length) {
+    nav += '<p class="nav-group t-overline">Pinned</p>' + pinned.map(function (f) {
+      return '<a class="nav nav--person" href="#/u/' + esc(f.username) + '" data-profile-link="' + esc(f.username) + '">' +
+        avatarEl(f.initials, '24', null, f.avatarUrl) + '<span>' + esc(f.name) + '</span></a>';
+    }).join('');
+  }
 
   return '' +
   '<div class="sidebar__brand">' +
@@ -502,7 +515,7 @@ function friendProfileUsername() {
 function currentRoute() {
   const r = routeParts();
   if (DYNAMIC_ROUTES[r.head] && r.param) return app.session ? DYNAMIC_ROUTES[r.head] : 'login';
-  const raw = r.head;
+  const raw = r.head === 'appearance' ? 'customization' : r.head;  // old links
   const dynamicView = Object.keys(DYNAMIC_ROUTES).some(function (k) { return DYNAMIC_ROUTES[k] === raw; });
   const target = VIEWS[raw] && !dynamicView ? raw : 'home';
   const isPublic = PUBLIC_VIEWS.indexOf(target) > -1;
@@ -514,10 +527,7 @@ function currentRoute() {
 function setView(name) {
   app.view = name;
   document.getElementById('viewRoot').innerHTML = VIEWS[name]();
-  document.querySelectorAll('[data-view-link]').forEach(function (a) {
-    if (a.dataset.viewLink === name) a.setAttribute('aria-current', 'page');
-    else a.removeAttribute('aria-current');
-  });
+  markCurrentNav();
   const authed = PUBLIC_VIEWS.indexOf(name) === -1;
   document.getElementById('app').dataset.authed = String(authed);
   document.getElementById('sidebar').hidden = !authed;
@@ -535,6 +545,25 @@ function setView(name) {
   ensureSpotifyLibrary(name);
   const scroller = document.querySelector('.view-scroll');
   if (scroller) scroller.scrollTop = 0;
+}
+
+function markCurrentNav() {
+  const name = app.view;
+  document.querySelectorAll('[data-view-link]').forEach(function (a) {
+    if (a.dataset.viewLink === name) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  });
+  const user = name === 'friendProfile' ? friendProfileUsername().toLowerCase() : '';
+  document.querySelectorAll('[data-profile-link]').forEach(function (a) {
+    if (user && a.dataset.profileLink.toLowerCase() === user) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  });
+}
+
+function repaintSidebar() {
+  document.getElementById('sidebar').innerHTML = renderSidebar();
+  markCurrentNav();
+  setRail(document.getElementById('app').dataset.rail === 'compact');
 }
 
 /* ---- theme & preferences ------------------------------------------------ */
@@ -571,6 +600,7 @@ function syncAppearanceControls() {
   const ambOn = STORE.get('ambient', '1') === '1';
   const ambToggle = document.querySelector('[data-toggle="ambient"]');
   if (ambToggle) ambToggle.setAttribute('aria-checked', String(ambOn));
+  syncCustomization();
 }
 
 /* ---- now playing (Spotify) ---------------------------------------------- */
@@ -1237,7 +1267,7 @@ async function handleAvatarFile(file) {
     await db.profiles.update(me, { avatar_url: up.url });
     DATA.me.avatarUrl = up.url;
     db.storage.pruneAvatars(me, up.path).catch(function () {});
-    document.getElementById('sidebar').innerHTML = renderSidebar();
+    repaintSidebar();
     if (app.view === 'profile') setView('profile');
     toast('avatarUpdated');
   } catch (err) {
@@ -1331,6 +1361,7 @@ const TOASTS = {
   avatarFailed: ['error', 'Photo not saved', 'Check your connection and try again'],
   avatarInvalid: ['error', 'Unsupported file', 'Use a PNG, JPEG, WebP or GIF image'],
   avatarTooBig: ['error', 'Image too large', 'Photos must be 5MB or smaller'],
+  lookReset: ['info', 'Back to defaults', 'Accent, glass, density, animations and sidebar were reset'],
   pinSaved: ['success', 'Song pinned', 'It\'s the first thing people see on your profile'],
   pinCleared: ['info', 'Song unpinned', 'Pin another one any time from your profile'],
   recapNoShare: ['info', 'Saved instead', 'This browser can\'t share images, so the recap was downloaded'],
@@ -1630,6 +1661,7 @@ function refreshFriendsUI() {
     });
   paintFriendResults();
   updateFriendsBadge();
+  if (navLayout().pins.length) repaintSidebar();
 }
 
 function paintFriendResults() {
@@ -1798,7 +1830,7 @@ async function handlePostSubmit(form) {
 }
 
 const CMD_ACTIONS = [
-  { label: 'Toggle theme', hint: 'Appearance', run: function () { setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); }, icon: 'droplet' },
+  { label: 'Toggle theme', hint: 'Customization', run: function () { setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); }, icon: 'droplet' },
   { label: 'Toggle compact sidebar', hint: 'Navigation', run: function () { setRail(document.getElementById('app').dataset.rail !== 'compact'); }, icon: 'bars' }
 ];
 
@@ -1960,6 +1992,24 @@ document.addEventListener('click', function (e) {
   const themeBtn = t.closest('[data-theme-pick]');
   if (themeBtn) { setTheme(themeBtn.dataset.themePick); return; }
 
+  const accentBtn = t.closest('[data-accent-pick]');
+  if (accentBtn) { setLook('accent', accentBtn.dataset.accentPick); return; }
+  const densityBtn = t.closest('[data-density-pick]');
+  if (densityBtn) { setLook('density', densityBtn.dataset.densityPick); return; }
+  const motionBtn = t.closest('[data-motion-pick]');
+  if (motionBtn) { setLook('motion', motionBtn.dataset.motionPick); return; }
+  if (t.closest('[data-action="look-reset"]')) { resetLook(); toast('lookReset'); return; }
+  const navMove = t.closest('[data-nav-move]');
+  if (navMove) {
+    const row = navMove.closest('[data-dnd-group]');
+    if (row) moveNavItem(row.dataset.dndGroup, navMove.dataset.key, navMove.dataset.navMove);
+    return;
+  }
+  const navHide = t.closest('[data-nav-hide]');
+  if (navHide) { toggleNavHidden(navHide.dataset.navHide); return; }
+  const navPin = t.closest('[data-navpin]');
+  if (navPin) { toggleNavPin(navPin.dataset.navpin); return; }
+
   const toggle = t.closest('[data-toggle]');
   if (toggle && toggle.getAttribute('aria-disabled') !== 'true') {
     const on = toggle.getAttribute('aria-checked') !== 'true';
@@ -2058,7 +2108,56 @@ document.addEventListener('click', function (e) {
   }
 });
 
+/* Sidebar editor: drag rows within their own list. */
+let navDrag = null;   // { key, group }
+
+function clearDropMarks() {
+  document.querySelectorAll('.navedit__item.drop-before, .navedit__item.drop-after, .navedit__item.is-dragging')
+    .forEach(function (el) { el.classList.remove('drop-before', 'drop-after', 'is-dragging'); });
+}
+
+document.addEventListener('dragstart', function (e) {
+  const item = e.target.closest && e.target.closest('[data-dnd-key]');
+  if (!item) return;
+  navDrag = { key: item.dataset.dndKey, group: item.dataset.dndGroup };
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', navDrag.key);
+  requestAnimationFrame(function () { item.classList.add('is-dragging'); });
+});
+
+document.addEventListener('dragover', function (e) {
+  const item = navDrag && e.target.closest && e.target.closest('[data-dnd-key]');
+  if (!item || item.dataset.dndGroup !== navDrag.group) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const r = item.getBoundingClientRect();
+  const after = e.clientY > r.top + r.height / 2;
+  document.querySelectorAll('.navedit__item.drop-before, .navedit__item.drop-after').forEach(function (el) {
+    if (el !== item) el.classList.remove('drop-before', 'drop-after');
+  });
+  if (item.dataset.dndKey === navDrag.key) return;
+  item.classList.toggle('drop-after', after);
+  item.classList.toggle('drop-before', !after);
+});
+
+document.addEventListener('drop', function (e) {
+  const item = navDrag && e.target.closest && e.target.closest('[data-dnd-key]');
+  if (!item || item.dataset.dndGroup !== navDrag.group) return;
+  e.preventDefault();
+  const after = item.classList.contains('drop-after');
+  const drag = navDrag;
+  navDrag = null;
+  clearDropMarks();
+  if (item.dataset.dndKey !== drag.key) moveNavItem(drag.group, drag.key, item.dataset.dndKey, after);
+});
+
+document.addEventListener('dragend', function () { navDrag = null; clearDropMarks(); });
+
 document.addEventListener('input', function (e) {
+  if (e.target.dataset && e.target.dataset.lookRange) {
+    setLook(e.target.dataset.lookRange, parseInt(e.target.value, 10));
+    return;
+  }
   if (e.target.id === 'friendSearch') {
     UI.friendSearch.q = e.target.value;
     clearTimeout(friendSearchTimer);
@@ -2160,6 +2259,7 @@ window.addEventListener('hashchange', function () {
 
   const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
   setTheme(STORE.get('theme', prefersLight ? 'light' : 'dark'));
+  applyLook();
   document.getElementById('sidebar').innerHTML = renderSidebar();
   document.getElementById('bottomnav').innerHTML = renderBottomNav();
   document.getElementById('mobilebar').innerHTML = renderMobileBar();

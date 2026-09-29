@@ -620,9 +620,10 @@ async function renderDnaImage() {
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const ctx = c.getContext('2d');
+  const signal = signalColor();
   ctx.fillStyle = '#0B0B0D';
   ctx.fillRect(0, 0, W, H);
-  [[900, 180, 520, 'rgba(255,92,53,.30)'], [120, 1180, 560, 'rgba(63,191,168,.18)']].forEach(function (g) {
+  [[900, 180, 520, hexAlpha(signal, .30)], [120, 1180, 560, 'rgba(63,191,168,.18)']].forEach(function (g) {
     const grad = ctx.createRadialGradient(g[0], g[1], 0, g[0], g[1], g[2]);
     grad.addColorStop(0, g[3]); grad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
@@ -631,7 +632,7 @@ async function renderDnaImage() {
   ctx.fillStyle = '#F2F1EE';
   ctx.font = '600 44px Geist, sans-serif';
   ctx.fillText('vortex', P, P + 34);
-  ctx.fillStyle = '#FF5C35';
+  ctx.fillStyle = signal;
   ctx.font = '500 26px "Geist Mono", monospace';
   ctx.fillText('MUSIC DNA · LAST 6 MONTHS', P, P + 92);
   ctx.textAlign = 'right';
@@ -674,9 +675,9 @@ async function renderDnaImage() {
     const w = ctx.measureText(g.name).width + 44;
     if (x + w > W - P) return;
     roundRect(ctx, x, y, w, 56, 28);
-    ctx.fillStyle = i === 0 ? 'rgba(255,92,53,.18)' : 'rgba(255,255,255,.07)';
+    ctx.fillStyle = i === 0 ? hexAlpha(signal, .18) : 'rgba(255,255,255,.07)';
     ctx.fill();
-    ctx.fillStyle = i === 0 ? '#FF7A54' : 'rgba(242,241,238,.8)';
+    ctx.fillStyle = i === 0 ? signal : 'rgba(242,241,238,.8)';
     ctx.fillText(g.name, x + 22, y + 38);
     x += w + 14;
   });
@@ -691,7 +692,7 @@ async function renderDnaImage() {
   ctx.fillText(String(stars), P, fy - 4);
   const bx = P + 150, bw = W - P - bx;
   roundRect(ctx, bx, fy - 34, bw, 14, 7); ctx.fillStyle = 'rgba(255,255,255,.09)'; ctx.fill();
-  roundRect(ctx, bx, fy - 34, Math.max(14, bw * stars / max), 14, 7); ctx.fillStyle = '#FF5C35'; ctx.fill();
+  roundRect(ctx, bx, fy - 34, Math.max(14, bw * stars / max), 14, 7); ctx.fillStyle = signal; ctx.fill();
   ctx.fillStyle = 'rgba(242,241,238,.40)';
   ctx.font = '400 24px Geist, sans-serif';
   ctx.fillText(stars + ' of ' + max + ' badge stars', bx, fy + 8);
