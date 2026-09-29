@@ -17,8 +17,12 @@ const DATA = {
     shareListening: true,
     shareTaste: true,
     stats: null,        // { posts, reactions, comments }
-    recentPosts: []     // latest posts by this user, for the profile
+    recentPosts: [],    // latest posts by this user, for the profile
+    pin: null           // song of the moment: { trackId, title, artist, image, note, at }
   },
+
+  /* status: 'idle' | 'loading' | 'ok' | 'error'. unread drives the nav count. */
+  notifications: { status: 'idle', items: [], unread: 0 },
 
   /* status: 'disconnected' | 'idle' (connected, nothing playing) | 'track' */
   nowPlaying: {

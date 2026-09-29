@@ -297,8 +297,9 @@ function compatDetail(f, c, showProfileLink) {
       }).join('') + '</div></div>' : '') +
     (c.newToYou.length ? '<div class="stack stack--sm"><span class="t-overline c-tertiary">From ' + first + '\'s top 50, new to you</span>' +
       '<div class="achips">' + c.newToYou.map(function (a) { return artistChip(a, a.genres[0] || null); }).join('') + '</div></div>' : '') +
-    (showProfileLink && f.username ? '<a class="btn btn--secondary btn--sm" href="#/u/' + esc(f.username) + '" style="align-self:flex-start">' +
-      icon('user', 15) + 'View ' + first + '\'s profile</a>' : '') +
+    (f.username ? '<div class="rowflex" style="gap:8px;flex-wrap:wrap">' + compareButton(f.username, true) +
+      (showProfileLink ? '<a class="btn btn--ghost btn--sm" href="#/u/' + esc(f.username) + '">' + icon('user', 15) + 'View ' + first + '\'s profile</a>' : '') +
+    '</div>' : '') +
     '<p class="t-caption c-tertiary">How it\'s scored: 45% genre similarity, 40% shared artists, 15% shared tracks, from each person\'s top 50 over ~6 months. Shared counts rise on a curve, so a few matches already register.</p>' +
   '</div>';
 }
@@ -376,8 +377,8 @@ function friendGenrePanel(theirs, name) {
   const g = genreShares(theirs.artists);
   if (g.list.length < 3) {
     return ghostEmpty(null, g.tagged
-      ? 'Spotify lists fewer than 3 genres for ' + esc(name) + '\'s top artists.'
-      : esc(name) + '\'s top artists have no genre listed on Spotify.');
+      ? 'Spotify lists fewer than 3 genres for ' + name + '\'s top artists.'
+      : name + '\'s top artists have no genre listed on Spotify.');
   }
   const axes = g.list.slice(0, 6).map(function (x) { return x.name; });
   const values = {};
@@ -430,7 +431,7 @@ function friendDnaSectionAuto() {
 }
 
 function friendDnaSection(profile, relation) {
-  const first = esc(profile.name.split(/\s+/)[0]);
+  const first = profile.name.split(/\s+/)[0];
   if (relation.state !== 'friends') {
     const action = relation.state === 'incoming'
       ? '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(relation.friendshipId) + '">Accept request</button>'
@@ -457,7 +458,7 @@ function friendDnaSection(profile, relation) {
   return '<section class="panel dna-card dna-card--friend">' +
       '<div class="dna-card__body">' +
         '<span class="t-overline c-accent">Music DNA · last 6 months</span>' +
-        '<h2 class="dna-card__title" style="font-size:32px">' + first + '\'s sound</h2>' +
+        '<h2 class="dna-card__title" style="font-size:32px">' + esc(first) + '\'s sound</h2>' +
         '<p class="t-body-l c-secondary dna-card__tag">Top genres, top artists, and how your taste lines up with theirs.</p>' +
       '</div>' +
     '</section>' +
@@ -465,7 +466,7 @@ function friendDnaSection(profile, relation) {
       '<section class="panel section">' + sectionHead('Genre fingerprint') +
         '<div class="section__body section__body--pad">' + friendGenrePanel(theirs, first) + '</div></section>' +
       '<section class="panel section">' + sectionHead('Compatibility with you') +
-        '<div class="section__body section__body--pad">' + friendCompatPanel({ name: profile.name }, theirs) + '</div></section>' +
+        '<div class="section__body section__body--pad">' + friendCompatPanel({ name: profile.name, username: profile.username }, theirs) + '</div></section>' +
     '</div>' +
     '<div class="cols cols--half">' +
       '<section class="panel section">' + sectionHead('Top artists', 'last 6 months') +

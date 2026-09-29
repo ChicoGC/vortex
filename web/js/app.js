@@ -7,10 +7,12 @@ const NAV = [
   { id: 'home',         label: 'Home',         icon: 'home' },
   { id: 'feed',         label: 'Feed',         icon: 'broadcast' },
   { id: 'friends',      label: 'Friends',      icon: 'users' },
+  { id: 'notifications', label: 'Notifications', icon: 'bell' },
   { id: 'activity',     label: 'Activity',     icon: 'activity' },
   { id: 'music',        label: 'Music',        icon: 'disc' },
   { group: 'You' },
   { id: 'profile',      label: 'Profile',      icon: 'user' },
+  { id: 'recap',        label: 'Recap',        icon: 'sparkle' },
   { id: 'appearance',   label: 'Appearance',   icon: 'droplet' },
   { id: 'experimental', label: 'Experimental', icon: 'flask', dot: true },
   { id: 'settings',     label: 'Settings',     icon: 'sliders' }
@@ -114,6 +116,7 @@ async function loadCurrentUser() {
     DATA.me.username = '@' + profile.username;
     DATA.me.initials = initialsFrom(profile.name);
     DATA.me.avatarUrl = profile.avatar_url || null;
+    DATA.me.pin = pinFromRow(profile);
     DATA.me.bio = profile.bio || '';
     DATA.me.shareListening = profile.share_listening !== false;
     DATA.me.shareTaste = profile.share_taste !== false;
@@ -150,7 +153,8 @@ function toPerson(profile, friendshipId) {
     name: profile.name,
     username: profile.username,
     initials: initialsFrom(profile.name),
-    avatarUrl: profile.avatar_url || null
+    avatarUrl: profile.avatar_url || null,
+    pin: pinFromRow(profile)
   };
 }
 
@@ -413,6 +417,7 @@ function renderSidebar() {
       (n.dot ? '<span class="nav__dot" aria-label="In development"></span>' : '') +
       (n.id === 'friends' && DATA.incoming.length
         ? '<span class="nav__dot" aria-label="' + countLabel(DATA.incoming.length, 'friend request') + '"></span>' : '') +
+      (n.id === 'notifications' ? notifCountEl() : '') +
     '</a>';
   }).join('');
 
@@ -450,21 +455,56 @@ function renderBottomNav() {
 function renderMobileBar() {
   return '<a class="brand" href="#/home"><img class="brand__mark" src="assets/logo-64.png" width="20" height="20" alt="vortex"><b style="font-size:17px">vortex</b></a>' +
     '<span class="spacer"></span>' +
+    '<a class="iconbtn iconbtn--lg mbell" href="#/notifications" data-view-link="notifications" aria-label="Notifications">' + icon('bell', 18) +
+      (DATA.notifications.unread ? '<b class="mbell__dot"></b>' : '') + '</a>' +
     '<button class="iconbtn iconbtn--lg" id="openCmdkMobile" aria-label="Search">' + icon('search', 18) + '</button>' +
     '<button class="iconbtn iconbtn--lg" data-nav="settings" aria-label="Settings">' + icon('sliders', 18) + '</button>';
 }
 
+function notifCountEl() {
+  const n = DATA.notifications.unread;
+  return n ? '<b class="nav__count" aria-label="' + countLabel(n, 'unread notification') + '">' + (n > 9 ? '9+' : n) + '</b>' : '';
+}
+
+function updateNotifBadge() {
+  const link = document.querySelector('#sidebar [data-view-link="notifications"]');
+  if (link) {
+    const old = link.querySelector('.nav__count');
+    if (old) old.remove();
+    link.insertAdjacentHTML('beforeend', notifCountEl());
+  }
+  const bell = document.querySelector('#mobilebar .mbell');
+  if (bell) {
+    const dot = bell.querySelector('.mbell__dot');
+    if (DATA.notifications.unread && !dot) bell.insertAdjacentHTML('beforeend', '<b class="mbell__dot"></b>');
+    if (!DATA.notifications.unread && dot) dot.remove();
+  }
+}
+
 /* ---- routing ------------------------------------------------------------ */
-/* #/u/<username> is the only dynamic route: a friend's (or anyone's) profile. */
-function friendProfileUsername() {
+/* Dynamic routes: #/u/<username> (profile), #/compare/<username>, #/p/<post id>. */
+const DYNAMIC_ROUTES = { u: 'friendProfile', compare: 'compare', p: 'post' };
+
+function routeParts() {
   const raw = (location.hash || '').replace(/^#\/?/, '').trim();
-  return raw.slice(0, 2) === 'u/' ? decodeURIComponent(raw.slice(2)).trim() : '';
+  const i = raw.indexOf('/');
+  if (i < 0) return { head: raw, param: '' };
+  let param = raw.slice(i + 1);
+  try { param = decodeURIComponent(param); } catch (e) { param = ''; }
+  return { head: raw.slice(0, i), param: param.trim() };
+}
+
+function friendProfileUsername() {
+  const r = routeParts();
+  return r.head === 'u' || r.head === 'compare' ? r.param : '';
 }
 
 function currentRoute() {
-  const raw = (location.hash || '').replace(/^#\/?/, '').trim();
-  if (raw.slice(0, 2) === 'u/' && raw.length > 2) return app.session ? 'friendProfile' : 'login';
-  const target = VIEWS[raw] ? raw : 'home';
+  const r = routeParts();
+  if (DYNAMIC_ROUTES[r.head] && r.param) return app.session ? DYNAMIC_ROUTES[r.head] : 'login';
+  const raw = r.head;
+  const dynamicView = Object.keys(DYNAMIC_ROUTES).some(function (k) { return DYNAMIC_ROUTES[k] === raw; });
+  const target = VIEWS[raw] && !dynamicView ? raw : 'home';
   const isPublic = PUBLIC_VIEWS.indexOf(target) > -1;
   if (!app.session && !isPublic) return 'login';
   if (app.session && isPublic) return 'home';
@@ -483,8 +523,10 @@ function setView(name) {
   document.getElementById('sidebar').hidden = !authed;
   document.getElementById('bottomnav').hidden = !authed;
   document.getElementById('mobilebar').hidden = !authed;
-  const label = name === 'friendProfile'
-    ? (UI.friendProfile && UI.friendProfile.status === 'ok' && UI.friendProfile.username === friendProfileUsername() ? UI.friendProfile.profile.name : 'Profile')
+  const fp = UI.friendProfile && UI.friendProfile.status === 'ok' && UI.friendProfile.username === friendProfileUsername() ? UI.friendProfile.profile : null;
+  const label = name === 'friendProfile' ? (fp ? fp.name : 'Profile')
+    : name === 'compare' ? (fp ? 'You and ' + fp.name.split(/\s+/)[0] : 'Compare')
+    : name === 'post' ? 'Post'
     : (NAV.filter(function (n) { return n.id === name; })[0] || {}).label || 'vortex';
   document.title = label + ' · vortex';
   syncAppearanceControls();
@@ -790,12 +832,21 @@ function ensureSpotifyLibrary(view) {
   if (!app.session) return;
   // A friend's profile needs their snapshot (and yours, for compatibility) but
   // not your Spotify connection, so it loads even before you connect one.
-  if (view === 'friendProfile') { loadFriendProfile(friendProfileUsername()); loadTastes(); }
+  if (view === 'friendProfile' || view === 'compare') { loadFriendProfile(friendProfileUsername()); loadTastes(); }
+  if (view === 'notifications') loadNotifications();
+  if (view === 'post') loadPostView(routeParts().param);
+  if (view === 'recap') { loadRecapStats(); loadTastes(); }
   if (!spotify.auth.isConnected() || spotify.auth.missingScopes().length) return;
   // The ~6-month lists feed your DNA snapshot, so any Spotify page keeps it fresh.
-  if (view === 'activity' || view === 'music' || view === 'profile' || view === 'friendProfile') {
+  if (['activity', 'music', 'profile', 'friendProfile', 'compare', 'recap'].indexOf(view) > -1) {
     loadLibrary('topArtists', 'medium_term');
     loadLibrary('topTracks', 'medium_term');
+  }
+  if (view === 'home') loadLibrary('topArtists', 'short_term');
+  if (view === 'recap') {
+    loadLibrary('topArtists', 'short_term');
+    loadLibrary('topTracks', 'short_term');
+    loadLibrary('topArtists', 'long_term');
   }
   if (view === 'activity') { loadLibrary('recent'); loadLibrary('topArtists', UI.activityRange); }
   if (view === 'music') { loadLibrary('recent'); loadLibrary('topTracks', UI.musicRange); loadLibrary('playlists'); loadTastes(); }
@@ -839,7 +890,235 @@ async function loadFriendProfile(username) {
     console.error('Could not load profile:', err);
     UI.friendProfile = { username: username, status: 'error', at: Date.now() };
   }
-  if (app.view === 'friendProfile' && friendProfileUsername() === username) setView('friendProfile');
+  if ((app.view === 'friendProfile' || app.view === 'compare') && friendProfileUsername() === username) setView(app.view);
+}
+
+/* ---- notifications -------------------------------------------------------- */
+const NOTIF_TTL_MS = 15000;
+let notifLoadedAt = 0;
+let unsubscribeNotifications = null;
+
+function toNotification(n) {
+  const actor = n.actor ? toPerson(n.actor, null) : null;
+  if (!actor) return null;
+  return {
+    id: n.id, type: n.type, reaction: n.reaction, at: n.created_at, time: formatTimeAgo(n.created_at),
+    read: !!n.read_at, actor: actor, friendshipId: n.friendship_id,
+    post: n.post ? { id: n.post.id, track: n.post.track_title, artist: n.post.artist, image: n.post.album_image_url, art: n.post.art_seed || 1 } : null,
+    comment: n.comment ? String(n.comment.content || '').slice(0, 280) : null,
+    threadId: n.comment && n.type === 'reply' ? n.comment.parent_id || null : null
+  };
+}
+
+async function refreshNotifCount() {
+  if (!app.session) return;
+  try {
+    DATA.notifications.unread = await db.notifications.unreadCount();
+    updateNotifBadge();
+  } catch (err) { console.warn('Could not count notifications:', err); }
+}
+
+/* Opening the list marks everything read on the server, but rows that were
+   unread keep their "new" look for as long as you stay on the page. */
+async function loadNotifications(force) {
+  const st = DATA.notifications;
+  if (!app.session || st.status === 'loading' || (!force && st.status === 'ok' && Date.now() - notifLoadedAt < NOTIF_TTL_MS)) return;
+  st.status = 'loading';
+  try {
+    const rows = await db.notifications.list(40);
+    st.items = rows.map(toNotification).filter(Boolean);
+    st.status = 'ok';
+    notifLoadedAt = Date.now();
+    UI.notifFresh = {};
+    st.items.forEach(function (n) { if (!n.read) UI.notifFresh[n.id] = true; });
+    if (st.items.some(function (n) { return !n.read; }) || st.unread) {
+      st.unread = 0;
+      updateNotifBadge();
+      db.notifications.markAllRead().catch(function (err) { console.warn('Could not mark notifications read:', err); });
+    }
+  } catch (err) {
+    console.error('Could not load notifications:', err);
+    st.status = 'error';
+  }
+  if (app.view === 'notifications') setView('notifications');
+}
+
+function startNotifications() {
+  stopNotifications();
+  if (!app.session) return;
+  refreshNotifCount();
+  unsubscribeNotifications = db.notifications.subscribe(app.session.user.id, function () {
+    if (app.view === 'notifications') { loadNotifications(true); return; }
+    DATA.notifications.unread++;
+    DATA.notifications.status = 'idle';
+    updateNotifBadge();
+    // Someone may have just sent a request or accepted yours.
+    loadFriends().then(refreshFriendsUI).catch(function () {});
+  });
+}
+
+function stopNotifications() {
+  if (unsubscribeNotifications) unsubscribeNotifications();
+  unsubscribeNotifications = null;
+}
+
+/* ---- single post (#/p/<id>) ------------------------------------------------ */
+async function loadPostView(id) {
+  if (!id || !app.session) return;
+  const cur = UI.postView;
+  if (cur && cur.id === id && (cur.status === 'loading' || cur.status === 'ok')) return;
+  UI.postView = { id: id, status: 'loading' };
+  try {
+    const row = await db.posts.get(id);
+    UI.postView = row
+      ? { id: id, status: 'ok', post: transformPostData(row, app.session.user.id) }
+      : { id: id, status: 'notfound' };
+    if (row) UI.openComments[id] = true;
+  } catch (err) {
+    console.error('Could not load post:', err);
+    UI.postView = { id: id, status: /uuid/i.test(err && err.message || '') ? 'notfound' : 'error' };
+  }
+  if (app.view === 'post' && routeParts().param === id) setView('post');
+}
+
+/* ---- recap ------------------------------------------------------------------ */
+async function loadRecapStats() {
+  if (!app.session) return;
+  const cur = UI.recapStats;
+  if (cur && (cur.status === 'loading' || (cur.status === 'ok' && Date.now() - cur.at < 300000))) return;
+  UI.recapStats = { status: 'loading' };
+  try {
+    UI.recapStats = { status: 'ok', at: Date.now(), data: await db.stats.forUser(app.session.user.id, recapSince().toISOString()) };
+  } catch (err) {
+    console.warn('Could not load recap stats:', err);
+    UI.recapStats = { status: 'error' };
+  }
+  paintLibraryPanels();
+}
+
+async function recapImage(btn, share) {
+  btn.disabled = true;
+  try {
+    const blob = await renderRecapImage();
+    if (!blob) throw new Error('Canvas export failed');
+    const file = new File([blob], 'vortex-recap.png', { type: 'image/png' });
+    if (share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'My last 4 weeks on vortex' });
+      } catch (err) {
+        if (err && err.name !== 'AbortError') throw err;
+      }
+    } else {
+      if (share) toast('recapNoShare');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'vortex-recap.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    }
+  } catch (err) {
+    console.error('Could not create the recap image:', err);
+    toast('imageFailed');
+  }
+  btn.disabled = false;
+}
+
+/* ---- song of the moment ---------------------------------------------------- */
+let pinPick = null;           // { trackId, title, artist, image }
+let pinResults = [];
+let pinSearchTimer = null;
+let pinSearchSeq = 0;
+
+function setPinPick(t) {
+  pinPick = t;
+  const el = document.getElementById('pinPicked');
+  if (el) el.innerHTML = t ? pinPickedMarkup(t) : '';
+  const search = document.getElementById('pinSearch');
+  if (search && t) { search.value = ''; document.getElementById('pinResults').innerHTML = ''; pinResults = []; }
+}
+
+function openPinForm() {
+  pinPick = null;
+  pinResults = [];
+  const o = document.getElementById('overlay');
+  o.hidden = false;
+  o.innerHTML = pinFormMarkup();
+  const first = document.getElementById('pinSearch') || document.getElementById('pinTitle');
+  if (first) first.focus();
+}
+
+async function runPinSearch(query) {
+  const box = document.getElementById('pinResults');
+  const seq = ++pinSearchSeq;
+  if (!box) return;
+  if (query.trim().length < 2) { box.innerHTML = ''; pinResults = []; return; }
+  try {
+    const results = await spotify.searchTracks(query, 5);
+    if (seq !== pinSearchSeq || !document.getElementById('pinResults')) return;
+    pinResults = results;
+    box.innerHTML = results.length
+      ? results.map(function (t, i) {
+          return '<button type="button" class="row post-search__row" data-pin-pick="' + i + '">' +
+            art(artSeedFor(t.id), null, t.thumb) +
+            '<span class="row__meta"><span class="t-body-m-med truncate">' + esc(t.title) + '</span>' +
+            '<span class="t-body-s c-tertiary truncate">' + esc(t.artist) + '</span></span></button>';
+        }).join('')
+      : '<p class="t-body-s c-tertiary">No songs found.</p>';
+  } catch (err) {
+    if (seq !== pinSearchSeq) return;
+    console.error('Spotify search failed:', err);
+    box.innerHTML = '<p class="t-body-s c-tertiary">Spotify search failed. Try again in a moment.</p>';
+  }
+}
+
+async function handlePinSubmit(form) {
+  const note = form.querySelector('#pinNote').value.trim();
+  const errBox = document.getElementById('pinError');
+  const errText = document.getElementById('pinErrorText');
+  let pick = pinPick;
+  if (!pick && form.querySelector('#pinTitle')) {
+    const title = form.querySelector('#pinTitle').value.trim();
+    const artist = form.querySelector('#pinArtist').value.trim();
+    if (title && artist) pick = { trackId: null, title: title, artist: artist, image: null };
+  }
+  if (!pick) {
+    errText.textContent = form.querySelector('#pinSearch') ? 'Search for a song and pick one from the list.' : 'Type the song and the artist.';
+    errBox.hidden = false;
+    return;
+  }
+  const btn = document.getElementById('pinSubmit');
+  btn.disabled = true;
+  try {
+    const row = await db.profiles.setPin(app.session.user.id, {
+      trackId: TRACK_ID.test(pick.trackId || '') ? pick.trackId : null,
+      title: pick.title.slice(0, 200), artist: pick.artist.slice(0, 200),
+      image: COVER_URL.test(pick.image || '') ? pick.image : null,
+      note: note.slice(0, 140) || null
+    });
+    DATA.me.pin = pinFromRow(row);
+    closeOverlay();
+    if (app.view === 'profile') setView('profile');
+    toast('pinSaved');
+  } catch (err) {
+    console.error('Could not pin song:', err);
+    errText.textContent = 'Could not save it. Check your connection and try again.';
+    errBox.hidden = false;
+    btn.disabled = false;
+  }
+}
+
+async function clearPin(btn) {
+  btn.disabled = true;
+  try {
+    await db.profiles.setPin(app.session.user.id, null);
+    DATA.me.pin = null;
+    if (app.view === 'profile') setView('profile');
+    toast('pinCleared');
+  } catch (err) {
+    console.error('Could not unpin song:', err);
+    btn.disabled = false;
+    toast('settingFailed');
+  }
 }
 
 /* ---- music DNA ------------------------------------------------------------ */
@@ -1052,6 +1331,9 @@ const TOASTS = {
   avatarFailed: ['error', 'Photo not saved', 'Check your connection and try again'],
   avatarInvalid: ['error', 'Unsupported file', 'Use a PNG, JPEG, WebP or GIF image'],
   avatarTooBig: ['error', 'Image too large', 'Photos must be 5MB or smaller'],
+  pinSaved: ['success', 'Song pinned', 'It\'s the first thing people see on your profile'],
+  pinCleared: ['info', 'Song unpinned', 'Pin another one any time from your profile'],
+  recapNoShare: ['info', 'Saved instead', 'This browser can\'t share images, so the recap was downloaded'],
   spotifyConnected: ['success', 'Spotify connected', 'What you play now shows up in vortex'],
   spotifyCancelled: ['info', 'Spotify not connected', 'You cancelled on the Spotify screen'],
   spotifyFailed: ['error', 'Could not connect Spotify', 'Try again in a moment'],
@@ -1210,8 +1492,11 @@ function openPostForm() {
 }
 
 /* ---- reactions & comments ------------------------------------------------ */
+/* The single-post page holds its own copy, which may not be in the feed. */
 function findPost(postId) {
-  return DATA.feed.filter(function (p) { return p.id === postId; })[0];
+  const pv = UI.postView;
+  if (app.view === 'post' && pv && pv.post && pv.post.id === postId) return pv.post;
+  return DATA.feed.filter(function (p) { return p.id === postId; })[0] || (pv && pv.post && pv.post.id === postId ? pv.post : undefined);
 }
 
 function postEl(postId) {
@@ -1382,7 +1667,7 @@ async function friendAction(btn, run, okToast, reloadFeed) {
     await loadFriends();
     refreshFriendsUI();
     reloadListening();
-    if (app.view === 'friendProfile') setView('friendProfile');
+    if (['friendProfile', 'compare', 'notifications'].indexOf(app.view) > -1) setView(app.view);
     if (okToast) toast(okToast);
     if (reloadFeed) loadFeed();
   } catch (err) {
@@ -1425,7 +1710,7 @@ function openRemoveFriend(friendshipId) {
 }
 
 function openDeletePost(postId) {
-  const post = DATA.feed.filter(function (p) { return p.id === postId; })[0];
+  const post = findPost(postId);
   if (!post) return;
   const o = document.getElementById('overlay');
   o.hidden = false;
@@ -1460,7 +1745,8 @@ async function handleDeletePost(postId, btn) {
     await db.posts.remove(postId);
     closeOverlay();
     DATA.feed = DATA.feed.filter(function (p) { return p.id !== postId; });
-    if (app.view === 'feed') setView('feed');
+    if (UI.postView && UI.postView.id === postId) UI.postView = { id: postId, status: 'notfound' };
+    if (app.view === 'feed' || app.view === 'post') setView(app.view);
     toast('postDeleted');
     loadMyActivity();
   } catch (err) {
@@ -1596,6 +1882,32 @@ document.addEventListener('click', function (e) {
     clearMyListening().finally(function () { db.auth.signOut(); });
     return;
   }
+
+  if (t.closest('[data-action="pin-edit"]')) { openPinForm(); return; }
+  const pinClear = t.closest('[data-action="pin-clear"]');
+  if (pinClear) { clearPin(pinClear); return; }
+  if (t.closest('[data-action="pin-use-np"]')) {
+    const np = DATA.nowPlaying;
+    if (np.status === 'track') setPinPick({ trackId: np.id, title: np.title, artist: np.artist, image: np.thumb || np.image });
+    return;
+  }
+  const pinPickBtn = t.closest('[data-pin-pick]');
+  if (pinPickBtn) {
+    const r = pinResults[+pinPickBtn.dataset.pinPick];
+    if (r) setPinPick({ trackId: r.id, title: r.title, artist: r.artist, image: r.thumb });
+    return;
+  }
+  if (t.closest('[data-action="pin-unpick"]')) {
+    setPinPick(null);
+    const s = document.getElementById('pinSearch');
+    if (s) s.focus();
+    return;
+  }
+  const recapBtn = t.closest('[data-action="recap-share"], [data-action="recap-save"]');
+  if (recapBtn) { recapImage(recapBtn, recapBtn.dataset.action === 'recap-share'); return; }
+  // Arriving from a reply notification: show that thread already open.
+  const threadLink = t.closest('[data-open-thread]');
+  if (threadLink) UI.openReplies[threadLink.dataset.openThread] = true;
 
   if (t.closest('[data-action="new-post"]')) { openPostForm(); return; }
   if (t.closest('[data-action="share-now-playing"]')) { openPostForm(); fillPostFromNowPlaying(); return; }
@@ -1756,6 +2068,10 @@ document.addEventListener('input', function (e) {
     clearTimeout(postSearchTimer);
     postSearchTimer = setTimeout(function () { runPostSearch(e.target.value); }, 300);
   }
+  if (e.target.id === 'pinSearch') {
+    clearTimeout(pinSearchTimer);
+    pinSearchTimer = setTimeout(function () { runPinSearch(e.target.value); }, 300);
+  }
   // Hand-editing the song means the picked Spotify cover may no longer match.
   if ((e.target.id === 'postTitle' || e.target.id === 'postArtist') && postTrack) setPostTrack(null);
 });
@@ -1800,6 +2116,7 @@ document.addEventListener('submit', function (e) {
   if (e.target.id === 'authLoginForm') { e.preventDefault(); handleLogin(e.target); }
   if (e.target.id === 'authSignupForm') { e.preventDefault(); handleSignup(e.target); }
   if (e.target.id === 'postForm') { e.preventDefault(); handlePostSubmit(e.target); }
+  if (e.target.id === 'pinForm') { e.preventDefault(); handlePinSubmit(e.target); }
   if (e.target.dataset.commentForm) { e.preventDefault(); handleCommentSubmit(e.target); }
 });
 
@@ -1808,6 +2125,12 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'Enter' && e.target.id === 'postSpotifySearch') {
     e.preventDefault();
     if (postSearchResults.length) pickPostTrack(0);
+    return;
+  }
+  if (e.key === 'Enter' && e.target.id === 'pinSearch') {
+    e.preventDefault();
+    const r = pinResults[0];
+    if (r) setPinPick({ trackId: r.id, title: r.title, artist: r.artist, image: r.thumb });
     return;
   }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openCmdk(); return; }
@@ -1831,7 +2154,7 @@ window.addEventListener('hashchange', function () {
   let spotifyResult = null;
   if (location.pathname === '/callback') {
     spotifyResult = await spotify.auth.handleCallback();
-    const back = /^#\/[\w-]*$/.test(spotifyResult.returnHash) ? spotifyResult.returnHash : '#/settings';
+    const back = /^#\/[\w-]*(\/[\w.-]+)?$/.test(spotifyResult.returnHash) ? spotifyResult.returnHash : '#/settings';
     history.replaceState(null, '', '/' + back);
   }
 
@@ -1853,8 +2176,11 @@ window.addEventListener('hashchange', function () {
       spotify.auth.disconnect();
       stopSpotifyPolling();
       stopListeningFeed();
+      stopNotifications();
       DATA.friends = []; DATA.incoming = []; DATA.outgoing = []; DATA.feed = [];
-      DATA.me.stats = null; DATA.me.recentPosts = [];
+      DATA.me.stats = null; DATA.me.recentPosts = []; DATA.me.pin = null;
+      DATA.notifications = { status: 'idle', items: [], unread: 0 };
+      UI.notifFresh = {}; UI.postView = null; UI.recapStats = null;
       UI.friendSearch = { q: '', results: null, loading: false, error: false };
       resetSpotifyLibrary();
       DATA.tastes = {};
@@ -1870,6 +2196,7 @@ window.addEventListener('hashchange', function () {
         setView(currentRoute());
         startSpotifyPolling();
         startListeningFeed();
+        startNotifications();
       });
     }
   });
@@ -1878,6 +2205,7 @@ window.addEventListener('hashchange', function () {
   setView(currentRoute());
   startSpotifyPolling();
   startListeningFeed();
+  startNotifications();
 
   if (spotifyResult) {
     if (spotifyResult.ok) toast('spotifyConnected');

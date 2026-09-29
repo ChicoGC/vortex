@@ -6,6 +6,9 @@
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const PERSON_FIELDS = 'id, username, name, avatar_url, pin_track_id, pin_title, pin_artist, pin_image, pin_note, pinned_at';
+const POST_SELECT = '*, author:user_id(id, username, name, avatar_url), reactions(*), comments(*, author:user_id(id, username, name, avatar_url))';
+
 const db = {
   auth: {
     async signUp(email, password, { username, name }) {
@@ -87,6 +90,54 @@ const db = {
         .maybeSingle();
       if (error) throw error;
       return data;
+    },
+
+    /* pin: { trackId, title, artist, image, note } or null to clear. */
+    async setPin(userId, pin) {
+      const fields = pin
+        ? { pin_track_id: pin.trackId || null, pin_title: pin.title, pin_artist: pin.artist,
+            pin_image: pin.image || null, pin_note: pin.note || null, pinned_at: new Date().toISOString() }
+        : { pin_track_id: null, pin_title: null, pin_artist: null, pin_image: null, pin_note: null, pinned_at: null };
+      return db.profiles.update(userId, fields);
+    }
+  },
+
+  notifications: {
+    async list(limit) {
+      const { data, error } = await supabaseClient
+        .from('notifications')
+        .select('*, actor:actor_id(id, username, name, avatar_url), post:post_id(id, track_title, artist, album_image_url, art_seed), comment:comment_id(id, content, parent_id)')
+        .order('created_at', { ascending: false })
+        .limit(limit || 40);
+      if (error) throw error;
+      return data;
+    },
+
+    async unreadCount() {
+      const { count, error } = await supabaseClient
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .is('read_at', null);
+      if (error) throw error;
+      return count || 0;
+    },
+
+    async markAllRead() {
+      const { error } = await supabaseClient
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .is('read_at', null);
+      if (error) throw error;
+    },
+
+    /* Calls onInsert() whenever a new notification for this user lands. */
+    subscribe(userId, onInsert) {
+      const channel = supabaseClient
+        .channel('notifications-' + userId)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + userId },
+          function () { onInsert(); })
+        .subscribe();
+      return function () { supabaseClient.removeChannel(channel); };
     }
   },
 
@@ -114,7 +165,7 @@ const db = {
     async all(userId) {
       const { data, error } = await supabaseClient
         .from('friendships')
-        .select('*, requester:requester_id(id, username, name, avatar_url), addressee:addressee_id(id, username, name, avatar_url)')
+        .select('*, requester:requester_id(' + PERSON_FIELDS + '), addressee:addressee_id(' + PERSON_FIELDS + ')')
         .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -175,11 +226,17 @@ const db = {
     async list(limit, userIds) {
       let req = supabaseClient
         .from('posts')
-        .select('*, author:user_id(id, username, name, avatar_url), reactions(*), comments(*, author:user_id(id, username, name, avatar_url))')
+        .select(POST_SELECT)
         .order('created_at', { ascending: false })
         .limit(limit || 30);
       if (userIds) req = req.in('user_id', userIds);
       const { data, error } = await req;
+      if (error) throw error;
+      return data;
+    },
+
+    async get(postId) {
+      const { data, error } = await supabaseClient.from('posts').select(POST_SELECT).eq('id', postId).maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -284,9 +341,11 @@ const db = {
 
   stats: {
     /* Totals for the profile: posts shared, and reactions / comments received
-       from other people on those posts. Counted server-side (head requests). */
-    async forUser(userId) {
+       from other people on those posts. Counted server-side (head requests).
+       since (ISO date) limits every count to rows created after it. */
+    async forUser(userId, since) {
       async function count(query) {
+        if (since) query = query.gte('created_at', since);
         const { count, error } = await query;
         if (error) throw error;
         return count || 0;

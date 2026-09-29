@@ -531,3 +531,163 @@ create policy "users can delete their own avatar"
 alter table public.profiles drop constraint if exists profiles_avatar_url_check;
 alter table public.profiles add constraint profiles_avatar_url_check
   check (avatar_url is null or avatar_url ~ '^https://hpblrmnturpihyrhwzih\.supabase\.co/storage/v1/object/public/avatars/[A-Za-z0-9/_.-]+$');
+
+-- ==========================================================================
+-- notifications
+-- Written only by the triggers below (no insert policy), read and marked
+-- read by their recipient. Rows go away with whatever they point at: an
+-- unreacted flame, a deleted comment or a cancelled request.
+-- ==========================================================================
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_id uuid not null references public.profiles(id) on delete cascade,
+  actor_id uuid not null references public.profiles(id) on delete cascade,
+  type text not null check (type in ('reaction', 'comment', 'reply', 'friend_request', 'friend_accept')),
+  post_id uuid references public.posts(id) on delete cascade,
+  comment_id uuid references public.comments(id) on delete cascade,
+  friendship_id uuid references public.friendships(id) on delete cascade,
+  reaction text check (reaction is null or reaction in ('flame', 'heart')),
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+
+create index if not exists notifications_recipient_idx
+  on public.notifications (recipient_id, created_at desc);
+
+alter table public.notifications enable row level security;
+
+drop policy if exists "users read their own notifications" on public.notifications;
+create policy "users read their own notifications"
+  on public.notifications for select
+  using (auth.uid() = recipient_id);
+
+drop policy if exists "users mark their own notifications read" on public.notifications;
+create policy "users mark their own notifications read"
+  on public.notifications for update
+  using (auth.uid() = recipient_id)
+  with check (auth.uid() = recipient_id);
+
+revoke update on public.notifications from anon, authenticated;
+grant update (read_at) on public.notifications to authenticated;
+
+drop policy if exists "users delete their own notifications" on public.notifications;
+create policy "users delete their own notifications"
+  on public.notifications for delete
+  using (auth.uid() = recipient_id);
+
+create or replace function public.notify_reaction()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  author uuid;
+begin
+  if tg_op = 'INSERT' then
+    select user_id into author from public.posts where id = new.post_id;
+    if author is not null and author <> new.user_id then
+      insert into public.notifications (recipient_id, actor_id, type, post_id, reaction)
+      values (author, new.user_id, 'reaction', new.post_id, new.type);
+    end if;
+    return new;
+  end if;
+  -- Taking a reaction back takes its notification with it, so toggling
+  -- a flame on and off doesn't pile up.
+  delete from public.notifications
+  where type = 'reaction' and actor_id = old.user_id and post_id = old.post_id and reaction = old.type;
+  return old;
+end;
+$$;
+
+drop trigger if exists reactions_notify on public.reactions;
+create trigger reactions_notify
+  after insert or delete on public.reactions
+  for each row execute function public.notify_reaction();
+
+-- A reply notifies the comment's author; the post's author hears about
+-- every comment unless they're the one being replied to (no double ping).
+create or replace function public.notify_comment()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  post_author uuid;
+  parent_author uuid;
+begin
+  select user_id into post_author from public.posts where id = new.post_id;
+  if new.parent_id is not null then
+    select user_id into parent_author from public.comments where id = new.parent_id;
+    if parent_author is not null and parent_author <> new.user_id then
+      insert into public.notifications (recipient_id, actor_id, type, post_id, comment_id)
+      values (parent_author, new.user_id, 'reply', new.post_id, new.id);
+    end if;
+  end if;
+  if post_author is not null and post_author <> new.user_id and post_author is distinct from parent_author then
+    insert into public.notifications (recipient_id, actor_id, type, post_id, comment_id)
+    values (post_author, new.user_id, 'comment', new.post_id, new.id);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists comments_notify on public.comments;
+create trigger comments_notify
+  after insert on public.comments
+  for each row execute function public.notify_comment();
+
+create or replace function public.notify_friendship()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' and new.status = 'pending' then
+    insert into public.notifications (recipient_id, actor_id, type, friendship_id)
+    values (new.addressee_id, new.requester_id, 'friend_request', new.id);
+  elsif tg_op = 'UPDATE' and old.status = 'pending' and new.status = 'accepted' then
+    insert into public.notifications (recipient_id, actor_id, type, friendship_id)
+    values (new.requester_id, new.addressee_id, 'friend_accept', new.id);
+    update public.notifications set read_at = coalesce(read_at, now())
+    where friendship_id = new.id and type = 'friend_request';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists friendships_notify on public.friendships;
+create trigger friendships_notify
+  after insert or update on public.friendships
+  for each row execute function public.notify_friendship();
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notifications'
+  ) then
+    alter publication supabase_realtime add table public.notifications;
+  end if;
+end;
+$$;
+
+-- ==========================================================================
+-- pinned song ("song of the moment")
+-- One track on each profile, picked by its owner. Same URL/id rules as posts.
+-- ==========================================================================
+alter table public.profiles add column if not exists pin_track_id text;
+alter table public.profiles add column if not exists pin_title text;
+alter table public.profiles add column if not exists pin_artist text;
+alter table public.profiles add column if not exists pin_image text;
+alter table public.profiles add column if not exists pin_note text;
+alter table public.profiles add column if not exists pinned_at timestamptz;
+
+alter table public.profiles drop constraint if exists profiles_pin_check;
+alter table public.profiles add constraint profiles_pin_check check (
+  (pin_title is null) = (pin_artist is null)
+  and (pin_title is null or char_length(pin_title) between 1 and 200)
+  and (pin_artist is null or char_length(pin_artist) between 1 and 200)
+  and (pin_note is null or char_length(pin_note) <= 140)
+  and (pin_track_id is null or pin_track_id ~ '^[A-Za-z0-9]{22}$')
+  and (pin_image is null or pin_image ~ '^https://i\.scdn\.co/image/[A-Za-z0-9]+$')
+);

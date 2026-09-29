@@ -430,7 +430,7 @@ VIEWS.home = function () {
   return wrap(
     pageHead(new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }), greeting(),
       sharePostButton(true)),
-    heroPanel() +
+    heroPanel() + homeRecapPanel() +
     '<div class="cols cols--main-rail">' +
       '<div class="stack">' + latest + '</div>' +
       '<div class="stack">' + friendsPanel + statsPanel + '</div>' +
@@ -507,7 +507,7 @@ VIEWS.feed = function () {
       tabsEl('feed', ['Friends', 'Everyone'], UI.feedScope) + sharePostButton(true)),
     '<div class="cols cols--feed">' +
       '<div class="stack">' + (DATA.feed.length ? DATA.feed.map(postCard).join('') : feedEmpty()) + '</div>' +
-      '<div class="stack">' + feedInsights() + '</div>' +
+      '<div class="stack">' + friendsPinsPanel() + feedInsights() + '</div>' +
     '</div>'
   );
 };
@@ -564,6 +564,7 @@ function friendsListPanel() {
       ? friendsByListening().map(function (f) {
           const l = listeningFor(f.id);
           return personRow(f,
+            '<a class="iconbtn" href="#/compare/' + esc(f.username) + '" data-tip="Compare tastes" aria-label="Compare tastes with ' + esc(f.name) + '">' + icon('compare', 16) + '</a>' +
             '<button class="iconbtn" data-friend-remove="' + esc(f.friendshipId) + '" data-tip="Remove friend" aria-label="Remove ' + esc(f.name) + '">' + icon('close', 16) + '</button>',
             listeningSub(l), l && l.live ? 'listening' : null);
         }).join('')
@@ -861,6 +862,7 @@ VIEWS.profile = function () {
           (me.bio ? '<p class="t-body-m c-secondary" style="max-width:52ch;margin-top:4px">' + esc(me.bio) + '</p>' : '') +
         '</div>' +
       '</div>' +
+      '<div style="margin-top:18px">' + (me.pin ? pinCard(me.pin, true) : pinInvite()) + '</div>' +
       '<hr class="hr" style="margin:18px 0 16px">' +
       '<div class="cols cols--thirds">' +
         statTile('Tracks shared', s ? String(s.posts) : '—') +
@@ -884,7 +886,8 @@ function friendProfileLoading() {
 
 function friendProfileHeader(profile, stats, relation) {
   const controls = relation.state === 'friends'
-    ? '<span class="badge badge--positive">' + icon('check', 13) + 'Friends</span>' +
+    ? compareButton(profile.username, true) +
+      '<span class="badge badge--positive">' + icon('check', 13) + 'Friends</span>' +
       '<button class="iconbtn" data-friend-remove="' + esc(relation.friendshipId) + '" data-tip="Remove friend" aria-label="Remove friend">' + icon('close', 16) + '</button>'
     : relation.state === 'incoming'
       ? '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(relation.friendshipId) + '">Accept</button>' +
@@ -904,8 +907,9 @@ function friendProfileHeader(profile, stats, relation) {
         '<span class="t-meta c-tertiary">@' + esc(profile.username) + ' · joined ' + esc(joined) + '</span>' +
         (profile.bio ? '<p class="t-body-m c-secondary" style="max-width:52ch;margin-top:4px">' + esc(profile.bio) + '</p>' : '') +
       '</div>' +
-      '<div class="rowflex" style="gap:8px;flex:none">' + controls + '</div>' +
+      '<div class="rowflex" style="gap:8px;flex:none;flex-wrap:wrap">' + controls + '</div>' +
     '</div>' +
+    (pinFromRow(profile) ? '<div style="margin-top:18px">' + pinCard(pinFromRow(profile), false) + '</div>' : '') +
     '<hr class="hr" style="margin:18px 0 16px">' +
     '<div class="cols cols--thirds">' +
       statTile('Tracks shared', stats ? String(stats.posts) : '—') +
