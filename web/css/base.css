@@ -187,7 +187,6 @@ svg { display: block; flex: none; }
 [data-motion="reduced"] .ambient i,
 [data-motion="reduced"] .ghost svg,
 [data-motion="reduced"] .ghost__shadow,
-[data-motion="reduced"] .poster__label,
 [data-motion="reduced"] .recap-teaser__disc span,
 [data-motion="reduced"] .view { animation: none !important; }
 

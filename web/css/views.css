@@ -760,58 +760,91 @@ button.tile[aria-pressed="true"] { border-color: var(--accent-border); backgroun
 
 .poster {
   position: relative; overflow: hidden;
-  display: flex; flex-direction: column;
-  width: 100%; aspect-ratio: 9 / 16; padding: 7.4cqw;
+  width: 100%; aspect-ratio: 9 / 16; line-height: 1.2;
   border-radius: var(--radius-xl);
   background:
-    radial-gradient(70% 40% at 91% 14%, color-mix(in srgb, var(--accent-signal) 34%, transparent), transparent 70%),
-    radial-gradient(76% 43% at 6% 88%, rgba(63, 191, 168, .18), transparent 70%),
-    #0B0B0D;
-  color: #F2F1EE;
+    radial-gradient(67% 38% at 89% 10%, color-mix(in srgb, var(--accent-signal) 20%, transparent), transparent 70%),
+    radial-gradient(70% 40% at 7% 92%, rgba(63, 191, 168, .10), transparent 70%),
+    linear-gradient(#1A181D, #111013);
+  color: #ECEAE4;
   box-shadow: var(--elev-raised);
 }
-.poster__disc {
-  position: absolute; left: 38cqw; top: 17cqw; width: 80cqw; aspect-ratio: 1; border-radius: 50%;
-  background:
-    conic-gradient(from 200deg, transparent, rgba(255, 255, 255, .09) 3%, transparent 6%, transparent 50%, rgba(255, 255, 255, .06) 53%, transparent 56%),
-    repeating-radial-gradient(circle, rgba(255, 255, 255, .045) 0 .12cqw, transparent .12cqw .65cqw),
-    #121214;
-  box-shadow: 0 2.2cqw 5.5cqw rgba(0, 0, 0, .55);
+.poster > * { position: absolute; left: 8.15cqw; right: 8.15cqw; margin: 0; }
+.poster__top { top: 8.15cqw; display: flex; justify-content: space-between; align-items: center; min-height: 4.63cqw; }
+.poster__brand { display: flex; align-items: center; gap: 1.48cqw; font-size: 3.89cqw; font-weight: 600; letter-spacing: -.02em; }
+.poster__brand img { width: 4.63cqw; height: 4.63cqw; }
+.poster__range { font-family: var(--font-mono); font-size: 2.41cqw; color: rgba(236, 234, 228, .44); }
+.poster__who {
+  top: 18.9cqw; font-size: 5.93cqw; line-height: 1; font-weight: 500; letter-spacing: -.02em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.poster__label {
-  position: absolute; inset: 32%; border-radius: 50%;
-  background-color: var(--accent-signal);
-  animation: disc-spin 14s linear infinite;
+.poster__kicker { font-size: 2.41cqw; line-height: 1; font-weight: 500; color: var(--accent-signal); }
+.poster__kicker--song { top: 31.9cqw; }
+.poster__kicker--artists { top: 77.4cqw; }
+.poster__kicker--more { top: 117.4cqw; }
+
+.poster__song { top: 36.85cqw; display: flex; gap: 4.07cqw; }
+.poster__cover {
+  flex: none; width: 33.33cqw; aspect-ratio: 1; border-radius: 2.59cqw;
+  background-color: color-mix(in srgb, var(--accent-signal) 22%, transparent);
+  box-shadow: 0 1.67cqw 4.44cqw rgba(0, 0, 0, .45);
 }
-.poster__label::after {
-  content: ""; position: absolute; left: 50%; top: 50%; width: 2.2cqw; height: 2.2cqw; margin: -1.1cqw 0 0 -1.1cqw;
-  border-radius: 50%; background: #0B0B0D;
+.poster__songmeta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.poster__songmeta b {
+  font-size: 4.81cqw; line-height: 1.19; font-weight: 600; letter-spacing: -.02em;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
 }
-.poster__top { position: relative; display: flex; justify-content: space-between; align-items: baseline; }
-.poster__brand { font-size: 4.1cqw; font-weight: 600; letter-spacing: -.02em; }
-.poster__range { font-family: var(--font-mono); font-size: 2.6cqw; color: rgba(242, 241, 238, .40); }
-.poster__who { position: relative; margin-top: 3.4cqw; font-size: 3.7cqw; line-height: 1.2; color: rgba(242, 241, 238, .64); }
-.poster__bottom { position: relative; margin-top: auto; display: flex; flex-direction: column; }
-.poster__kicker { font-size: 2.8cqw; font-weight: 500; color: var(--accent-signal); }
-.poster__artist {
-  margin: 1.4cqw 0 0 -.4cqw;
-  font-size: 11.85cqw; line-height: .95; font-weight: 600; letter-spacing: -.035em;
+.poster__songmeta span {
+  margin-top: 1.1cqw; font-size: 2.96cqw; line-height: 1.3; color: rgba(236, 234, 228, .68);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.poster__songmeta em {
+  margin-top: .9cqw; font-style: normal; font-size: 2.41cqw; color: rgba(236, 234, 228, .44);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.poster__artists { top: 82.4cqw; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.poster__artists li { display: flex; flex-direction: column; align-items: center; min-width: 0; text-align: center; }
+.poster__face {
+  flex: none;
+  position: relative; display: grid; place-items: center;
+  width: 20.74cqw; aspect-ratio: 1; border-radius: 50%;
+  background-color: color-mix(in srgb, var(--accent-signal) 22%, transparent);
+  font-size: 5.93cqw; font-weight: 600;
+}
+.poster__face i {
+  position: absolute; left: 0; bottom: 0; width: 4.81cqw; height: 4.81cqw;
+  display: grid; place-items: center; border-radius: 50%;
+  background: #1A181D; border: .19cqw solid rgba(236, 234, 228, .10);
+  font-family: var(--font-mono); font-style: normal; font-size: 2.41cqw; font-weight: 500;
+}
+.poster__artists li:first-child .poster__face i { border-color: var(--accent-signal); }
+.poster__artists b {
+  margin-top: 2.2cqw; max-width: 100%; padding: 0 1.1cqw;
+  font-size: 2.78cqw; line-height: 1.27; font-weight: 600;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
 }
-.poster__tracks { margin-top: 3.8cqw; display: flex; flex-direction: column; }
-.poster__tracks li { display: flex; align-items: baseline; height: 5.93cqw; min-width: 0; }
-.poster__n { flex: none; width: 5.93cqw; font-family: var(--font-mono); font-size: 2.6cqw; font-weight: 500; color: rgba(242, 241, 238, .40); }
-.poster__tracks b { flex: 0 1 auto; min-width: 0; font-size: 3.33cqw; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.poster__tracks em { flex: 1 1 0; min-width: 0; margin-left: 2.2cqw; font-style: normal; font-size: 2.6cqw; color: rgba(242, 241, 238, .64); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.poster__more { top: 122cqw; display: flex; flex-direction: column; gap: 2.22cqw; }
+.poster__more li { display: flex; align-items: center; gap: 2.22cqw; min-width: 0; height: 7.04cqw; }
+.poster__mini {
+  flex: none; width: 7.04cqw; aspect-ratio: 1; border-radius: 1.3cqw;
+  background-color: color-mix(in srgb, var(--accent-signal) 22%, transparent);
+}
+.poster__moremeta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .5cqw; }
+.poster__moremeta b, .poster__moremeta em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poster__moremeta b { font-size: 2.96cqw; font-weight: 600; }
+.poster__moremeta em { font-style: normal; font-size: 2.41cqw; color: rgba(236, 234, 228, .68); }
+
 .poster__stats {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 3.2cqw; padding-top: 3.7cqw; border-top: .19cqw solid rgba(255, 255, 255, .10);
+  top: 152.2cqw; padding-top: 2.4cqw; border-top: .19cqw solid rgba(236, 234, 228, .10);
 }
-.poster__stats div { display: flex; flex-direction: column; gap: .5cqw; min-width: 0; }
-.poster__stats b { font-family: var(--font-mono); font-size: 5.93cqw; line-height: 1; font-weight: 500; letter-spacing: -.02em; }
-.poster__stats span { font-size: 2.2cqw; color: rgba(242, 241, 238, .40); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.poster__foot { display: flex; justify-content: space-between; gap: 2cqw; margin-top: 4.6cqw; font-size: 2.6cqw; font-weight: 500; color: rgba(242, 241, 238, .64); }
-.poster__foot span:last-child { color: rgba(242, 241, 238, .40); }
+.poster__stats div { display: flex; flex-direction: column; gap: 1cqw; min-width: 0; }
+.poster__stats b { font-family: var(--font-mono); font-size: 5.56cqw; line-height: 1; font-weight: 500; letter-spacing: -.02em; }
+.poster__stats span { font-size: 2.22cqw; color: rgba(236, 234, 228, .44); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poster__foot { bottom: 7.6cqw; display: flex; justify-content: space-between; gap: 2cqw; line-height: 1; font-size: 2.41cqw; font-weight: 500; color: rgba(236, 234, 228, .68); }
+.poster__foot span:last-child { color: rgba(236, 234, 228, .44); }
 
 .recap-teaser { display: flex; align-items: center; gap: 16px; padding: 14px 16px; }
 .recap-teaser:hover { background: var(--glass-raised); border-color: var(--glass-border-strong); box-shadow: var(--elev-raised); }

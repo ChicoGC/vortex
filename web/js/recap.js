@@ -32,7 +32,8 @@ function recapData() {
   }
   return {
     top: artists[0] || null,
-    tracks: tracks.slice(0, 5),
+    artists: artists.slice(0, 3),
+    tracks: tracks.slice(0, 4),
     genres: genreShares(artists).list.slice(0, 5),
     fresh: year ? artists.filter(function (a) { return !year[a.id]; }) : null,
     best: best,
@@ -52,21 +53,35 @@ function recapStats(d) {
 
 function recapPoster(d) {
   const first = (DATA.me.name || '').split(/\s+/)[0] || 'Your';
+  const song = d.tracks[0];
+  const more = d.tracks.slice(1);
   return '<article class="poster" aria-label="Recap card, ' + esc(recapRange()) + '">' +
-    '<div class="poster__disc" aria-hidden="true"><span class="poster__label" style="' + artImageStyle(d.top.image) + '"></span></div>' +
-    '<div class="poster__top"><span class="poster__brand">vortex</span><span class="poster__range">' + esc(recapRange()) + '</span></div>' +
-    '<p class="poster__who">' + esc(first) + '’s last 4 weeks</p>' +
-    '<div class="poster__bottom">' +
-      '<p class="poster__kicker">Number one artist</p>' +
-      '<h2 class="poster__artist">' + esc(d.top.name) + '</h2>' +
-      '<ol class="poster__tracks">' + d.tracks.map(function (t, i) {
-        return '<li><span class="poster__n">' + (i + 1) + '</span><b>' + esc(t.title) + '</b><em>' + esc(t.artist) + '</em></li>';
-      }).join('') + '</ol>' +
-      '<div class="poster__stats">' + recapStats(d).map(function (s) {
-        return '<div><b>' + (s.n === null ? '–' : esc(String(s.n))) + '</b><span>' + esc(s.label) + '</span></div>';
-      }).join('') + '</div>' +
-      '<p class="poster__foot"><span>' + esc(DATA.me.name) + '</span><span>' + esc(DATA.me.username) + '</span></p>' +
+    '<div class="poster__top">' +
+      '<span class="poster__brand"><img src="assets/logo-64.png" alt="">Vortex</span>' +
+      '<span class="poster__range">' + esc(recapRange()) + '</span>' +
     '</div>' +
+    '<p class="poster__who">' + esc(first) + '’s last 4 weeks</p>' +
+    '<p class="poster__kicker poster__kicker--song">Most played song</p>' +
+    '<div class="poster__song">' +
+      '<span class="poster__cover" style="' + artImageStyle(song.image || song.thumb) + '"></span>' +
+      '<span class="poster__songmeta"><b>' + esc(song.title) + '</b><span>' + esc(song.artist) + '</span>' +
+        (song.album ? '<em>' + esc(song.album) + '</em>' : '') + '</span>' +
+    '</div>' +
+    '<p class="poster__kicker poster__kicker--artists">Top artists</p>' +
+    '<ol class="poster__artists">' + d.artists.map(function (a, i) {
+      return '<li><span class="poster__face" style="' + artImageStyle(a.image) + '">' +
+        (a.image ? '' : '<span>' + esc(initialsFrom(a.name)) + '</span>') + '<i>' + (i + 1) + '</i></span>' +
+        '<b>' + esc(a.name) + '</b></li>';
+    }).join('') + '</ol>' +
+    (more.length ? '<p class="poster__kicker poster__kicker--more">Also on repeat</p>' +
+      '<ol class="poster__more">' + more.map(function (t) {
+        return '<li><span class="poster__mini" style="' + artImageStyle(t.thumb) + '"></span>' +
+          '<span class="poster__moremeta"><b>' + esc(t.title) + '</b><em>' + esc(t.artist) + '</em></span></li>';
+      }).join('') + '</ol>' : '') +
+    '<div class="poster__stats">' + recapStats(d).map(function (s) {
+      return '<div><b>' + (s.n === null ? '–' : esc(String(s.n))) + '</b><span>' + esc(s.label) + '</span></div>';
+    }).join('') + '</div>' +
+    '<p class="poster__foot"><span>' + esc(DATA.me.name) + '</span><span>' + esc(DATA.me.username) + '</span></p>' +
   '</article>';
 }
 
@@ -135,6 +150,8 @@ function homeRecapPanel() {
 LIBRARY_PANELS.push(['recapBody', recapBodyAuto], ['homeRecap', homeRecapPanel]);
 
 /* ---- PNG export ---------------------------------------------------------------- */
+/* Block positions are fixed (in 1080-wide px) and mirrored by the .poster CSS
+   (top ÷ 10.8 = cqw), so the preview and the PNG line up. */
 function fitText(ctx, text, max) {
   let s = String(text);
   if (ctx.measureText(s).width <= max) return s;
@@ -142,102 +159,149 @@ function fitText(ctx, text, max) {
   return s.trimEnd() + '…';
 }
 
+/* Up to `max` wrapped lines; the last one is ellipsized if text remains. */
+function clampLines(ctx, text, width, max) {
+  const all = wrapText(ctx, text, width).map(function (l) { return fitText(ctx, l, width); });
+  const lines = all.slice(0, max);
+  if (all.length > max) lines[max - 1] = fitText(ctx, lines[max - 1] + '…', width);
+  return lines;
+}
+
+function roundedPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* Cover-fits an image into the current clip; a tinted fill stands in when it's missing. */
+function drawFill(ctx, img, x, y, w, h, fallback) {
+  ctx.fillStyle = fallback;
+  ctx.fillRect(x, y, w, h);
+  if (!img) return;
+  const s = Math.max(w / img.width, h / img.height);
+  ctx.drawImage(img, x + (w - img.width * s) / 2, y + (h - img.height * s) / 2, img.width * s, img.height * s);
+}
+
 async function renderRecapImage() {
   const d = recapData();
-  if (!d || !d.top) return null;
+  if (!d || !d.top || !d.tracks.length) return null;
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
-  const label = await loadImage(d.top.image);
+  const song = d.tracks[0];
+  const more = d.tracks.slice(1);
+  const imgs = await Promise.all(
+    [loadImage('assets/logo-256.png'), loadImage(song.image || song.thumb)]
+      .concat(d.artists.map(function (a) { return loadImage(a.image); }), more.map(function (t) { return loadImage(t.thumb); })));
+  const logo = imgs[0], cover = imgs[1], faces = imgs.slice(2, 2 + d.artists.length), minis = imgs.slice(2 + d.artists.length);
 
-  const W = 1080, H = 1920, P = 80;
-  const INK = '#F2F1EE', INK2 = 'rgba(242,241,238,.64)', INK3 = 'rgba(242,241,238,.40)', EMBER = signalColor();
+  const W = 1080, H = 1920, P = 88, inner = W - 2 * P;
+  const INK = '#ECEAE4', INK2 = 'rgba(236,234,228,.68)', INK3 = 'rgba(236,234,228,.44)', LINE = 'rgba(236,234,228,.10)';
+  const EMBER = signalColor(), TILE = hexAlpha(EMBER, .22);
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#0B0B0D';
+  const base = ctx.createLinearGradient(0, 0, 0, H);
+  base.addColorStop(0, '#1A181D'); base.addColorStop(1, '#111013');
+  ctx.fillStyle = base;
   ctx.fillRect(0, 0, W, H);
-  [[980, 260, 760, hexAlpha(EMBER, .34)], [60, 1700, 820, 'rgba(63,191,168,.18)']].forEach(function (g) {
+  [[960, 200, 720, hexAlpha(EMBER, .20)], [80, 1760, 760, 'rgba(63,191,168,.10)']].forEach(function (g) {
     const grad = ctx.createRadialGradient(g[0], g[1], 0, g[0], g[1], g[2]);
     grad.addColorStop(0, g[3]); grad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
   });
+  ctx.textBaseline = 'alphabetic';
 
-  // Record: grooves, a light sheen, the artist photo as the label.
-  const dx = 842, dy = 616, dr = 432, lr = 156;
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = 60; ctx.shadowOffsetY = 24;
-  ctx.beginPath(); ctx.arc(dx, dy, dr, 0, Math.PI * 2); ctx.fillStyle = '#121214'; ctx.fill();
-  ctx.restore();
-  ctx.strokeStyle = 'rgba(255,255,255,.045)'; ctx.lineWidth = 1.2;
-  for (let r = lr + 14; r < dr - 6; r += 7) { ctx.beginPath(); ctx.arc(dx, dy, r, 0, Math.PI * 2); ctx.stroke(); }
-  if (ctx.createConicGradient) {
-    const sheen = ctx.createConicGradient(-0.6, dx, dy);
-    sheen.addColorStop(0, 'rgba(255,255,255,0)'); sheen.addColorStop(0.08, 'rgba(255,255,255,.10)');
-    sheen.addColorStop(0.16, 'rgba(255,255,255,0)'); sheen.addColorStop(0.5, 'rgba(255,255,255,0)');
-    sheen.addColorStop(0.58, 'rgba(255,255,255,.07)'); sheen.addColorStop(0.66, 'rgba(255,255,255,0)'); sheen.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.beginPath(); ctx.arc(dx, dy, dr, 0, Math.PI * 2); ctx.fillStyle = sheen; ctx.fill();
+  function kicker(text, y) {
+    ctx.fillStyle = EMBER; ctx.font = '500 26px Geist, sans-serif';
+    ctx.fillText(text, P, y);
   }
-  ctx.save();
-  ctx.beginPath(); ctx.arc(dx, dy, lr, 0, Math.PI * 2); ctx.clip();
-  ctx.fillStyle = EMBER; ctx.fillRect(dx - lr, dy - lr, lr * 2, lr * 2);
-  if (label) {
-    const s = Math.max(lr * 2 / label.width, lr * 2 / label.height);
-    ctx.drawImage(label, dx - label.width * s / 2, dy - label.height * s / 2, label.width * s, label.height * s);
-  }
-  ctx.restore();
-  ctx.beginPath(); ctx.arc(dx, dy, 12, 0, Math.PI * 2); ctx.fillStyle = '#0B0B0D'; ctx.fill();
 
   // Header
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = INK; ctx.font = '600 44px Geist, sans-serif';
-  ctx.fillText('vortex', P, P + 36);
-  ctx.textAlign = 'right'; ctx.fillStyle = INK3; ctx.font = '400 28px "Geist Mono", monospace';
-  ctx.fillText(recapRange(), W - P, P + 34);
-  ctx.textAlign = 'left'; ctx.fillStyle = INK2; ctx.font = '400 40px Geist, sans-serif';
-  ctx.fillText(((DATA.me.name || '').split(/\s+/)[0] || 'Your') + '’s last 4 weeks', P, P + 118);
+  if (logo) ctx.drawImage(logo, P, 88, 50, 50);
+  ctx.fillStyle = INK; ctx.font = '600 42px Geist, sans-serif';
+  ctx.fillText('Vortex', P + (logo ? 66 : 0), 128);
+  ctx.textAlign = 'right'; ctx.fillStyle = INK3; ctx.font = '400 26px "Geist Mono", monospace';
+  ctx.fillText(recapRange(), W - P, 124);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = INK; ctx.font = '500 64px Geist, sans-serif';
+  ctx.fillText(fitText(ctx, ((DATA.me.name || '').split(/\s+/)[0] || 'Your') + '’s last 4 weeks', inner), P, 262);
 
-  // Bottom block, laid out upward from the footer so long names push up, not off.
-  const inner = W - 2 * P;
-  let y = H - P;
-  ctx.font = '500 28px Geist, sans-serif'; ctx.fillStyle = INK2;
-  ctx.fillText(fitText(ctx, DATA.me.name, inner * 0.6), P, y);
-  ctx.textAlign = 'right'; ctx.fillStyle = INK3; ctx.fillText(DATA.me.username, W - P, y); ctx.textAlign = 'left';
+  // Most played song: the cover carries the card.
+  kicker('Most played song', 366);
+  const cs = 360, cy = 398;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 48; ctx.shadowOffsetY = 18;
+  roundedPath(ctx, P, cy, cs, cs, 28); ctx.fillStyle = TILE; ctx.fill();
+  ctx.restore();
+  ctx.save(); roundedPath(ctx, P, cy, cs, cs, 28); ctx.clip();
+  drawFill(ctx, cover, P, cy, cs, cs, TILE);
+  ctx.restore();
+  const tx = P + cs + 44, tw = W - P - tx;
+  let ty = cy + 54;
+  ctx.fillStyle = INK; ctx.font = '600 52px Geist, sans-serif';
+  clampLines(ctx, song.title, tw, 3).forEach(function (l) { ctx.fillText(l, tx, ty); ty += 62; });
+  ty += 4;
+  ctx.fillStyle = INK2; ctx.font = '400 32px Geist, sans-serif';
+  clampLines(ctx, song.artist, tw, 2).forEach(function (l) { ctx.fillText(l, tx, ty); ty += 42; });
+  if (song.album) {
+    ctx.fillStyle = INK3; ctx.font = '400 26px Geist, sans-serif';
+    ctx.fillText(fitText(ctx, song.album, tw), tx, ty + 6);
+  }
 
-  y -= 76;
-  const stats = recapStats(d), colW = inner / 3;
-  stats.forEach(function (s, i) {
+  // Top artists: three portraits, ranked.
+  kicker('Top artists', 858);
+  const colW = inner / 3, fr = 112, fy = 890 + fr;
+  d.artists.forEach(function (a, i) {
+    const cx = P + colW * i + colW / 2;
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, fy, fr, 0, Math.PI * 2); ctx.clip();
+    drawFill(ctx, faces[i], cx - fr, fy - fr, fr * 2, fr * 2, TILE);
+    if (!faces[i]) {
+      ctx.fillStyle = INK; ctx.font = '600 64px Geist, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(initialsFrom(a.name), cx, fy + 22); ctx.textAlign = 'left';
+    }
+    ctx.restore();
+    const bx = cx - fr * 0.72, by = fy + fr * 0.72;
+    ctx.beginPath(); ctx.arc(bx, by, 26, 0, Math.PI * 2); ctx.fillStyle = '#1A181D'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = i === 0 ? EMBER : LINE; ctx.stroke();
+    ctx.fillStyle = INK; ctx.font = '500 26px "Geist Mono", monospace'; ctx.textAlign = 'center';
+    ctx.fillText(String(i + 1), bx, by + 9);
+    ctx.font = '600 30px Geist, sans-serif';
+    clampLines(ctx, a.name, colW - 24, 2).forEach(function (l, li) { ctx.fillText(l, cx, fy + fr + 56 + li * 38); });
+    ctx.textAlign = 'left';
+  });
+
+  // Also on repeat: the rest of the top four.
+  if (more.length) {
+    kicker('Also on repeat', 1290);
+    more.forEach(function (t, i) {
+      const ry = 1318 + i * 100;
+      ctx.save(); roundedPath(ctx, P, ry, 76, 76, 14); ctx.clip();
+      drawFill(ctx, minis[i], P, ry, 76, 76, TILE);
+      ctx.restore();
+      ctx.fillStyle = INK; ctx.font = '600 32px Geist, sans-serif';
+      ctx.fillText(fitText(ctx, t.title, inner - 100), P + 100, ry + 34);
+      ctx.fillStyle = INK2; ctx.font = '400 26px Geist, sans-serif';
+      ctx.fillText(fitText(ctx, t.artist, inner - 100), P + 100, ry + 70);
+    });
+  }
+
+  // Stats and footer
+  ctx.fillStyle = LINE; ctx.fillRect(P, 1644, inner, 2);
+  recapStats(d).forEach(function (s, i) {
     const x = P + i * colW;
-    ctx.fillStyle = INK; ctx.font = '500 64px "Geist Mono", monospace';
-    ctx.fillText(s.n === null ? '–' : String(s.n), x, y - 34);
+    ctx.fillStyle = INK; ctx.font = '500 60px "Geist Mono", monospace';
+    ctx.fillText(s.n === null ? '–' : String(s.n), x, 1724);
     ctx.fillStyle = INK3; ctx.font = '400 24px Geist, sans-serif';
-    ctx.fillText(fitText(ctx, s.label, colW - 20), x, y + 4);
+    ctx.fillText(fitText(ctx, s.label, colW - 20), x, 1764);
   });
-  y -= 120;
-  ctx.fillStyle = 'rgba(255,255,255,.10)'; ctx.fillRect(P, y, inner, 2);
-
-  y -= 40;
-  const rows = d.tracks.slice().reverse();
-  rows.forEach(function (t, ri) {
-    const i = d.tracks.length - 1 - ri;
-    ctx.fillStyle = INK3; ctx.font = '500 28px "Geist Mono", monospace';
-    ctx.fillText(String(i + 1), P, y);
-    ctx.fillStyle = INK; ctx.font = '600 36px Geist, sans-serif';
-    const title = fitText(ctx, t.title, inner - 64 - 200);
-    ctx.fillText(title, P + 64, y);
-    const used = ctx.measureText(title).width;
-    ctx.fillStyle = INK2; ctx.font = '400 28px Geist, sans-serif';
-    const room = inner - 64 - used - 24;
-    if (room > 80) ctx.fillText(fitText(ctx, t.artist, room), P + 64 + used + 24, y);
-    y -= 64;
-  });
-
-  y -= 36;
-  ctx.fillStyle = INK; ctx.font = '600 128px Geist, sans-serif';
-  const lines = wrapText(ctx, d.top.name, inner).slice(0, 2);
-  if (wrapText(ctx, d.top.name, inner).length > 2) lines[1] = fitText(ctx, lines[1] + '…', inner);
-  lines.reverse().forEach(function (l) { ctx.fillText(l, P - 4, y); y -= 122; });
-  y += 122 - 128 - 26;
-  ctx.fillStyle = EMBER; ctx.font = '500 30px Geist, sans-serif';
-  ctx.fillText('Number one artist', P, y);
+  ctx.font = '500 26px Geist, sans-serif'; ctx.fillStyle = INK2;
+  ctx.fillText(fitText(ctx, DATA.me.name, inner * 0.55), P, H - P);
+  ctx.textAlign = 'right'; ctx.fillStyle = INK3;
+  ctx.fillText(fitText(ctx, DATA.me.username, inner * 0.4), W - P, H - P);
+  ctx.textAlign = 'left';
 
   return new Promise(function (resolve) { c.toBlob(resolve, 'image/png'); });
 }
