@@ -60,7 +60,7 @@ function iconBtn(name, tip, cls, size) {
 /* ---- shared pieces ------------------------------------------------------ */
 /* A shared post as a compact row; showUser adds who shared it. */
 function postRow(p, showUser) {
-  return '<button class="row" data-nav="feed">' +
+  return '<a class="row" href="#/p/' + encodeURIComponent(p.id) + '">' +
     art(p.art, null, p.image) +
     '<span class="row__meta">' +
       '<span class="t-body-m-med truncate">' + esc(p.track) + '</span>' +
@@ -68,7 +68,7 @@ function postRow(p, showUser) {
         (showUser ? ' · shared by ' + esc(p.mine ? 'you' : p.user) : '') + '</span>' +
     '</span>' +
     '<span class="t-meta c-tertiary">' + esc(p.time) + '</span>' +
-  '</button>';
+  '</a>';
 }
 
 /* sub replaces the @username line (e.g. with what they're listening to). */
@@ -131,6 +131,7 @@ const UI = {
   openReplies: {},  // top-level comment id -> replies expanded
   replyTo: {},      // post id -> { threadId, name, prefix } while a reply box is open
   feedScope: 'Friends',
+  feedStatus: 'idle',  // 'loading' | 'ok' | 'error'
   friendSearch: { q: '', results: null, loading: false, error: false },
   // Spotify data for Activity / Music: { status: 'loading'|'ok'|'error', data, at, error }
   spotifyLib: { recent: null, playlists: null, topArtists: {}, topTracks: {} },
@@ -233,9 +234,10 @@ function postCard(p) {
         : '<div class="post__author">' + who + '</div>') +
       '<span class="spacer"></span>' +
       '<span class="iconbtn" data-tip="' + esc(PLATFORM_LABEL[p.platform]) + '">' + icon(p.platform, 16) + '</span>' +
+      shareLinkButton('#/p/' + p.id, 'Copy link to post') +
       (p.mine
         ? '<button class="iconbtn" data-delete-post="' + esc(p.id) + '" data-tip="Delete post" aria-label="Delete post">' + icon('trash', 16) + '</button>'
-        : '<button class="iconbtn" data-menu="post" aria-label="More">' + icon('dots', 16) + '</button>') +
+        : '') +
     '</div>' +
     (p.note ? '<p class="post__note t-body-s c-secondary">' + esc(p.note) + '</p>' : '') +
     '<div class="post__track">' +
@@ -289,10 +291,51 @@ function ghostEmpty(action, hint) {
       '<svg viewBox="0 0 100 110" width="60" height="66"><path fill-rule="evenodd" d="' + GHOST_PATH + '"/></svg>' +
       '<span class="ghost__shadow"></span>' +
     '</div>' +
-    '<p class="t-body-m c-secondary">It\'s still a little quiet in here.. maybe you could check later?</p>' +
-    (hint ? '<p class="t-body-s c-tertiary">' + esc(hint) + '</p>' : '') +
+    '<p class="t-body-m c-secondary">' + (hint ? esc(hint) : 'It\'s still a little quiet in here.. maybe you could check later?') + '</p>' +
     (action ? '<div class="ghost-empty__actions">' + action + '</div>' : '') +
   '</div>';
+}
+
+/* Placeholder rows shaped like the list that's coming. */
+const SKEL_WIDTHS = [[62, 38], [48, 30], [70, 44], [55, 34]];
+function skeletonRows(n, label) {
+  let rows = '';
+  for (let i = 0; i < n; i++) {
+    const w = SKEL_WIDTHS[i % SKEL_WIDTHS.length];
+    rows += '<div class="skel-row"><span class="skel skel--art"></span><span class="skel-row__lines">' +
+      '<span class="skel skel--line" style="width:' + w[0] + '%"></span>' +
+      '<span class="skel skel--line skel--sub" style="width:' + w[1] + '%"></span></span></div>';
+  }
+  return '<div class="skel-list" role="status"><span class="sr-only">' + esc(label || 'Loading…') + '</span>' +
+    '<div aria-hidden="true">' + rows + '</div></div>';
+}
+
+function skeletonPosts(n) {
+  let cards = '';
+  for (let i = 0; i < n; i++) {
+    cards += '<div class="panel post skel-post">' +
+      '<div class="skel-row"><span class="skel skel--avatar"></span><span class="skel-row__lines">' +
+        '<span class="skel skel--line" style="width:' + (30 + i * 9) + '%"></span>' +
+        '<span class="skel skel--line skel--sub" style="width:14%"></span></span></div>' +
+      '<div class="skel-row"><span class="skel skel--art-lg"></span><span class="skel-row__lines">' +
+        '<span class="skel skel--line" style="width:' + (58 - i * 8) + '%"></span>' +
+        '<span class="skel skel--line skel--sub" style="width:' + (36 + i * 5) + '%"></span></span></div>' +
+    '</div>';
+  }
+  return '<div class="stack" role="status"><span class="sr-only">Loading posts…</span><div class="stack" aria-hidden="true">' + cards + '</div></div>';
+}
+
+/* Something failed to load: say what, and offer the retry. */
+function retryPanel(text, action) {
+  return '<section class="panel section"><div class="empty">' +
+    '<span class="empty__well">' + icon('repeat', 20) + '</span>' +
+    '<p class="t-body-m c-secondary">' + esc(text) + '</p>' +
+    '<button class="btn btn--secondary btn--sm" data-action="' + esc(action) + '">Try again</button>' +
+  '</div></section>';
+}
+
+function shareLinkButton(hash, label) {
+  return '<button class="iconbtn" data-share-link="' + esc(hash) + '" data-tip="' + esc(label) + '" aria-label="' + esc(label) + '">' + icon('link', 16) + '</button>';
 }
 
 function ghostPanel(title, action, hint) {
@@ -417,7 +460,11 @@ VIEWS.home = function () {
         sectionHead('Latest from your circle', null, '<button class="btn btn--ghost btn--sm" data-nav="feed">Open feed</button>') +
         '<div class="section__body">' + DATA.feed.slice(0, 6).map(function (p) { return postRow(p, true); }).join('') + '</div>' +
       '</section>'
-    : ghostPanel('Latest from your circle', sharePostButton(true) + findFriendsButton(false));
+    : UI.feedStatus === 'loading'
+      ? '<section class="panel section">' + sectionHead('Latest from your circle') + '<div class="section__body">' + skeletonRows(4, 'Loading posts…') + '</div></section>'
+      : UI.feedStatus === 'error'
+        ? retryPanel('Could not load the latest posts. Check your connection.', 'feed-retry')
+        : ghostPanel('Latest from your circle', sharePostButton(true) + findFriendsButton(false));
 
   const friendsPanel = homeFriendsPanel();
 
@@ -439,6 +486,8 @@ VIEWS.home = function () {
 };
 
 function feedEmpty() {
+  if (UI.feedStatus === 'loading') return skeletonPosts(3);
+  if (UI.feedStatus === 'error') return retryPanel('Could not load the feed. Check your connection.', 'feed-retry');
   if (UI.feedScope === 'Friends' && !DATA.friends.length) {
     return ghostPanel(null, findFriendsButton(true) + sharePostButton(false),
       'Your feed shows you and your friends. Add friends, or switch to Everyone.');
@@ -599,6 +648,21 @@ function friendSentPanel() {
   '</section>';
 }
 
+function myProfileHash() {
+  return '#/u/' + DATA.me.username.replace(/^@/, '');
+}
+
+/* For people who aren't on vortex yet, or whose username you don't know. */
+function inviteRow() {
+  return '<div class="invite">' +
+    '<span class="invite__meta">' +
+      '<span class="t-body-m-med">Invite with your link</span>' +
+      '<span class="t-body-s c-tertiary truncate">' + esc(location.host + '/' + myProfileHash()) + '</span>' +
+    '</span>' +
+    '<button class="btn btn--secondary btn--sm" data-share-link="' + esc(myProfileHash()) + '">' + icon('link', 15) + 'Copy link</button>' +
+  '</div>';
+}
+
 VIEWS.friends = function () {
   const searchPanel =
     '<section class="panel section">' +
@@ -608,6 +672,7 @@ VIEWS.friends = function () {
           '<input type="search" id="friendSearch" placeholder="Search by name or @username" aria-label="Search people" autocomplete="off" maxlength="40" value="' + esc(UI.friendSearch.q) + '">' +
         '</label>' +
         '<div id="friendResults">' + friendSearchResults() + '</div>' +
+        inviteRow() +
       '</div>' +
     '</section>';
 
@@ -637,9 +702,7 @@ function spotifyGate() {
 
 /* Loading / error / empty handling shared by every Spotify panel. */
 function libraryBody(entry, render) {
-  if (!entry || (entry.status === 'loading' && !entry.data)) {
-    return '<p class="t-body-s c-tertiary friends__hint">Loading from Spotify…</p>';
-  }
+  if (!entry || (entry.status === 'loading' && !entry.data)) return skeletonRows(5, 'Loading from Spotify…');
   if (entry.status === 'error' && !entry.data) {
     return ghostEmpty(null, entry.error === 403
       ? 'Spotify refused this request. While the app is in development, only accounts on its tester list can use it.'
@@ -848,7 +911,7 @@ VIEWS.profile = function () {
   const s = me.stats;
   const header =
     '<section class="panel section__body--pad" style="padding:22px">' +
-      '<div class="rowflex" style="gap:18px;align-items:flex-start">' +
+      '<div class="rowflex" style="gap:18px;align-items:flex-start;flex-wrap:wrap">' +
         '<div class="avatar-edit">' +
           avatarEl(me.initials, '72', null, me.avatarUrl) +
           '<label class="avatar-edit__btn" data-tip="Change photo" aria-label="Change profile photo">' +
@@ -856,10 +919,16 @@ VIEWS.profile = function () {
             '<input type="file" id="avatarFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>' +
           '</label>' +
         '</div>' +
-        '<div class="stack stack--sm" style="flex:1;min-width:0;gap:6px">' +
+        '<div class="stack stack--sm" style="flex:1;min-width:180px;gap:6px">' +
           '<h2 class="t-title-l">' + esc(me.name) + '</h2>' +
           '<span class="t-meta c-tertiary">' + esc(me.username) + (me.joined ? ' · joined ' + esc(me.joined) : '') + '</span>' +
-          (me.bio ? '<p class="t-body-m c-secondary" style="max-width:52ch;margin-top:4px">' + esc(me.bio) + '</p>' : '') +
+          (me.bio
+            ? '<p class="t-body-m c-secondary" style="max-width:52ch;margin-top:4px">' + esc(me.bio) + '</p>'
+            : '<button class="profile__addbio t-body-s" data-action="profile-edit" data-focus="editBio">' + icon('plus', 13) + 'Add a bio</button>') +
+        '</div>' +
+        '<div class="rowflex" style="gap:8px;flex:none">' +
+          shareLinkButton(myProfileHash(), 'Copy profile link') +
+          '<button class="btn btn--secondary btn--sm" data-action="profile-edit">Edit profile</button>' +
         '</div>' +
       '</div>' +
       '<div style="margin-top:18px">' + (me.pin ? pinCard(me.pin, true) : pinInvite()) + '</div>' +
@@ -881,7 +950,10 @@ VIEWS.profile = function () {
 };
 
 function friendProfileLoading() {
-  return '<section class="panel section"><div class="section__body section__body--pad">' + dnaLoading('Loading profile…') + '</div></section>';
+  return '<section class="panel section__body--pad" style="padding:22px" role="status"><span class="sr-only">Loading profile…</span>' +
+    '<div class="skel-row" aria-hidden="true"><span class="skel skel--avatar-xl"></span><span class="skel-row__lines">' +
+      '<span class="skel skel--title" style="width:40%"></span><span class="skel skel--line skel--sub" style="width:26%"></span></span></div>' +
+  '</section>';
 }
 
 function friendProfileHeader(profile, stats, relation) {
@@ -907,7 +979,7 @@ function friendProfileHeader(profile, stats, relation) {
         '<span class="t-meta c-tertiary">@' + esc(profile.username) + ' · joined ' + esc(joined) + '</span>' +
         (profile.bio ? '<p class="t-body-m c-secondary" style="max-width:52ch;margin-top:4px">' + esc(profile.bio) + '</p>' : '') +
       '</div>' +
-      '<div class="rowflex" style="gap:8px;flex:none;flex-wrap:wrap">' + controls + '</div>' +
+      '<div class="rowflex" style="gap:8px;flex:none;flex-wrap:wrap">' + shareLinkButton('#/u/' + profile.username, 'Copy profile link') + controls + '</div>' +
     '</div>' +
     (pinFromRow(profile) ? '<div style="margin-top:18px">' + pinCard(pinFromRow(profile), false) + '</div>' : '') +
     '<hr class="hr" style="margin:18px 0 16px">' +
@@ -926,7 +998,7 @@ VIEWS.friendProfile = function () {
     return wrap(pageHead('Profile', 'Loading…'), friendProfileLoading());
   }
   if (state.status === 'notfound') {
-    return wrap(pageHead('Profile', 'Not found'), ghostPanel(null, findFriendsButton(true), 'No vortex profile found for “' + esc(username) + '”.'));
+    return wrap(pageHead('Profile', 'Not found'), ghostPanel(null, findFriendsButton(true), 'No vortex profile found for “' + username + '”.'));
   }
   if (state.status === 'error') {
     return wrap(pageHead('Profile', 'Profile'), ghostPanel(null, null, 'Could not load this profile. Try again in a moment.'));
@@ -964,7 +1036,7 @@ VIEWS.settings = function () {
   }
 
   const account =
-    '<section class="panel section">' + sectionHead('Account') +
+    '<section class="panel section">' + sectionHead('Account', null, '<button class="btn btn--ghost btn--sm" data-action="profile-edit">Edit</button>') +
       '<div class="section__body section__body--flush">' +
         row('user', 'Display name', DATA.me.name) +
         row('globe', 'Username', DATA.me.username) +

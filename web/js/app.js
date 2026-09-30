@@ -193,21 +193,39 @@ function updateFriendsBadge() {
   if (dot) dot.setAttribute('aria-label', countLabel(DATA.incoming.length, 'friend request'));
 }
 
+let feedLoadSeq = 0;
+
 async function loadFeed() {
   if (!app.session) return;
+  const seq = ++feedLoadSeq;
+  const scope = UI.feedScope;
+  if (!DATA.feed.length) UI.feedStatus = 'loading';
   try {
     const me = app.session.user.id;
-    const authors = UI.feedScope === 'Friends' ? [me].concat(DATA.friends.map(function (f) { return f.id; })) : null;
+    const authors = scope === 'Friends' ? [me].concat(DATA.friends.map(function (f) { return f.id; })) : null;
     const posts = await db.posts.list(30, authors);
+    if (seq !== feedLoadSeq) return;  // a newer load (e.g. the other tab) owns the feed now
     DATA.feed = posts.map(function (post) {
       return transformPostData(post, me);
     });
+    UI.feedStatus = 'ok';
     backfillCovers();
-  } catch (e) { console.error('Error loading feed:', e); }
+  } catch (e) {
+    if (seq !== feedLoadSeq) return;
+    console.error('Error loading feed:', e);
+    UI.feedStatus = 'error';
+  }
+}
+
+async function retryFeed() {
+  UI.feedStatus = 'loading';
+  if (app.view === 'feed' || app.view === 'home') setView(app.view);
+  await loadFeed();
+  if (app.view === 'feed' || app.view === 'home') setView(app.view);
 }
 
 function feedSignature() {
-  return DATA.feed.map(function (p) {
+  return UI.feedStatus + '|' + DATA.feed.map(function (p) {
     return [p.id, p.reactions.flame, p.reactions.heart, p.comments.length, p.image || ''].join(':');
   }).join('|');
 }
@@ -512,9 +530,16 @@ function friendProfileUsername() {
   return r.head === 'u' || r.head === 'compare' ? r.param : '';
 }
 
+/* A shared link opened while logged out: remembered so logging in lands on it. */
+let pendingDeepLink = null;
+
 function currentRoute() {
   const r = routeParts();
-  if (DYNAMIC_ROUTES[r.head] && r.param) return app.session ? DYNAMIC_ROUTES[r.head] : 'login';
+  if (DYNAMIC_ROUTES[r.head] && r.param) {
+    if (app.session) return DYNAMIC_ROUTES[r.head];
+    pendingDeepLink = '#/' + r.head + '/' + encodeURIComponent(r.param);
+    return 'login';
+  }
   const raw = r.head === 'appearance' ? 'customization' : r.head;  // old links
   const dynamicView = Object.keys(DYNAMIC_ROUTES).some(function (k) { return DYNAMIC_ROUTES[k] === raw; });
   const target = VIEWS[raw] && !dynamicView ? raw : 'home';
@@ -983,6 +1008,10 @@ function startNotifications() {
     DATA.notifications.unread++;
     DATA.notifications.status = 'idle';
     updateNotifBadge();
+    db.notifications.list(1).then(function (rows) {
+      const n = rows[0] && toNotification(rows[0]);
+      if (n && !n.read && app.view !== 'notifications') notifToast(n);
+    }).catch(function () {});
     // Someone may have just sent a request or accepted yours.
     loadFriends().then(refreshFriendsUI).catch(function () {});
   });
@@ -1341,6 +1370,10 @@ async function connectSpotify() {
 /* ---- toasts -------------------------------------------------------------- */
 const TOASTS = {
   postDeleted: ['success', 'Post deleted', 'It no longer shows up in anyone\'s feed'],
+  postLinkCopied: ['success', 'Link copied', 'Anyone on vortex with the link can open this post'],
+  profileLinkCopied: ['success', 'Link copied', 'It opens the profile, with an Add friend button'],
+  linkFailed: ['error', 'Could not copy the link', 'Your browser blocked the clipboard'],
+  profileSaved: ['success', 'Profile saved', 'Everyone sees the new version now'],
   reactionFailed: ['error', 'Reaction not saved', 'Check your connection and try again'],
   commentFailed: ['error', 'Comment not sent', 'Your text is still in the box, try again'],
   commentRateLimited: ['error', 'Slow down', 'Max 3 comments per post per minute. Your text is still in the box'],
@@ -1379,16 +1412,33 @@ function toast(kind) {
   if (!spec) return;
   if (spec[0] === 'error') sounds.error(); else sounds.success();
   const glyph = { success: 'check', info: 'broadcast', error: 'close' }[spec[0]];
-  const el = document.createElement('div');
-  el.className = 'toast';
-  el.setAttribute('role', 'status');
-  el.innerHTML =
+  showToast(
     '<span class="toast__well toast__well--' + spec[0] + '">' + icon(glyph, 15) + '</span>' +
     '<span class="toast__body">' +
       '<span class="t-label-m">' + esc(spec[1]) + '</span>' +
       '<span class="t-caption c-tertiary">' + esc(spec[2]) + '</span>' +
-    '</span>' +
-    '<button class="iconbtn" aria-label="Dismiss">' + icon('close', 15) + '</button>';
+    '</span>');
+}
+
+/* A live notification while you're elsewhere in the app; the body opens it. */
+function notifToast(n) {
+  showToast(
+    '<a class="toast__link" href="' + notifHref(n) + '"' + (n.threadId ? ' data-open-thread="' + esc(n.threadId) + '"' : '') + '>' +
+      avatarEl(n.actor.initials, '32', null, n.actor.avatarUrl) +
+      '<span class="toast__body">' +
+        '<span class="t-body-s notif__text clamp-2">' + notifText(n) + '</span>' +
+        (n.comment ? '<span class="t-caption c-tertiary truncate">“' + esc(n.comment) + '”</span>' : '') +
+      '</span>' +
+    '</a>');
+}
+
+function showToast(inner) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.setAttribute('role', 'status');
+  el.innerHTML = inner + '<button class="iconbtn" aria-label="Dismiss">' + icon('close', 15) + '</button>';
+  const link = el.querySelector('.toast__link');
+  if (link) link.addEventListener('click', function () { el.remove(); });
   const stack = document.getElementById('toasts');
   stack.appendChild(el);
   const kill = function () {
@@ -1397,6 +1447,151 @@ function toast(kind) {
   };
   el.querySelector('button').addEventListener('click', kill);
   setTimeout(kill, 5000);
+}
+
+/* ---- edit profile ------------------------------------------------------------ */
+const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+const NAME_MAX = 50;
+const BIO_MAX = 160;
+let usernameCheckTimer = null;
+let usernameCheckSeq = 0;
+
+function myHandle() { return DATA.me.username.replace(/^@/, ''); }
+
+function openEditProfile(focusId) {
+  const me = DATA.me;
+  const o = document.getElementById('overlay');
+  o.hidden = false;
+  o.innerHTML =
+    '<div class="scrim" data-scrim>' +
+      '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="profileFormTitle">' +
+        '<div class="modal__head">' +
+          '<span class="toast__well toast__well--info">' + icon('user', 15) + '</span>' +
+          '<h2 class="t-title-s" id="profileFormTitle">Edit profile</h2>' +
+        '</div>' +
+        '<form id="profileForm" class="modal__body" novalidate>' +
+          '<div class="auth__note auth__note--error" id="profileError" hidden>' + icon('close', 16) +
+            '<p class="t-body-s c-secondary" id="profileErrorText"></p>' +
+          '</div>' +
+          '<div class="auth__field">' +
+            '<label class="t-label-m c-secondary" for="editName">Display name</label>' +
+            '<span class="field">' + icon('user', 17) +
+              '<input id="editName" type="text" maxlength="' + NAME_MAX + '" autocomplete="name" required value="' + esc(me.name) + '"></span>' +
+          '</div>' +
+          '<div class="auth__field">' +
+            '<label class="t-label-m c-secondary" for="editUsername">Username</label>' +
+            '<span class="field"><span class="field__at" aria-hidden="true">@</span>' +
+              '<input id="editUsername" type="text" maxlength="20" autocomplete="username" spellcheck="false" required value="' + esc(myHandle()) + '" aria-describedby="editUsernameHint"></span>' +
+            '<p class="t-caption field-hint" id="editUsernameHint">Your profile link is ' + esc(location.host) + '/#/u/' + esc(myHandle()) + '</p>' +
+          '</div>' +
+          '<div class="auth__field">' +
+            '<label class="t-label-m c-secondary field-label-row" for="editBio">Bio<span class="t-caption c-tertiary" id="editBioCount">' + (me.bio || '').length + ' / ' + BIO_MAX + '</span></label>' +
+            '<span class="field field--area">' + icon('comment', 17) +
+              '<textarea id="editBio" maxlength="' + BIO_MAX + '" rows="3" placeholder="A line about you and what you listen to">' + esc(me.bio || '') + '</textarea></span>' +
+          '</div>' +
+        '</form>' +
+        '<div class="modal__foot">' +
+          '<button type="button" class="btn btn--ghost btn--sm" data-close>Cancel</button>' +
+          '<button type="submit" class="btn btn--primary btn--sm" form="profileForm" id="profileSubmit">Save</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  const first = document.getElementById(focusId || 'editName');
+  first.focus();
+  first.setSelectionRange(first.value.length, first.value.length);
+}
+
+function setUsernameHint(text, state) {
+  const hint = document.getElementById('editUsernameHint');
+  if (!hint) return;
+  hint.textContent = text;
+  hint.dataset.state = state || '';
+}
+
+/* Live feedback while typing; the save re-checks, since this can go stale. */
+function checkUsernameInput(value) {
+  clearTimeout(usernameCheckTimer);
+  const seq = ++usernameCheckSeq;
+  const u = value.trim();
+  if (u.toLowerCase() === myHandle().toLowerCase()) {
+    setUsernameHint('Your profile link is ' + location.host + '/#/u/' + (u || myHandle()));
+    return;
+  }
+  if (!USERNAME_RE.test(u)) { setUsernameHint('Use 3 to 20 letters, numbers or _', 'bad'); return; }
+  setUsernameHint('Checking @' + u + '…');
+  usernameCheckTimer = setTimeout(async function () {
+    try {
+      const taken = await db.profiles.usernameTaken(u, app.session.user.id);
+      if (seq !== usernameCheckSeq) return;
+      setUsernameHint(taken ? '@' + u + ' is taken' : '@' + u + ' is free. Links to your old username will stop working.', taken ? 'bad' : 'good');
+    } catch (err) {
+      if (seq === usernameCheckSeq) setUsernameHint('Could not check this username right now');
+    }
+  }, 350);
+}
+
+async function handleProfileSubmit(form) {
+  const name = form.querySelector('#editName').value.replace(/\s+/g, ' ').trim();
+  const username = form.querySelector('#editUsername').value.trim();
+  const bio = form.querySelector('#editBio').value.replace(/\s+/g, ' ').trim();
+  const errBox = document.getElementById('profileError');
+  const errText = document.getElementById('profileErrorText');
+  function fail(msg, focusId) {
+    errText.textContent = msg;
+    errBox.hidden = false;
+    if (focusId) form.querySelector('#' + focusId).focus();
+  }
+  if (!name) return fail('Add a display name.', 'editName');
+  if (!USERNAME_RE.test(username)) return fail('Usernames use 3 to 20 letters, numbers or _.', 'editUsername');
+
+  const me = app.session.user.id;
+  const btn = document.getElementById('profileSubmit');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    if (username.toLowerCase() !== myHandle().toLowerCase() && await db.profiles.usernameTaken(username, me)) {
+      btn.disabled = false; btn.textContent = 'Save';
+      return fail('@' + username + ' is taken. Try another.', 'editUsername');
+    }
+    const row = await db.profiles.update(me, { name: name.slice(0, NAME_MAX), username: username, bio: bio.slice(0, BIO_MAX) || null });
+    DATA.me.name = row.name;
+    DATA.me.username = '@' + row.username;
+    DATA.me.initials = initialsFrom(row.name);
+    DATA.me.bio = row.bio || '';
+    closeOverlay();
+    repaintSidebar();
+    setView(app.view);
+    toast('profileSaved');
+  } catch (err) {
+    console.error('Could not save profile:', err);
+    btn.disabled = false; btn.textContent = 'Save';
+    fail(err && err.code === '23505' ? '@' + username + ' is taken. Try another.' : 'Could not save. Check your connection and try again.');
+  }
+}
+
+/* ---- share links ------------------------------------------------------------ */
+/* Phones get the system share sheet; desktops copy, since their share dialogs
+   are slower than a paste. */
+async function shareLink(hash) {
+  const url = location.origin + '/' + hash;
+  const kind = hash.indexOf('#/p/') === 0 ? 'postLinkCopied' : 'profileLinkCopied';
+  if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
+    try { await navigator.share({ url: url }); return; }
+    catch (err) { if (err && err.name === 'AbortError') return; }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    toast(kind);
+  } catch (err) {
+    const box = document.createElement('textarea');
+    box.value = url;
+    box.setAttribute('readonly', '');
+    box.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(box);
+    box.select();
+    const ok = document.execCommand('copy');
+    box.remove();
+    toast(ok ? kind : 'linkFailed');
+  }
 }
 
 /* ---- overlays ------------------------------------------------------------ */
@@ -1425,17 +1620,21 @@ function setPostTrack(track) {
     : '';
 }
 
-function pickPostTrack(index) {
-  const t = postSearchResults[index];
-  if (!t) return;
+function fillPostTrack(t) {
   document.getElementById('postTitle').value = t.title;
   document.getElementById('postArtist').value = t.artist;
   document.getElementById('postAlbum').value = t.album || '';
   setPostTrack({ id: t.id, image: t.thumb, title: t.title, artist: t.artist });
+  document.getElementById('postNote').focus();
+}
+
+function pickPostTrack(index) {
+  const t = postSearchResults[index];
+  if (!t) return;
   document.getElementById('postSpotifySearch').value = '';
   document.getElementById('postSpotifyResults').innerHTML = '';
   postSearchResults = [];
-  document.getElementById('postNote').focus();
+  fillPostTrack(t);
 }
 
 async function runPostSearch(query) {
@@ -1837,66 +2036,153 @@ const CMD_ACTIONS = [
   { label: 'Toggle compact sidebar', hint: 'Navigation', run: function () { setRail(document.getElementById('app').dataset.rail !== 'compact'); }, icon: 'bars' }
 ];
 
+const RELATION_HINT = { friends: 'Friend', incoming: 'Wants to be friends', outgoing: 'Requested' };
+
+function cmdkPerson(p) {
+  const hint = RELATION_HINT[relationshipWith(p.id).state];
+  return {
+    group: hint === 'Friend' ? 'Friends' : 'People',
+    label: p.name, sub: '@' + p.username,
+    lead: avatarEl(p.initials, '24', null, p.avatarUrl),
+    hint: hint || 'Profile',
+    run: function () { location.hash = '#/u/' + encodeURIComponent(p.username); }
+  };
+}
+
+function cmdkSong(t) {
+  return {
+    group: 'Songs on Spotify', label: t.title, sub: t.artist,
+    lead: art(artSeedFor(t.id), 'art--sm', t.thumb),
+    hint: 'Share',
+    run: function () { openPostForm(); fillPostTrack(t); }
+  };
+}
+
 function openCmdk() {
+  if (!app.session) return;
   const o = document.getElementById('overlay');
   o.hidden = false;
   o.innerHTML =
     '<div class="scrim" data-scrim>' +
-      '<div class="modal cmdk" role="dialog" aria-modal="true" aria-label="Command palette">' +
+      '<div class="modal cmdk" role="dialog" aria-modal="true" aria-label="Search">' +
         '<div class="cmdk__input">' + icon('search', 19) +
-          '<input id="cmdkInput" type="text" placeholder="Search destinations, friends, actions…" autocomplete="off">' +
+          '<input id="cmdkInput" type="text" placeholder="Search people, songs and pages…" autocomplete="off" spellcheck="false" ' +
+            'role="combobox" aria-expanded="true" aria-controls="cmdkList" aria-autocomplete="list">' +
           '<span class="field__kbd">ESC</span>' +
         '</div>' +
-        '<div class="cmdk__list" id="cmdkList"></div>' +
+        '<div class="cmdk__list" id="cmdkList" role="listbox" aria-label="Results"></div>' +
       '</div>' +
     '</div>';
 
   const input = document.getElementById('cmdkInput');
   const list = document.getElementById('cmdkList');
+  const me = app.session.user.id;
+  const remote = { people: [], songs: [], loading: false };
+  let rows = [];
+  let active = 0;
+  let timer = null;
+  let seq = 0;
 
-  function results(q) {
-    q = q.trim().toLowerCase();
-    const dest = NAV.filter(function (n) { return n.id && (!q || n.label.toLowerCase().indexOf(q) > -1); })
-      .map(function (n) { return { kind: 'nav', label: n.label, hint: 'Go to', icon: n.icon, id: n.id }; });
-    const people = DATA.friends.filter(function (f) { return q && f.name.toLowerCase().indexOf(q) > -1; })
-      .slice(0, 4).map(function (f) { return { kind: 'friend', label: f.name, hint: 'Friend', icon: 'user' }; });
+  function query() { return input.value.trim(); }
+
+  function collect() {
+    const q = query().toLowerCase();
+    const handle = q.replace(/^@/, '');
+    const pages = NAV.filter(function (n) { return n.id && (!q || n.label.toLowerCase().indexOf(q) > -1); })
+      .map(function (n) {
+        return { group: 'Pages', label: n.label, lead: icon(n.icon, 16), hint: 'Go to', run: function () { location.hash = '#/' + n.id; } };
+      });
     const acts = CMD_ACTIONS.filter(function (a) { return !q || a.label.toLowerCase().indexOf(q) > -1; })
-      .map(function (a) { return { kind: 'action', label: a.label, hint: a.hint, icon: a.icon, run: a.run }; });
-    return dest.concat(people, acts);
+      .map(function (a) { return { group: 'Actions', label: a.label, lead: icon(a.icon, 16), hint: a.hint, run: a.run }; });
+    if (!q) return pages.concat(acts);
+
+    const friends = DATA.friends.filter(function (f) {
+      return f.name.toLowerCase().indexOf(q) > -1 || f.username.toLowerCase().indexOf(handle) > -1;
+    }).slice(0, 5);
+    const friendIds = DATA.friends.map(function (f) { return f.id; });
+    // Results for the previous keystroke stay up until the new ones land, so the list doesn't jump.
+    const people = remote.people.filter(function (p) { return friendIds.indexOf(p.id) < 0 && p.id !== me; });
+    const songs = remote.songs;
+    return pages.slice(0, 3).concat(friends.map(cmdkPerson), people.map(cmdkPerson), songs.map(cmdkSong), acts);
   }
 
-  function paint(q) {
-    const rows = results(q);
+  function paint() {
+    rows = collect();
+    active = Math.min(active, Math.max(rows.length - 1, 0));
+    const searching = remote.loading && query().length >= 2;
     if (!rows.length) {
-      list.innerHTML = '<div class="empty"><span class="empty__well">' + icon('search', 20) + '</span>' +
-        '<span class="t-body-m-med">No matches</span>' +
-        '<p class="t-body-s c-tertiary">Try a destination, a friend name, or an action.</p></div>';
+      list.innerHTML = searching
+        ? '<p class="cmdk__status t-body-s c-tertiary">Searching people and songs…</p>'
+        : '<div class="empty"><span class="empty__well">' + icon('search', 20) + '</span>' +
+            '<span class="t-body-m-med">Nothing for “' + esc(query()) + '”</span>' +
+            '<p class="t-body-s c-tertiary">Try a name, an @username, a song or a page.</p></div>';
+      input.removeAttribute('aria-activedescendant');
       return;
     }
+    let group = null;
     list.innerHTML = rows.map(function (r, i) {
-      return '<button class="menu__item" data-cmd="' + i + '">' + icon(r.icon, 16) +
-        '<span>' + esc(r.label) + '</span><kbd>' + esc(r.hint) + '</kbd></button>';
-    }).join('');
-    list.querySelectorAll('[data-cmd]').forEach(function (b) {
-      b.addEventListener('click', function () { pick(rows[+b.dataset.cmd]); });
-    });
+      const head = r.group !== group ? '<p class="cmdk__group t-overline c-tertiary" role="presentation">' + esc(r.group) + '</p>' : '';
+      group = r.group;
+      return head + '<button type="button" class="' + cx('menu__item cmdk__item', r.sub && 'cmdk__item--tall') + '" id="cmdk-opt-' + i + '" ' +
+        'role="option" aria-selected="' + (i === active) + '" data-cmd="' + i + '">' + r.lead +
+        '<span class="cmdk__text"><span class="truncate">' + esc(r.label) + '</span>' +
+          (r.sub ? '<span class="t-caption c-tertiary truncate">' + esc(r.sub) + '</span>' : '') + '</span>' +
+        '<kbd>' + esc(r.hint) + '</kbd></button>';
+    }).join('') + (searching ? '<p class="cmdk__status t-caption c-tertiary">Searching people and songs…</p>' : '');
+    input.setAttribute('aria-activedescendant', 'cmdk-opt-' + active);
+  }
+
+  function setActive(i) {
+    if (!rows.length) return;
+    active = (i + rows.length) % rows.length;
+    list.querySelectorAll('[data-cmd]').forEach(function (b) { b.setAttribute('aria-selected', String(+b.dataset.cmd === active)); });
+    input.setAttribute('aria-activedescendant', 'cmdk-opt-' + active);
+    const el = document.getElementById('cmdk-opt-' + active);
+    if (el) el.scrollIntoView({ block: 'nearest' });
   }
 
   function pick(r) {
+    if (!r) return;
     closeOverlay();
-    if (r.kind === 'nav') location.hash = '#/' + r.id;
-    else if (r.kind === 'action') r.run();
-    else location.hash = '#/friends';
+    r.run();
   }
 
-  input.addEventListener('input', function () { paint(input.value); });
-  input.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') {
-      const rows = results(input.value);
-      if (rows.length) { e.preventDefault(); pick(rows[0]); }
-    }
+  function searchRemote() {
+    const q = query();
+    const mySeq = ++seq;
+    clearTimeout(timer);
+    remote.loading = q.replace(/^@/, '').length >= 2;
+    if (!remote.loading) { remote.people = []; remote.songs = []; }
+    paint();
+    if (!remote.loading) return;
+    timer = setTimeout(function () {
+      const canSongs = spotify.auth.isConnected() && q.indexOf('@') !== 0;
+      Promise.all([
+        db.profiles.search(q.replace(/^@/, ''), me).then(function (r) { return r.map(function (p) { return toPerson(p, null); }); }).catch(function () { return []; }),
+        canSongs ? spotify.searchTracks(q, 4).catch(function () { return []; }) : Promise.resolve([])
+      ]).then(function (res) {
+        if (mySeq !== seq || !list.isConnected) return;
+        remote.people = res[0]; remote.songs = res[1]; remote.loading = false;
+        paint();
+      });
+    }, 220);
+  }
+
+  list.addEventListener('click', function (e) {
+    const b = e.target.closest('[data-cmd]');
+    if (b) pick(rows[+b.dataset.cmd]);
   });
-  paint('');
+  list.addEventListener('mousemove', function (e) {
+    const b = e.target.closest('[data-cmd]');
+    if (b && +b.dataset.cmd !== active) setActive(+b.dataset.cmd);
+  });
+  input.addEventListener('input', function () { active = 0; searchRemote(); });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(active + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(active - 1); }
+    else if (e.key === 'Enter') { e.preventDefault(); pick(rows[active]); }
+  });
+  paint();
   input.focus();
 }
 
@@ -1948,6 +2234,17 @@ document.addEventListener('click', function (e) {
   // Arriving from a reply notification: show that thread already open.
   const threadLink = t.closest('[data-open-thread]');
   if (threadLink) UI.openReplies[threadLink.dataset.openThread] = true;
+
+  const shareBtn = t.closest('[data-share-link]');
+  if (shareBtn) { shareLink(shareBtn.dataset.shareLink); return; }
+  const editProfile = t.closest('[data-action="profile-edit"]');
+  if (editProfile) { openEditProfile(editProfile.dataset.focus); return; }
+  if (t.closest('[data-action="feed-retry"]')) { retryFeed(); return; }
+  if (t.closest('[data-action="notif-retry"]')) {
+    DATA.notifications.status = 'idle';
+    setView('notifications');
+    return;
+  }
 
   if (t.closest('[data-action="new-post"]')) { openPostForm(); return; }
   if (t.closest('[data-action="share-now-playing"]')) { openPostForm(); fillPostFromNowPlaying(); return; }
@@ -2113,6 +2410,9 @@ document.addEventListener('click', function (e) {
     const group = tab.parentElement.dataset.tabs;
     if (group === 'feed' && UI.feedScope !== tab.dataset.tab) {
       UI.feedScope = tab.dataset.tab;
+      DATA.feed = [];
+      UI.feedStatus = 'loading';
+      setView('feed');
       loadFeed().then(function () { if (app.view === 'feed') setView('feed'); });
     }
     if (group === 'activity-range' || group === 'music-range' || group === 'dna-range') {
@@ -2190,6 +2490,8 @@ document.addEventListener('input', function (e) {
     clearTimeout(pinSearchTimer);
     pinSearchTimer = setTimeout(function () { runPinSearch(e.target.value); }, 300);
   }
+  if (e.target.id === 'editUsername') checkUsernameInput(e.target.value);
+  if (e.target.id === 'editBio') document.getElementById('editBioCount').textContent = e.target.value.length + ' / ' + BIO_MAX;
   // Hand-editing the song means the picked Spotify cover may no longer match.
   if ((e.target.id === 'postTitle' || e.target.id === 'postArtist') && postTrack) setPostTrack(null);
 });
@@ -2235,6 +2537,7 @@ document.addEventListener('submit', function (e) {
   if (e.target.id === 'authSignupForm') { e.preventDefault(); handleSignup(e.target); }
   if (e.target.id === 'postForm') { e.preventDefault(); handlePostSubmit(e.target); }
   if (e.target.id === 'pinForm') { e.preventDefault(); handlePinSubmit(e.target); }
+  if (e.target.id === 'profileForm') { e.preventDefault(); handleProfileSubmit(e.target); }
   if (e.target.dataset.commentForm) { e.preventDefault(); handleCommentSubmit(e.target); }
 });
 
@@ -2312,7 +2615,8 @@ window.addEventListener('hashchange', function () {
     }
     if (event === 'SIGNED_IN') {
       loadCurrentUser().then(function () {
-        location.hash = '#/home';
+        location.hash = pendingDeepLink || '#/home';
+        pendingDeepLink = null;
         setView(currentRoute());
         startSpotifyPolling();
         startListeningFeed();

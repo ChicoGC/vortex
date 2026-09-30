@@ -82,11 +82,23 @@ const db = {
       return data;
     },
 
+    /* Usernames are unique ignoring case; \ % _ are escaped so ilike matches them literally. */
+    async usernameTaken(username, excludeId) {
+      const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('id')
+        .ilike('username', username.replace(/[\\%_]/g, '\\$&'))
+        .neq('id', excludeId)
+        .limit(1);
+      if (error) throw error;
+      return data.length > 0;
+    },
+
     async getByUsername(username) {
       const { data, error } = await supabaseClient
         .from('profiles')
         .select('*')
-        .eq('username', username)
+        .ilike('username', String(username).replace(/[\\%_]/g, '\\$&'))
         .maybeSingle();
       if (error) throw error;
       return data;

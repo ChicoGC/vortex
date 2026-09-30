@@ -142,11 +142,13 @@ const NOTIF_GLYPH = {
 
 function notifText(n) {
   const who = '<b>' + esc(n.actor.name) + '</b>';
-  const track = n.post ? '<b>' + esc(n.post.track) + '</b>' : 'your post';
+  const track = n.post
+    ? '<b>' + esc(n.post.track) + '</b>' + (n.post.artist ? ' by ' + esc(n.post.artist) : '')
+    : 'your post';
   switch (n.type) {
     case 'reaction': return who + (n.reaction === 'heart' ? ' loved ' : ' gave a flame to ') + track;
     case 'comment': return who + ' commented on ' + track;
-    case 'reply': return who + ' replied to your comment';
+    case 'reply': return who + ' replied to your comment' + (n.post ? ' on ' + track : '');
     case 'friend_request': return who + ' wants to be friends';
     default: return who + ' accepted your friend request';
   }
@@ -191,7 +193,7 @@ VIEWS.notifications = function () {
   if ((st.status === 'idle' || st.status === 'loading') && !st.items.length) {
     body = '<section class="panel section"><div class="section__body section__body--pad">' + dnaLoading('Loading notifications…') + '</div></section>';
   } else if (st.status === 'error' && !st.items.length) {
-    body = ghostPanel(null, null, 'Could not load your notifications. Check your connection and try again.');
+    body = retryPanel('Could not load your notifications. Check your connection.', 'notif-retry');
   } else if (!st.items.length) {
     body = ghostPanel(null, sharePostButton(false), 'Reactions, comments and friend requests show up here as soon as they happen.');
   } else {
@@ -210,7 +212,7 @@ VIEWS.post = function () {
   const pv = UI.postView;
   const head = pageHead('Shared track', 'Post', '<button class="btn btn--ghost btn--sm" data-nav="feed">Open feed</button>');
   if (!pv || pv.status === 'loading') {
-    return wrap(head, '<section class="panel section"><div class="section__body section__body--pad">' + dnaLoading('Loading post…') + '</div></section>');
+    return wrap(head, '<div class="post-page">' + skeletonPosts(1) + '</div>');
   }
   if (pv.status === 'notfound') return wrap(head, ghostPanel(null, null, 'This post was deleted.'));
   if (pv.status === 'error') return wrap(head, ghostPanel(null, null, 'Could not load this post. Try again in a moment.'));
@@ -357,7 +359,7 @@ VIEWS.compare = function () {
     return wrap(pageHead('Taste match', 'Loading…'), friendProfileLoading());
   }
   if (state.status === 'notfound') {
-    return wrap(pageHead('Taste match', 'Not found'), ghostPanel(null, findFriendsButton(true), 'No vortex profile found for “' + esc(username) + '”.'));
+    return wrap(pageHead('Taste match', 'Not found'), ghostPanel(null, findFriendsButton(true), 'No vortex profile found for “' + username + '”.'));
   }
   if (state.status === 'error') {
     return wrap(pageHead('Taste match', 'Compare'), ghostPanel(null, null, 'Could not load this profile. Try again in a moment.'));

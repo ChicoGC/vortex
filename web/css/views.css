@@ -1134,3 +1134,57 @@ button.tile[aria-pressed="true"] { border-color: var(--accent-border); backgroun
   .choice__pv { height: 56px; padding: 0 7px; }
   .motionrow__demo { margin-left: 0; }
 }
+
+/* ---- loading skeletons -------------------------------------------------- */
+.skel-list { padding: 4px 0; }
+.skel-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px 8px 8px; }
+.skel-row__lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.skel--line { display: block; height: 11px; border-radius: 6px; }
+.skel--sub { height: 9px; opacity: .7; }
+.skel--title { display: block; height: 20px; border-radius: 8px; }
+.skel--art { flex: none; width: 40px; height: 40px; border-radius: 10px; }
+.skel--art-lg { flex: none; width: 56px; height: 56px; border-radius: 12px; }
+.skel--avatar { flex: none; width: 32px; height: 32px; border-radius: 50%; }
+.skel--avatar-xl { flex: none; width: 72px; height: 72px; border-radius: 50%; }
+.skel-post { display: flex; flex-direction: column; gap: 6px; padding: 12px 8px; }
+.skel-list .skel-row + .skel-row .skel { animation-delay: .08s; }
+.skel-list .skel-row + .skel-row + .skel-row .skel { animation-delay: .16s; }
+
+/* ---- invite link -------------------------------------------------------- */
+.invite {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 4px; padding: 12px 12px 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--glass-border-strong);
+}
+.invite__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.invite .btn { flex: none; }
+
+/* ---- profile editing ---------------------------------------------------- */
+.profile__addbio {
+  display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+  margin-top: 4px; padding: 3px 8px 3px 6px; border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.profile__addbio:hover { color: var(--text-primary); background: var(--glass-raised); }
+.field__at { color: var(--text-tertiary); font-size: 15px; margin-right: -6px; }
+.field-hint { color: var(--text-tertiary); overflow-wrap: anywhere; }
+.field-hint[data-state="bad"] { color: var(--state-negative); }
+.field-hint[data-state="good"] { color: var(--state-positive); }
+.field-label-row { display: flex; align-items: baseline; justify-content: space-between; }
+
+/* ---- search palette ----------------------------------------------------- */
+.cmdk__list { max-height: min(420px, 60vh); }
+.cmdk__group { margin: 0; }
+.cmdk__item[aria-selected="true"] { background: var(--glass-raised); color: var(--text-primary); }
+.cmdk__item--tall { height: auto; min-height: 44px; padding-top: 5px; padding-bottom: 5px; }
+.cmdk__item .avatar, .cmdk__item .art { flex: none; }
+.cmdk__item .art--sm { width: 28px; height: 28px; border-radius: 7px; }
+.menu__item .cmdk__text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.cmdk__item kbd { flex: none; }
+.cmdk__status { padding: 10px 10px 4px; }
+
+/* ---- live notification toast -------------------------------------------- */
+.toast__link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; color: inherit; }
+.toast__link:hover .notif__text { color: var(--text-primary); }

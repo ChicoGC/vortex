@@ -9,7 +9,7 @@ UI.playlistItems = {};
 UI.savedPlaylist = {};   // range -> { status: 'saving' | 'ok' | 'error', url }
 
 function dnaLoading(text) {
-  return '<p class="t-body-s c-tertiary friends__hint">' + esc(text || 'Loading from Spotify…') + '</p>';
+  return skeletonRows(3, text || 'Loading from Spotify…');
 }
 
 function trunc(s, n) {

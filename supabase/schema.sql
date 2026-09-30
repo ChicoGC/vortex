@@ -57,6 +57,15 @@ alter table public.profiles add constraint profiles_username_format_check
 create unique index if not exists profiles_username_lower_idx
   on public.profiles (lower(username));
 
+-- Length caps for what Edit profile writes (the form enforces 50 and 160).
+-- The name cap is NOT VALID so an older, longer name can't block the upgrade.
+alter table public.profiles drop constraint if exists profiles_bio_length_check;
+alter table public.profiles add constraint profiles_bio_length_check
+  check (bio is null or char_length(bio) <= 160);
+alter table public.profiles drop constraint if exists profiles_name_length_check;
+alter table public.profiles add constraint profiles_name_length_check
+  check (char_length(name) <= 80) not valid;
+
 -- Auto-create a profile row whenever a new auth user signs up.
 -- A valid username from the signup metadata is used as-is; if it's taken the
 -- unique index rejects the signup, rather than silently handing out a

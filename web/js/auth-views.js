@@ -10,7 +10,7 @@ VIEWS.login = function () {
       '<div class="auth__head">' +
         '<span class="auth__mark"><img src="assets/logo-64.png" width="30" height="30" alt=""></span>' +
         '<h2 class="t-title-m">Sign in to vortex</h2>' +
-        '<p class="t-body-s c-tertiary">See what your friends are listening to, in real time.</p>' +
+        '<p class="t-body-s c-tertiary">' + (pendingDeepLink ? 'Log in to open the link you were sent.' : 'See what your friends are listening to, in real time.') + '</p>' +
       '</div>' +
       '<div class="auth__note auth__note--error" id="authError" hidden>' + icon('close', 16) +
         '<p class="t-body-s c-secondary" id="authErrorText"></p>' +
@@ -44,7 +44,7 @@ VIEWS.signup = function () {
       '<div class="auth__head">' +
         '<span class="auth__mark"><img src="assets/logo-64.png" width="30" height="30" alt=""></span>' +
         '<h2 class="t-title-m">Create your account</h2>' +
-        '<p class="t-body-s c-tertiary">Free while vortex is in beta.</p>' +
+        '<p class="t-body-s c-tertiary">' + (pendingDeepLink ? 'Sign up to open the link you were sent.' : 'Free while vortex is in beta.') + '</p>' +
       '</div>' +
       '<div class="auth__note auth__note--error" id="authError" hidden>' + icon('close', 16) +
         '<p class="t-body-s c-secondary" id="authErrorText"></p>' +
@@ -52,7 +52,7 @@ VIEWS.signup = function () {
       '<div class="auth__field">' +
         '<label class="t-label-m c-secondary" for="authName">Name</label>' +
         '<span class="field">' + icon('user', 17) +
-          '<input id="authName" type="text" placeholder="Your name" autocomplete="name" required></span>' +
+          '<input id="authName" type="text" placeholder="Your name" autocomplete="name" maxlength="50" required></span>' +
       '</div>' +
       '<div class="auth__field">' +
         '<label class="t-label-m c-secondary" for="authUsername">Username</label>' +
