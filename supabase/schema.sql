@@ -700,3 +700,171 @@ alter table public.profiles add constraint profiles_pin_check check (
   and (pin_track_id is null or pin_track_id ~ '^[A-Za-z0-9]{22}$')
   and (pin_image is null or pin_image ~ '^https://i\.scdn\.co/image/[A-Za-z0-9]+$')
 );
+
+-- ==========================================================================
+-- blocks
+-- Only the blocker can see their own blocks. Blocking ends the friendship
+-- and clears notifications between the two; after that the blocked person
+-- can't send a friend request, react to or comment on the blocker's posts,
+-- or reach them through a notification of any kind.
+-- ==========================================================================
+create table if not exists public.blocks (
+  blocker_id uuid not null references public.profiles(id) on delete cascade,
+  blocked_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker_id, blocked_id),
+  check (blocker_id <> blocked_id)
+);
+
+alter table public.blocks enable row level security;
+
+drop policy if exists "users see who they blocked" on public.blocks;
+create policy "users see who they blocked"
+  on public.blocks for select
+  using (auth.uid() = blocker_id);
+
+drop policy if exists "users block as themselves" on public.blocks;
+create policy "users block as themselves"
+  on public.blocks for insert
+  with check (auth.uid() = blocker_id);
+
+drop policy if exists "users unblock as themselves" on public.blocks;
+create policy "users unblock as themselves"
+  on public.blocks for delete
+  using (auth.uid() = blocker_id);
+
+-- Whether a block stands between the caller and `other`, in either direction.
+-- Takes only one id, so nobody can ask about blocks between two other people.
+create or replace function public.blocked_with(other uuid)
+returns boolean
+language sql
+stable
+security definer set search_path = public
+as $$
+  select exists (
+    select 1 from public.blocks
+    where (blocker_id = auth.uid() and blocked_id = other)
+       or (blocker_id = other and blocked_id = auth.uid())
+  );
+$$;
+
+create or replace function public.apply_block()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  delete from public.friendships
+  where (requester_id = new.blocker_id and addressee_id = new.blocked_id)
+     or (requester_id = new.blocked_id and addressee_id = new.blocker_id);
+  delete from public.notifications
+  where (recipient_id = new.blocker_id and actor_id = new.blocked_id)
+     or (recipient_id = new.blocked_id and actor_id = new.blocker_id);
+  return new;
+end;
+$$;
+
+drop trigger if exists blocks_apply on public.blocks;
+create trigger blocks_apply
+  after insert on public.blocks
+  for each row execute function public.apply_block();
+
+drop policy if exists "users can send friend requests" on public.friendships;
+create policy "users can send friend requests"
+  on public.friendships for insert
+  with check (auth.uid() = requester_id and status = 'pending' and not public.blocked_with(addressee_id));
+
+drop policy if exists "users can react as themselves" on public.reactions;
+create policy "users can react as themselves"
+  on public.reactions for insert
+  with check (
+    auth.uid() = user_id
+    and not public.blocked_with((select p.user_id from public.posts p where p.id = post_id))
+  );
+
+drop policy if exists "users can comment as themselves" on public.comments;
+create policy "users can comment as themselves"
+  on public.comments for insert
+  with check (
+    auth.uid() = user_id
+    and not public.blocked_with((select p.user_id from public.posts p where p.id = post_id))
+  );
+
+-- Catches what the policies can't, like a reply to the blocker's comment on
+-- someone else's post: the notification is simply dropped.
+create or replace function public.skip_blocked_notification()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if exists (
+    select 1 from public.blocks
+    where (blocker_id = new.recipient_id and blocked_id = new.actor_id)
+       or (blocker_id = new.actor_id and blocked_id = new.recipient_id)
+  ) then
+    return null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists notifications_skip_blocked on public.notifications;
+create trigger notifications_skip_blocked
+  before insert on public.notifications
+  for each row execute function public.skip_blocked_notification();
+
+-- ==========================================================================
+-- reports
+-- Write-only from the app (no select policy): review them in the Table
+-- Editor. A post report keeps a copy of the post, so it survives deletion.
+-- One report per person, per account or post.
+-- ==========================================================================
+create table if not exists public.reports (
+  id uuid primary key default gen_random_uuid(),
+  reporter_id uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  reported_id uuid not null references public.profiles(id) on delete cascade,
+  post_id uuid,
+  post_snapshot text,
+  reason text not null check (reason in ('spam', 'harassment', 'hate', 'sexual_violent', 'impersonation', 'other')),
+  details text check (details is null or char_length(details) <= 500),
+  created_at timestamptz not null default now(),
+  check (reporter_id <> reported_id)
+);
+
+create unique index if not exists reports_once_idx
+  on public.reports (reporter_id, reported_id, coalesce(post_id, '00000000-0000-0000-0000-000000000000'::uuid));
+
+alter table public.reports enable row level security;
+
+drop policy if exists "users report as themselves" on public.reports;
+create policy "users report as themselves"
+  on public.reports for insert
+  with check (auth.uid() = reporter_id);
+
+create or replace function public.snapshot_reported_post()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  p record;
+begin
+  new.created_at := now();
+  new.post_snapshot := null;
+  if new.post_id is not null then
+    select track_title, artist, note into p from public.posts
+    where id = new.post_id and user_id = new.reported_id;
+    if not found then
+      raise exception 'That post is not by the reported account.' using errcode = 'P0001', hint = 'invalid_post';
+    end if;
+    new.post_snapshot := p.track_title || ' — ' || p.artist || coalesce(E'\n' || p.note, '');
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists reports_snapshot on public.reports;
+create trigger reports_snapshot
+  before insert on public.reports
+  for each row execute function public.snapshot_reported_post();

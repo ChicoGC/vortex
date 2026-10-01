@@ -19,7 +19,9 @@ const NAV = [
 ];
 
 const MOBILE_NAV = ['home', 'feed', 'friends', 'music', 'profile'];
-const PUBLIC_VIEWS = ['login', 'signup'];
+const PUBLIC_VIEWS = ['login', 'signup', 'forgot'];
+/* Shown without the sidebar and tab bar: the public views, plus choosing a new password. */
+const BARE_VIEWS = PUBLIC_VIEWS.concat('reset');
 
 const STORE = {
   get: function (k, fallback) {
@@ -72,11 +74,16 @@ function transformComment(c, currentUserId) {
   };
 }
 
+function isBlocked(userId) {
+  return DATA.blocked.some(function (b) { return b.id === userId; });
+}
+
 function transformPostData(post, currentUserId) {
   const reactions = post.reactions || [];
   function count(type) { return reactions.filter(function (r) { return r.type === type; }).length; }
   function mineOf(type) { return reactions.some(function (r) { return r.type === type && r.user_id === currentUserId; }); }
   const comments = (post.comments || [])
+    .filter(function (c) { return !isBlocked(c.user_id); })
     .slice()
     .sort(function (a, b) { return new Date(a.created_at) - new Date(b.created_at); })
     .map(function (c) { return transformComment(c, currentUserId); });
@@ -109,7 +116,7 @@ async function loadCurrentUser() {
   if (!app.session) return;
   try {
     const profile = await db.profiles.get(app.session.user.id);
-    await Promise.all([loadFriends(), loadMyActivity()]);
+    await Promise.all([loadFriends(), loadMyActivity(), loadBlocks()]);
 
     DATA.me.name = profile.name;
     DATA.me.email = app.session.user.email;
@@ -179,6 +186,17 @@ async function loadFriends() {
   updateFriendsBadge();
 }
 
+/* Missing table (schema not run yet) or a network blip just means nobody is hidden. */
+async function loadBlocks() {
+  if (!app.session) return;
+  try {
+    const rows = await db.blocks.list(app.session.user.id);
+    DATA.blocked = rows.filter(function (r) { return r.blocked; }).map(function (r) { return toPerson(r.blocked, null); });
+  } catch (err) {
+    console.warn('Could not load blocked accounts:', err);
+  }
+}
+
 function updateFriendsBadge() {
   const link = document.querySelector('#sidebar [data-view-link="friends"]');
   if (!link) return;
@@ -205,7 +223,7 @@ async function loadFeed() {
     const authors = scope === 'Friends' ? [me].concat(DATA.friends.map(function (f) { return f.id; })) : null;
     const posts = await db.posts.list(30, authors);
     if (seq !== feedLoadSeq) return;  // a newer load (e.g. the other tab) owns the feed now
-    DATA.feed = posts.map(function (post) {
+    DATA.feed = posts.filter(function (post) { return !isBlocked(post.user_id); }).map(function (post) {
       return transformPostData(post, me);
     });
     UI.feedStatus = 'ok';
@@ -391,6 +409,89 @@ async function handleSignup(form) {
   }
 }
 
+/* ---- password reset --------------------------------------------------------- */
+/* Supabase rate-limits reset emails per address; the 60s wait mirrors its default. */
+const RESET_COOLDOWN_MS = 60000;
+const forgotState = { draft: '', sentTo: null, cooldownUntil: 0 };
+/* Where "Cancel" and a saved password lead: back to Settings when that's where you came from. */
+let resetReturn = '#/home';
+let forgotTimer = null;
+
+async function sendResetLink(email) {
+  await db.auth.sendPasswordReset(email);
+  forgotState.sentTo = email;
+  forgotState.cooldownUntil = Date.now() + RESET_COOLDOWN_MS;
+}
+
+function resetErrorText(err) {
+  if (err && err.status === 429) return 'Too many reset emails were sent. Wait a few minutes and try again.';
+  return (err && err.message) || 'Could not send the email. Try again in a moment.';
+}
+
+async function handleForgot(form) {
+  const email = form.querySelector('#authEmail').value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthMessage('Enter the email address you signed up with.', true); return; }
+  const btn = document.getElementById('authForgotSubmit');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await sendResetLink(email);
+    setView('forgot');
+  } catch (err) {
+    console.error('Password reset email failed:', err);
+    btn.disabled = false; btn.textContent = 'Send reset link';
+    showAuthMessage(resetErrorText(err), true);
+  }
+}
+
+async function resendResetLink() {
+  if (!forgotState.sentTo || Date.now() < forgotState.cooldownUntil) return;
+  const btn = document.getElementById('forgotResend');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    await sendResetLink(forgotState.sentTo);
+    showToast('<span class="toast__well toast__well--success">' + icon('check', 15) + '</span>' +
+      '<span class="toast__body"><span class="t-label-m">Sent again</span><span class="t-caption c-tertiary">Use the newest email; older links stop working</span></span>');
+  } catch (err) {
+    console.error('Password reset email failed:', err);
+    toast('resetFailed');
+  }
+  paintForgotCooldown();
+}
+
+function paintForgotCooldown() {
+  clearInterval(forgotTimer);
+  function tick() {
+    const btn = document.getElementById('forgotResend');
+    const left = forgotState.cooldownUntil - Date.now();
+    if (!btn) { clearInterval(forgotTimer); return; }
+    btn.disabled = left > 0;
+    btn.textContent = left > 0 ? 'Send it again in ' + Math.ceil(left / 1000) + 's' : 'Send it again';
+    if (left <= 0) clearInterval(forgotTimer);
+  }
+  tick();
+  forgotTimer = setInterval(tick, 1000);
+}
+
+async function handleReset(form) {
+  const pass = form.querySelector('#authNewPass').value;
+  const again = form.querySelector('#authNewPass2').value;
+  if (pass.length < 6) { showAuthMessage('Use at least 6 characters.', true); return; }
+  if (pass !== again) { showAuthMessage('The two passwords don’t match.', true); return; }
+  const btn = document.getElementById('authResetSubmit');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await db.auth.setPassword(pass);
+    location.hash = resetReturn;
+    toast('passwordUpdated');
+  } catch (err) {
+    console.error('Password update failed:', err);
+    btn.disabled = false; btn.textContent = 'Save new password';
+    showAuthMessage(err && err.code === 'same_password'
+      ? 'That’s your current password. Pick a different one.'
+      : (err && err.message) || 'Could not save the password. Try again.', true);
+  }
+}
+
 /* ---- sidebar ------------------------------------------------------------ */
 function renderNowPlayingMini() {
   const np = DATA.nowPlaying;
@@ -553,7 +654,7 @@ function setView(name) {
   app.view = name;
   document.getElementById('viewRoot').innerHTML = VIEWS[name]();
   markCurrentNav();
-  const authed = PUBLIC_VIEWS.indexOf(name) === -1;
+  const authed = BARE_VIEWS.indexOf(name) === -1;
   document.getElementById('app').dataset.authed = String(authed);
   document.getElementById('sidebar').hidden = !authed;
   document.getElementById('bottomnav').hidden = !authed;
@@ -567,6 +668,7 @@ function setView(name) {
   syncAppearanceControls();
   updatePlayerUI();
   if (name === 'login') paintLoginLock();
+  if (name === 'forgot') paintForgotCooldown();
   ensureSpotifyLibrary(name);
   const scroller = document.querySelector('.view-scroll');
   if (scroller) scroller.scrollTop = 0;
@@ -588,7 +690,7 @@ function markCurrentNav() {
 function repaintSidebar() {
   document.getElementById('sidebar').innerHTML = renderSidebar();
   markCurrentNav();
-  setRail(document.getElementById('app').dataset.rail === 'compact');
+  applyRail();
 }
 
 /* ---- theme & preferences ------------------------------------------------ */
@@ -598,9 +700,19 @@ function setTheme(theme) {
   syncAppearanceControls();
 }
 
+/* Below 1100px the grid only has room for the rail, so it's compact whatever the saved preference says. */
+const RAIL_NARROW = window.matchMedia('(max-width: 1100px)');
+
+function railPref() { return STORE.get('rail', 'full') === 'compact'; }
+
 function setRail(compact) {
-  document.getElementById('app').dataset.rail = compact ? 'compact' : 'full';
   STORE.set('rail', compact ? 'compact' : 'full');
+  applyRail();
+}
+
+function applyRail() {
+  const compact = railPref() || RAIL_NARROW.matches;
+  document.getElementById('app').dataset.rail = compact ? 'compact' : 'full';
   const btn = document.getElementById('railToggle');
   if (btn) {
     btn.style.transform = compact ? 'rotate(180deg)' : '';
@@ -619,7 +731,7 @@ function syncAppearanceControls() {
   document.querySelectorAll('[data-theme-pick]').forEach(function (b) {
     b.setAttribute('aria-pressed', String(b.dataset.themePick === theme));
   });
-  const railOn = document.getElementById('app').dataset.rail === 'compact';
+  const railOn = railPref();
   const railToggle = document.querySelector('[data-toggle="rail"]');
   if (railToggle) railToggle.setAttribute('aria-checked', String(railOn));
   const ambOn = STORE.get('ambient', '1') === '1';
@@ -1281,6 +1393,33 @@ async function saveTopTracksPlaylist() {
   if (app.view === 'music') loadLibrary('playlists');
 }
 
+async function saveBlend(profileId) {
+  const fp = UI.friendProfile;
+  const theirs = DATA.tastes[profileId];
+  const mine = mySnapshot();
+  if (!fp || fp.status !== 'ok' || fp.profile.id !== profileId || !theirs || !mine) return;
+  const b = blendTracks(mine, theirs);
+  const me = (DATA.me.name || 'You').split(/\s+/)[0];
+  const them = fp.profile.name.split(/\s+/)[0];
+  UI.blend[profileId] = { status: 'saving' };
+  paintLibraryPanels();
+  try {
+    const res = await spotify.createPlaylist(
+      'vortex · ' + me + ' + ' + them,
+      'What ' + me + ' and ' + them + ' both love, then each one\'s favorites, taking turns. Made on vortex.',
+      b.tracks.map(function (t) { return t.id; })
+    );
+    UI.blend[profileId] = { status: 'ok', url: res.url };
+    UI.spotifyLib.playlists = null;
+    toast('playlistSaved');
+  } catch (err) {
+    console.error('Could not create blend playlist:', err);
+    UI.blend[profileId] = null;
+    toast('playlistFailed');
+  }
+  paintLibraryPanels();
+}
+
 const AVATAR_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -1374,6 +1513,11 @@ const TOASTS = {
   profileLinkCopied: ['success', 'Link copied', 'It opens the profile, with an Add friend button'],
   linkFailed: ['error', 'Could not copy the link', 'Your browser blocked the clipboard'],
   profileSaved: ['success', 'Profile saved', 'Everyone sees the new version now'],
+  passwordUpdated: ['success', 'Password changed', 'Use the new one next time you log in'],
+  userBlocked: ['success', 'Blocked', 'Unblock any time in Settings'],
+  userUnblocked: ['info', 'Unblocked', 'They can find and add you again'],
+  blockFailed: ['error', 'Something went wrong', 'Check your connection and try again'],
+  resetFailed: ['error', 'Email not sent', 'Wait a few minutes and try again'],
   reactionFailed: ['error', 'Reaction not saved', 'Check your connection and try again'],
   commentFailed: ['error', 'Comment not sent', 'Your text is still in the box, try again'],
   commentRateLimited: ['error', 'Slow down', 'Max 3 comments per post per minute. Your text is still in the box'],
@@ -1884,7 +2028,7 @@ async function runFriendSearch() {
   try {
     const rows = await db.profiles.search(q, app.session.user.id);
     if (seq !== friendSearchSeq) return;
-    s.results = rows.map(function (r) { return toPerson(r, null); });
+    s.results = rows.filter(function (r) { return !isBlocked(r.id); }).map(function (r) { return toPerson(r, null); });
   } catch (err) {
     if (seq !== friendSearchSeq) return;
     console.error('Friend search failed:', err);
@@ -1941,6 +2085,168 @@ function openRemoveFriend(friendshipId) {
       .then(closeOverlay);
   });
   confirm.focus();
+}
+
+/* ---- block & report --------------------------------------------------------------- */
+const REPORT_REASONS = [
+  ['spam', 'Spam', 'Ads, scams or the same thing over and over'],
+  ['harassment', 'Harassment or bullying', 'Picking on you or someone else'],
+  ['hate', 'Hate speech', 'Attacking someone for who they are'],
+  ['sexual_violent', 'Sexual or violent content', 'In a post, comment, photo or bio'],
+  ['impersonation', 'Pretending to be someone else', 'Using another person’s name or photo'],
+  ['other', 'Something else', 'Say what happened below']
+];
+
+let safety = null;   // { person: { id, name, username }, postId, step: 'menu'|'report'|'reported'|'block' }
+
+function safetyTrigger(person, postId, label) {
+  return '<button class="iconbtn" data-safety="' + esc(person.id) + '" data-safety-name="' + esc(person.name) + '" ' +
+    'data-safety-handle="' + esc(person.username) + '"' + (postId ? ' data-safety-post="' + esc(postId) + '"' : '') +
+    ' data-tip="More" aria-label="' + esc(label) + '">' + icon('dots', 16) + '</button>';
+}
+
+function openSafety(person, postId) {
+  safety = { person: person, postId: postId || null, step: 'menu' };
+  const o = document.getElementById('overlay');
+  o.hidden = false;
+  o.innerHTML = '<div class="scrim" data-scrim><div class="modal modal--tall" role="dialog" aria-modal="true" aria-labelledby="safetyTitle"></div></div>';
+  paintSafety();
+}
+
+function choiceRow(attrs, glyph, title, sub, danger) {
+  return '<button type="button" class="' + cx('sheet-option', danger && 'sheet-option--danger') + '" ' + attrs + '>' + icon(glyph, 18) +
+    '<span class="sheet-option__meta"><span class="t-body-m-med">' + esc(title) + '</span><span class="t-body-s c-tertiary">' + esc(sub) + '</span></span>' +
+    icon('chevronRight', 16) + '</button>';
+}
+
+function paintSafety() {
+  const modal = document.querySelector('#overlay .modal');
+  if (!modal || !safety) return;
+  const p = safety.person, handle = '@' + p.username, first = p.name.split(/\s+/)[0];
+  const blocked = isBlocked(p.id);
+  const head = function (well, glyph, title) {
+    return '<div class="modal__head"><span class="toast__well toast__well--' + well + '">' + icon(glyph, 15) + '</span>' +
+      '<h2 class="t-title-s truncate" id="safetyTitle">' + esc(title) + '</h2></div>';
+  };
+  const blockRow = blocked
+    ? choiceRow('data-safety-unblock="' + esc(p.id) + '"', 'ban', 'Unblock ' + handle, 'They’ll be able to find and add you again.')
+    : choiceRow('data-safety-step="block"', 'ban', 'Block ' + handle, 'They can’t add you, react to or comment on your posts.', true);
+  let html;
+  if (safety.step === 'menu') {
+    html = head('info', 'user', p.name) +
+      '<div class="modal__body sheet-options">' +
+        choiceRow('data-safety-step="report"', 'flag', safety.postId ? 'Report this post' : 'Report ' + handle, first + ' won’t know who reported them.') +
+        blockRow +
+      '</div>' +
+      '<div class="modal__foot"><button type="button" class="btn btn--ghost btn--sm" data-close>Cancel</button></div>';
+  } else if (safety.step === 'report') {
+    html = head('error', 'flag', safety.postId ? 'Report this post' : 'Report ' + handle) +
+      '<form class="modal__body" id="reportForm" novalidate>' +
+        '<div class="auth__note auth__note--error" id="reportError" hidden>' + icon('close', 16) + '<p class="t-body-s c-secondary" id="reportErrorText"></p></div>' +
+        '<fieldset class="reasons"><legend class="t-label-m c-secondary">What’s wrong?</legend>' +
+          REPORT_REASONS.map(function (r) {
+            return '<label class="reason"><input type="radio" name="reason" value="' + r[0] + '">' +
+              '<span class="reason__meta"><span class="t-body-m-med">' + esc(r[1]) + '</span><span class="t-body-s c-tertiary">' + esc(r[2]) + '</span></span></label>';
+          }).join('') +
+        '</fieldset>' +
+        '<div class="auth__field">' +
+          '<label class="t-label-m c-secondary" for="reportDetails">Anything we should know?</label>' +
+          '<span class="field field--area"><textarea id="reportDetails" placeholder="Optional, up to 500 characters" maxlength="500" rows="2"></textarea></span>' +
+        '</div>' +
+      '</form>' +
+      '<div class="modal__foot">' +
+        '<button type="button" class="btn btn--ghost btn--sm" data-safety-step="menu">Back</button>' +
+        '<button type="submit" class="btn btn--primary btn--sm" form="reportForm" id="reportSubmit">Send report</button>' +
+      '</div>';
+  } else if (safety.step === 'reported') {
+    html = head('success', 'check', 'Report sent') +
+      '<div class="modal__body sheet-options">' +
+        '<p class="t-body-m c-secondary">Thanks for telling us. ' + esc(first) + ' isn’t told who sent it.</p>' +
+        (blocked ? '' : blockRow) +
+      '</div>' +
+      '<div class="modal__foot"><button type="button" class="btn btn--primary btn--sm" data-close>Done</button></div>';
+  } else {
+    html = head('error', 'ban', 'Block ' + handle + '?') +
+      '<div class="modal__body">' +
+        '<ul class="consequences t-body-s c-secondary">' +
+          '<li>You stop being friends, and stop seeing each other’s listening and music DNA.</li>' +
+          '<li>' + esc(first) + ' can’t send you friend requests, or react to and comment on your posts.</li>' +
+          '<li>Their posts and comments are hidden from you.</li>' +
+          '<li>They aren’t told. You can unblock them in Settings.</li>' +
+        '</ul>' +
+      '</div>' +
+      '<div class="modal__foot">' +
+        '<button type="button" class="btn btn--ghost btn--sm" data-safety-step="menu">Back</button>' +
+        '<button type="button" class="btn btn--primary btn--sm" data-safety-block id="blockConfirm">Block ' + esc(first) + '</button>' +
+      '</div>';
+  }
+  modal.innerHTML = html;
+  const focus = modal.querySelector('.sheet-option, input[name="reason"], #blockConfirm, .modal__foot .btn--primary');
+  if (focus) focus.focus();
+}
+
+async function handleReportSubmit(form) {
+  const picked = form.querySelector('input[name="reason"]:checked');
+  const err = document.getElementById('reportError');
+  const say = function (msg) { document.getElementById('reportErrorText').textContent = msg; err.hidden = false; };
+  if (!picked) { say('Pick the reason that fits best.'); return; }
+  const details = form.querySelector('#reportDetails').value.trim().slice(0, 500);
+  if (picked.value === 'other' && !details) { say('Say a few words about what happened.'); return; }
+  const btn = document.getElementById('reportSubmit');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await db.reports.create(app.session.user.id, { reportedId: safety.person.id, postId: safety.postId, reason: picked.value, details: details });
+    safety.step = 'reported';
+    paintSafety();
+  } catch (e) {
+    console.error('Report failed:', e);
+    btn.disabled = false; btn.textContent = 'Send report';
+    say('Could not send the report. Check your connection and try again.');
+  }
+}
+
+/* After a block changes, everything that mixes in other people's content is reloaded. */
+async function afterBlockChange() {
+  try { await loadFriends(); } catch (e) { console.warn('Could not reload friends:', e); }
+  refreshFriendsUI();
+  reloadListening();
+  setView(app.view);
+  await loadFeed();
+  if (['feed', 'home', 'post', 'friendProfile', 'compare'].indexOf(app.view) > -1) setView(app.view);
+}
+
+async function blockPerson(btn) {
+  const p = safety.person;
+  btn.disabled = true; btn.textContent = 'Blocking…';
+  try {
+    await db.blocks.add(app.session.user.id, p.id);
+    DATA.blocked = [{ id: p.id, name: p.name, username: p.username, initials: initialsFrom(p.name), avatarUrl: null }]
+      .concat(DATA.blocked.filter(function (b) { return b.id !== p.id; }));
+    delete DATA.tastes[p.id];
+    closeOverlay();
+    toast('userBlocked');
+    await afterBlockChange();
+    loadBlocks();
+  } catch (e) {
+    console.error('Block failed:', e);
+    btn.disabled = false; btn.textContent = 'Block ' + p.name.split(/\s+/)[0];
+    toast('blockFailed');
+  }
+}
+
+async function unblockPerson(btn, id) {
+  btn.disabled = true;
+  try {
+    await db.blocks.remove(app.session.user.id, id);
+    DATA.blocked = DATA.blocked.filter(function (b) { return b.id !== id; });
+    closeOverlay();
+    toast('userUnblocked');
+    await afterBlockChange();
+  } catch (e) {
+    console.error('Unblock failed:', e);
+    btn.disabled = false;
+    toast('blockFailed');
+  }
 }
 
 function openDeletePost(postId) {
@@ -2033,7 +2339,7 @@ async function handlePostSubmit(form) {
 
 const CMD_ACTIONS = [
   { label: 'Toggle theme', hint: 'Customization', run: function () { setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); }, icon: 'droplet' },
-  { label: 'Toggle compact sidebar', hint: 'Navigation', run: function () { setRail(document.getElementById('app').dataset.rail !== 'compact'); }, icon: 'bars' }
+  { label: 'Toggle compact sidebar', hint: 'Navigation', run: function () { setRail(!railPref()); }, icon: 'bars' }
 ];
 
 const RELATION_HINT = { friends: 'Friend', incoming: 'Wants to be friends', outgoing: 'Requested' };
@@ -2158,7 +2464,9 @@ function openCmdk() {
     timer = setTimeout(function () {
       const canSongs = spotify.auth.isConnected() && q.indexOf('@') !== 0;
       Promise.all([
-        db.profiles.search(q.replace(/^@/, ''), me).then(function (r) { return r.map(function (p) { return toPerson(p, null); }); }).catch(function () { return []; }),
+        db.profiles.search(q.replace(/^@/, ''), me).then(function (r) {
+          return r.filter(function (p) { return !isBlocked(p.id); }).map(function (p) { return toPerson(p, null); });
+        }).catch(function () { return []; }),
         canSongs ? spotify.searchTracks(q, 4).catch(function () { return []; }) : Promise.resolve([])
       ]).then(function (res) {
         if (mySeq !== seq || !list.isConnected) return;
@@ -2240,6 +2548,14 @@ document.addEventListener('click', function (e) {
   const editProfile = t.closest('[data-action="profile-edit"]');
   if (editProfile) { openEditProfile(editProfile.dataset.focus); return; }
   if (t.closest('[data-action="feed-retry"]')) { retryFeed(); return; }
+  if (t.closest('[data-forgot-link]')) {
+    const email = document.getElementById('authEmail');
+    forgotState.draft = email ? email.value.trim() : '';
+    forgotState.sentTo = null;
+    return;
+  }
+  if (t.closest('[data-action="forgot-resend"]')) { resendResetLink(); return; }
+  if (t.closest('[data-action="reset-skip"]')) { location.hash = resetReturn; return; }
   if (t.closest('[data-action="notif-retry"]')) {
     DATA.notifications.status = 'idle';
     setView('notifications');
@@ -2263,6 +2579,18 @@ document.addEventListener('click', function (e) {
 
   const deleteBtn = t.closest('[data-delete-post]');
   if (deleteBtn) { openDeletePost(deleteBtn.dataset.deletePost); return; }
+
+  const safetyBtn = t.closest('[data-safety]');
+  if (safetyBtn) {
+    openSafety({ id: safetyBtn.dataset.safety, name: safetyBtn.dataset.safetyName, username: safetyBtn.dataset.safetyHandle }, safetyBtn.dataset.safetyPost);
+    return;
+  }
+  const safetyStep = t.closest('[data-safety-step]');
+  if (safetyStep && safety) { safety.step = safetyStep.dataset.safetyStep; paintSafety(); return; }
+  const blockBtn = t.closest('[data-safety-block]');
+  if (blockBtn && safety) { blockPerson(blockBtn); return; }
+  const unblockBtn = t.closest('[data-safety-unblock]');
+  if (unblockBtn) { unblockPerson(unblockBtn, unblockBtn.dataset.safetyUnblock); return; }
 
   const addFriend = t.closest('[data-friend-add]');
   if (addFriend) {
@@ -2292,7 +2620,7 @@ document.addEventListener('click', function (e) {
   if (t.closest('[data-action="post-clear-track"]')) { setPostTrack(null); return; }
 
   if (t.closest('#openCmdk') || t.closest('#openCmdkMobile')) { openCmdk(); return; }
-  if (t.closest('#railToggle')) { setRail(document.getElementById('app').dataset.rail !== 'compact'); return; }
+  if (t.closest('#railToggle')) { setRail(!railPref()); return; }
 
   const themeBtn = t.closest('[data-theme-pick]');
   if (themeBtn) { setTheme(themeBtn.dataset.themePick); return; }
@@ -2347,12 +2675,14 @@ document.addEventListener('click', function (e) {
   if (playlistBtn) { openPlaylist(playlistBtn.dataset.playlistOpen); return; }
   if (t.closest('[data-playlist-close]')) { UI.playlistOpen = null; paintLibraryPanels(); return; }
   if (t.closest('[data-action="save-top-playlist"]')) { saveTopTracksPlaylist(); return; }
+  const blendBtn = t.closest('[data-action="blend-save"]');
+  if (blendBtn) { saveBlend(blendBtn.dataset.user); return; }
   const imageBtn = t.closest('[data-action="save-dna-image"]');
   if (imageBtn) { saveDnaImage(imageBtn); return; }
 
   const passBtn = t.closest('[data-pass-toggle]');
   if (passBtn) {
-    const input = document.getElementById('authPass');
+    const input = passBtn.parentElement.querySelector('input');
     const shown = input.type === 'text';
     input.type = shown ? 'password' : 'text';
     passBtn.innerHTML = icon(shown ? 'eye' : 'eyeOff', 17);
@@ -2497,6 +2827,7 @@ document.addEventListener('input', function (e) {
 });
 
 document.addEventListener('change', function (e) {
+  if (e.target.name === 'reason' && e.target.closest('#reportForm')) document.getElementById('reportError').hidden = true;
   if (e.target.id === 'avatarFile') {
     const file = e.target.files[0];
     e.target.value = '';
@@ -2535,9 +2866,12 @@ function homeSignature() {
 document.addEventListener('submit', function (e) {
   if (e.target.id === 'authLoginForm') { e.preventDefault(); handleLogin(e.target); }
   if (e.target.id === 'authSignupForm') { e.preventDefault(); handleSignup(e.target); }
+  if (e.target.id === 'authForgotForm') { e.preventDefault(); handleForgot(e.target); }
+  if (e.target.id === 'authResetForm') { e.preventDefault(); handleReset(e.target); }
   if (e.target.id === 'postForm') { e.preventDefault(); handlePostSubmit(e.target); }
   if (e.target.id === 'pinForm') { e.preventDefault(); handlePinSubmit(e.target); }
   if (e.target.id === 'profileForm') { e.preventDefault(); handleProfileSubmit(e.target); }
+  if (e.target.id === 'reportForm') { e.preventDefault(); handleReportSubmit(e.target); }
   if (e.target.dataset.commentForm) { e.preventDefault(); handleCommentSubmit(e.target); }
 });
 
@@ -2566,6 +2900,7 @@ document.addEventListener('keydown', function (e) {
 
 window.addEventListener('hashchange', function () {
   const name = currentRoute();
+  if (name === 'reset' && app.view !== 'reset') resetReturn = app.view === 'settings' ? '#/settings' : '#/home';
   if (name !== app.view) sounds.navigate();
   setView(name);
   refreshOnEnter(name);
@@ -2586,7 +2921,8 @@ window.addEventListener('hashchange', function () {
   document.getElementById('sidebar').innerHTML = renderSidebar();
   document.getElementById('bottomnav').innerHTML = renderBottomNav();
   document.getElementById('mobilebar').innerHTML = renderMobileBar();
-  setRail(STORE.get('rail', 'full') === 'compact');
+  applyRail();
+  RAIL_NARROW.addEventListener('change', applyRail);
   setAmbient(STORE.get('ambient', '1') === '1');
 
   app.session = await db.auth.getSession();
@@ -2600,7 +2936,7 @@ window.addEventListener('hashchange', function () {
       stopSpotifyPolling();
       stopListeningFeed();
       stopNotifications();
-      DATA.friends = []; DATA.incoming = []; DATA.outgoing = []; DATA.feed = [];
+      DATA.friends = []; DATA.incoming = []; DATA.outgoing = []; DATA.feed = []; DATA.blocked = [];
       DATA.me.stats = null; DATA.me.recentPosts = []; DATA.me.pin = null;
       DATA.notifications = { status: 'idle', items: [], unread: 0 };
       UI.notifFresh = {}; UI.postView = null; UI.recapStats = null;
@@ -2613,6 +2949,9 @@ window.addEventListener('hashchange', function () {
       location.hash = '#/login';
       setView(currentRoute());
     }
+    if (event === 'PASSWORD_RECOVERY') { location.hash = '#/reset'; return; }
+    // Supabase also re-announces SIGNED_IN for an existing session (e.g. another tab); only a fresh log-in navigates.
+    if (event === 'SIGNED_IN' && PUBLIC_VIEWS.indexOf(app.view) === -1) return;
     if (event === 'SIGNED_IN') {
       loadCurrentUser().then(function () {
         location.hash = pendingDeepLink || '#/home';
@@ -2625,8 +2964,16 @@ window.addEventListener('hashchange', function () {
     }
   });
 
+  // Swap the token fragment from an email link for a real route, so it never lingers in the address bar.
+  if (AUTH_LINK) {
+    const dest = !app.session ? '#/login' : AUTH_LINK.type === 'recovery' ? '#/reset' : '#/home';
+    history.replaceState(null, '', location.pathname + location.search + dest);
+  }
   if (!location.hash) location.hash = app.session ? '#/home' : '#/login';
   setView(currentRoute());
+  if (AUTH_LINK && AUTH_LINK.error && app.view === 'login') {
+    showAuthMessage('That email link has expired or was already used. To reset your password, use “Forgot password?” to get a new one.', true);
+  }
   startSpotifyPolling();
   startListeningFeed();
   startNotifications();

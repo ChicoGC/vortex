@@ -4,6 +4,15 @@
    talk to the Supabase client directly.
    ========================================================================== */
 
+/* Email links land as #access_token=…&type=recovery or #error_code=…, which the
+   client below consumes on load. Read first so the app knows why it's here. */
+const AUTH_LINK = (function () {
+  const h = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+  if (h.get('error_code') || h.get('error')) return { error: h.get('error_code') || h.get('error') };
+  if (h.get('access_token')) return { type: h.get('type') || '' };
+  return null;
+})();
+
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const PERSON_FIELDS = 'id, username, name, avatar_url, pin_track_id, pin_title, pin_artist, pin_image, pin_note, pinned_at';
@@ -25,6 +34,17 @@ const db = {
       const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (error) throw error;
       return data;
+    },
+
+    /* Succeeds whether or not the email has an account, so it can't be used to probe for one. */
+    async sendPasswordReset(email) {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/' });
+      if (error) throw error;
+    },
+
+    async setPassword(password) {
+      const { error } = await supabaseClient.auth.updateUser({ password });
+      if (error) throw error;
     },
 
     async signOut() {
@@ -230,6 +250,38 @@ const db = {
         .select('id');
       if (error) throw error;
       if (!data || !data.length) throw new Error('Friendship not found.');
+    }
+  },
+
+  blocks: {
+    async list(userId) {
+      const { data, error } = await supabaseClient
+        .from('blocks')
+        .select('blocked_id, created_at, blocked:blocked_id(id, username, name, avatar_url)')
+        .eq('blocker_id', userId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+
+    async add(userId, otherId) {
+      const { error } = await supabaseClient.from('blocks').insert({ blocker_id: userId, blocked_id: otherId });
+      if (error && error.code !== '23505') throw error;
+    },
+
+    async remove(userId, otherId) {
+      const { error } = await supabaseClient.from('blocks').delete().eq('blocker_id', userId).eq('blocked_id', otherId);
+      if (error) throw error;
+    }
+  },
+
+  reports: {
+    /* No select policy on reports, so the insert can't ask for the row back. A repeat report counts as sent. */
+    async create(userId, { reportedId, postId, reason, details }) {
+      const { error } = await supabaseClient.from('reports').insert({
+        reporter_id: userId, reported_id: reportedId, post_id: postId || null, reason: reason, details: details || null
+      });
+      if (error && error.code !== '23505') throw error;
     }
   },
 

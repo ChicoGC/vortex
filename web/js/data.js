@@ -45,6 +45,9 @@ const DATA = {
   incoming: [],
   outgoing: [],
 
+  /* People you blocked, same shape as friends (no friendshipId). Their posts and comments are hidden. */
+  blocked: [],
+
   /* Friends' current tracks by user id, as rows of public.listening_now. */
   listening: {},
 

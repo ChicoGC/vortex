@@ -21,7 +21,8 @@ VIEWS.login = function () {
           '<input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required></span>' +
       '</div>' +
       '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="authPass">Password</label>' +
+        '<span class="field-label-row"><label class="t-label-m c-secondary" for="authPass">Password</label>' +
+          '<a class="t-label-s auth__forgot" href="#/forgot" data-forgot-link>Forgot password?</a></span>' +
         '<span class="field">' + icon('lock', 17) +
           '<input id="authPass" type="password" placeholder="••••••••" autocomplete="current-password" required>' +
           '<button type="button" class="iconbtn" data-pass-toggle aria-label="Show password">' + icon('eye', 17) + '</button>' +
@@ -80,4 +81,67 @@ VIEWS.signup = function () {
     pageHead('Join vortex', 'Create account') +
     '<div class="auth-wrap scroll">' + form + '</div>' +
   '</div>';
+};
+
+function authHead(title, sub) {
+  return '<div class="auth__head">' +
+    '<span class="auth__mark"><img src="assets/logo-64.png" width="30" height="30" alt=""></span>' +
+    '<h2 class="t-title-m">' + title + '</h2>' +
+    '<p class="t-body-s c-tertiary">' + sub + '</p>' +
+  '</div>';
+}
+
+function authErrorBox() {
+  return '<div class="auth__note auth__note--error" id="authError" hidden>' + icon('close', 16) +
+    '<p class="t-body-s c-secondary" id="authErrorText"></p></div>';
+}
+
+/* forgotState: { sentTo } once the link went out, so a re-render keeps the confirmation. */
+VIEWS.forgot = function () {
+  const sent = forgotState.sentTo;
+  const body = sent
+    ? '<div class="panel panel--raised auth">' +
+        authHead('Check your inbox', 'If <b class="c-primary">' + esc(sent) + '</b> has a vortex account, a link to choose a new password is on its way.') +
+        '<ul class="auth__steps t-body-s c-secondary">' +
+          '<li>' + icon('mail', 16) + '<span>It can take a minute. Check spam if it doesn’t show up.</span></li>' +
+          '<li>' + icon('lock', 16) + '<span>The link works once, on any device.</span></li>' +
+        '</ul>' +
+        '<button type="button" class="btn btn--secondary" data-action="forgot-resend" id="forgotResend" style="width:100%">Send it again</button>' +
+        '<a class="btn btn--ghost btn--sm" href="#/login" style="align-self:center">Back to log in</a>' +
+      '</div>'
+    : '<form class="panel panel--raised auth" id="authForgotForm" novalidate>' +
+        authHead('Reset your password', 'Enter the email you signed up with and we’ll send you a link to choose a new one.') +
+        authErrorBox() +
+        '<div class="auth__field">' +
+          '<label class="t-label-m c-secondary" for="authEmail">Email</label>' +
+          '<span class="field">' + icon('mail', 17) +
+            '<input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required value="' + esc(forgotState.draft || '') + '"></span>' +
+        '</div>' +
+        '<button type="submit" class="btn btn--primary" id="authForgotSubmit" style="width:100%;padding:0 16px">Send reset link</button>' +
+        '<a class="btn btn--ghost btn--sm" href="#/login" style="align-self:center">Back to log in</a>' +
+      '</form>';
+  return '<div class="view">' + pageHead('Account', 'Forgot password') + '<div class="auth-wrap scroll">' + body + '</div></div>';
+};
+
+VIEWS.reset = function () {
+  const form =
+    '<form class="panel panel--raised auth" id="authResetForm" novalidate>' +
+      authHead('Choose a new password', 'For <b class="c-primary">' + esc((app.session && app.session.user.email) || 'your account') + '</b>. You’ll stay logged in on this device.') +
+      authErrorBox() +
+      '<div class="auth__field">' +
+        '<label class="t-label-m c-secondary" for="authNewPass">New password</label>' +
+        '<span class="field">' + icon('lock', 17) +
+          '<input id="authNewPass" type="password" placeholder="At least 6 characters" autocomplete="new-password" minlength="6" required>' +
+          '<button type="button" class="iconbtn" data-pass-toggle aria-label="Show password">' + icon('eye', 17) + '</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="auth__field">' +
+        '<label class="t-label-m c-secondary" for="authNewPass2">Type it again</label>' +
+        '<span class="field">' + icon('lock', 17) +
+          '<input id="authNewPass2" type="password" autocomplete="new-password" minlength="6" required></span>' +
+      '</div>' +
+      '<button type="submit" class="btn btn--primary" id="authResetSubmit" style="width:100%;padding:0 16px">Save new password</button>' +
+      '<button type="button" class="btn btn--ghost btn--sm" data-action="reset-skip" style="align-self:center">' + (resetReturn === '#/settings' ? 'Cancel' : 'Not now') + '</button>' +
+    '</form>';
+  return '<div class="view">' + pageHead('Account', 'New password') + '<div class="auth-wrap scroll">' + form + '</div></div>';
 };

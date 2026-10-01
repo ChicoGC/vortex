@@ -216,6 +216,9 @@ VIEWS.post = function () {
   }
   if (pv.status === 'notfound') return wrap(head, ghostPanel(null, null, 'This post was deleted.'));
   if (pv.status === 'error') return wrap(head, ghostPanel(null, null, 'Could not load this post. Try again in a moment.'));
+  if (isBlocked(pv.post.userId)) {
+    return wrap(head, blockedPanel({ id: pv.post.userId, name: pv.post.user, username: pv.post.username, avatarUrl: pv.post.avatarUrl }));
+  }
   return wrap(head, '<div class="post-page">' + postCard(pv.post) + '</div>');
 };
 
@@ -314,8 +317,74 @@ function compareTracks(mine, theirs, c, first) {
   '</div>';
 }
 
+/* ---- blend playlist ------------------------------------------------------------ */
+UI.blend = {};   // profile id -> { status: 'saving'|'ok', url }
+
+const BLEND_MAX = 50;
+
+function takeTurns(a, b) {
+  const out = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if (a[i]) out.push(a[i]);
+    if (b[i]) out.push(b[i]);
+  }
+  return out;
+}
+
+/* Common ground first: songs you both play, then songs by artists you share,
+   then each side's top songs taking turns until the playlist is full. */
+function blendTracks(mine, theirs) {
+  const out = [], seen = {};
+  const add = function (t) { if (!seen[t.id] && out.length < BLEND_MAX) { seen[t.id] = true; out.push(t); } };
+  const theirSongs = idSet(theirs.tracks), theirArtists = idSet(theirs.artists);
+  const shared = {};
+  mine.artists.forEach(function (a) { if (theirArtists[a.id]) shared[a.id] = true; });
+  const bySharedArtist = function (t) { return t.artistIds.some(function (id) { return shared[id]; }); };
+  const both = mine.tracks.filter(function (t) { return theirSongs[t.id]; });
+  both.forEach(add);
+  takeTurns(mine.tracks.filter(bySharedArtist), theirs.tracks.filter(bySharedArtist)).forEach(add);
+  const common = out.length;
+  takeTurns(mine.tracks, theirs.tracks).forEach(add);
+  return { tracks: out, both: both.length, common: common };
+}
+
+function blendPanel(profile, mine, theirs) {
+  const first = profile.name.split(/\s+/)[0];
+  const b = blendTracks(mine, theirs);
+  if (b.tracks.length < 4) return '';
+  const saved = UI.blend[profile.id];
+  let control;
+  if (saved && saved.status === 'ok') {
+    control = saved.url && /^https:\/\/open\.spotify\.com\//.test(saved.url)
+      ? '<a class="btn btn--primary btn--sm" href="' + esc(saved.url) + '" target="_blank" rel="noopener">' + icon('spotify', 15) + 'Open in Spotify</a>'
+      : '<span class="badge badge--positive"><span>' + icon('check', 13) + '</span>Saved to Spotify</span>';
+  } else if (saved && saved.status === 'saving') {
+    control = '<button class="btn btn--primary btn--sm" disabled>Creating…</button>';
+  } else if (!spotify.auth.hasScope('playlist-modify-private')) {
+    control = '<button class="btn btn--primary btn--sm" data-action="spotify-connect" data-tip="Spotify asks once for permission to create playlists">' + icon('spotify', 15) + 'Allow creating playlists</button>';
+  } else {
+    control = '<button class="btn btn--primary btn--sm" data-action="blend-save" data-user="' + esc(profile.id) + '">' + icon('plus', 15) + 'Create the playlist</button>';
+  }
+  const how = b.common
+    ? (b.both ? plural(b.both, 'song') + ' you both play, then ' : '') +
+      (b.common > b.both ? 'songs by the artists you share, then ' : '') + 'your favorites and ' + first + '’s, taking turns.'
+    : 'Your favorites and ' + first + '’s, taking turns. You don’t share artists yet, so it’s a straight swap.';
+  return '<section class="panel blend">' +
+    '<div class="blend__covers" aria-hidden="true">' + b.tracks.slice(0, 4).map(function (t) {
+      return art(artSeedFor(t.id), null, t.image);
+    }).join('') + '</div>' +
+    '<div class="blend__meta">' +
+      '<span class="t-title-s">A playlist for the two of you</span>' +
+      '<span class="t-body-s c-secondary">' + esc(plural(b.tracks.length, 'song') + ': ' + how) + '</span>' +
+      '<span class="t-caption c-tertiary">Private, in your Spotify library. ' + esc(first) + ' won’t see it unless you share it.</span>' +
+    '</div>' +
+    '<div class="blend__action">' + control + '</div>' +
+  '</section>';
+}
+
 function compareBody(profile, relation) {
   const first = profile.name.split(/\s+/)[0];
+  if (isBlocked(profile.id)) return blockedPanel(profile);
   if (relation.state !== 'friends') {
     const action = relation.state === 'incoming'
       ? '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(relation.friendshipId) + '">Accept request</button>'
@@ -341,7 +410,7 @@ function compareBody(profile, relation) {
   }
   const c = compatibility(mine, theirs);
   if (!c) return ghostPanel(null, null, 'Not enough listening data on one side yet to compare.');
-  return compareHero(profile, c) + mirrorChart(c, first) + compareArtists(mine, theirs, c, first) + compareTracks(mine, theirs, c, first) +
+  return compareHero(profile, c) + blendPanel(profile, mine, theirs) + mirrorChart(c, first) + compareArtists(mine, theirs, c, first) + compareTracks(mine, theirs, c, first) +
     '<p class="t-caption c-tertiary cmp-foot">How the score works: 45% genre overlap, 40% shared artists, 15% shared songs, from each person\'s top 50 over the last ~6 months.</p>';
 }
 

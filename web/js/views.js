@@ -237,7 +237,7 @@ function postCard(p) {
       shareLinkButton('#/p/' + p.id, 'Copy link to post') +
       (p.mine
         ? '<button class="iconbtn" data-delete-post="' + esc(p.id) + '" data-tip="Delete post" aria-label="Delete post">' + icon('trash', 16) + '</button>'
-        : '') +
+        : p.username ? safetyTrigger({ id: p.userId, name: p.user, username: p.username }, p.id, 'More options for this post') : '') +
     '</div>' +
     (p.note ? '<p class="post__note t-body-s c-secondary">' + esc(p.note) + '</p>' : '') +
     '<div class="post__track">' +
@@ -979,7 +979,8 @@ function friendProfileHeader(profile, stats, relation) {
         '<span class="t-meta c-tertiary">@' + esc(profile.username) + ' · joined ' + esc(joined) + '</span>' +
         (profile.bio ? '<p class="t-body-m c-secondary" style="max-width:52ch;margin-top:4px">' + esc(profile.bio) + '</p>' : '') +
       '</div>' +
-      '<div class="rowflex" style="gap:8px;flex:none;flex-wrap:wrap">' + shareLinkButton('#/u/' + profile.username, 'Copy profile link') + controls + '</div>' +
+      '<div class="rowflex" style="gap:8px;flex:none;flex-wrap:wrap">' + shareLinkButton('#/u/' + profile.username, 'Copy profile link') + controls +
+        safetyTrigger({ id: profile.id, name: profile.name, username: profile.username }, null, 'More options for ' + profile.name) + '</div>' +
     '</div>' +
     (pinFromRow(profile) ? '<div style="margin-top:18px">' + pinCard(pinFromRow(profile), false) + '</div>' : '') +
     '<hr class="hr" style="margin:18px 0 16px">' +
@@ -988,6 +989,19 @@ function friendProfileHeader(profile, stats, relation) {
       statTile('Reactions received', stats ? String(stats.reactions) : '—') +
       statTile('Comments received', stats ? String(stats.comments) : '—') +
     '</div>' +
+  '</section>';
+}
+
+/* person: anything with id, name, username, and avatar_url or avatarUrl. */
+function blockedPanel(person) {
+  const first = person.name.split(/\s+/)[0];
+  return '<section class="panel blocked">' +
+    avatarEl(initialsFrom(person.name), '56', null, person.avatar_url || person.avatarUrl) +
+    '<div class="blocked__meta">' +
+      '<span class="t-title-s">You blocked ' + esc(first) + '</span>' +
+      '<span class="t-body-s c-secondary">Their posts and comments are hidden from you, and @' + esc(person.username) + ' can’t add you or interact with your posts.</span>' +
+    '</div>' +
+    '<button class="btn btn--secondary btn--sm" data-safety-unblock="' + esc(person.id) + '">Unblock</button>' +
   '</section>';
 }
 
@@ -1005,6 +1019,7 @@ VIEWS.friendProfile = function () {
   }
 
   const profile = state.profile;
+  if (isBlocked(profile.id)) return wrap(pageHead('Profile', esc(profile.name)), blockedPanel(profile));
   const relation = relationshipWith(profile.id);
   const first = profile.name.split(/\s+/)[0];
   const shares = state.posts.length
@@ -1041,8 +1056,17 @@ VIEWS.settings = function () {
         row('user', 'Display name', DATA.me.name) +
         row('globe', 'Username', DATA.me.username) +
         row('mail', 'Email', DATA.me.email || '') +
+        row('lock', 'Password', 'Pick a new one without logging out.', '<a class="btn btn--secondary btn--sm" href="#/reset">Change</a>') +
       '</div>' +
     '</section>';
+
+  const blocked = DATA.blocked.length
+    ? '<section class="panel section">' + sectionHead('Blocked accounts', String(DATA.blocked.length)) +
+        '<div class="section__body">' + DATA.blocked.map(function (b) {
+          return personRow(b, '<button class="btn btn--secondary btn--sm" data-safety-unblock="' + esc(b.id) + '">Unblock</button>');
+        }).join('') + '</div>' +
+      '</section>'
+    : '';
 
   const services =
     '<section class="panel section">' + sectionHead('Connected services') +
@@ -1075,7 +1099,7 @@ VIEWS.settings = function () {
   return wrap(
     pageHead('Preferences', 'Settings'),
     '<div class="cols cols--half">' +
-      '<div class="stack">' + account + privacy + '</div>' +
+      '<div class="stack">' + account + privacy + blocked + '</div>' +
       '<div class="stack">' + services + session + '</div>' +
     '</div>'
   );
