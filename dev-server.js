@@ -24,8 +24,9 @@ createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   let rel = decodeURIComponent(url.pathname);
   if (rel.endsWith('/')) rel += 'index.html';
-  // Mirrors the rewrite in vercel.json so the Spotify OAuth redirect lands on the app.
+  // Mirrors the rewrites in vercel.json: the Spotify OAuth redirect lands on the app, /privacy on the policy.
   if (rel === '/callback') rel = '/index.html';
+  if (rel === '/privacy') rel = '/privacy.html';
 
   const path = join(ROOT, normalize(rel));
   if (!path.startsWith(ROOT)) {

@@ -20,8 +20,13 @@ const NAV = [
 
 const MOBILE_NAV = ['home', 'feed', 'friends', 'music', 'profile'];
 const PUBLIC_VIEWS = ['login', 'signup', 'forgot'];
-/* Shown without the sidebar and tab bar: the public views, plus choosing a new password. */
-const BARE_VIEWS = PUBLIC_VIEWS.concat('reset');
+/* Shown without the sidebar and tab bar: the public views, plus choosing a new password
+   and 'welcome' (choosing a username after a first Google sign-in, accepting the privacy policy). */
+const BARE_VIEWS = PUBLIC_VIEWS.concat('reset', 'welcome');
+/* The effective date printed in web/privacy.html. Bump both together when the policy
+   changes materially: everyone who accepted an older one is asked again on their next visit. */
+const PRIVACY_VERSION = '2026-10-02';
+const PRIVACY_URL = '/privacy';
 
 const STORE = {
   get: function (k, fallback) {
@@ -33,8 +38,14 @@ const STORE = {
 
 const app = {
   view: 'home',
-  session: null
+  session: null,
+  /* Every route shows 'welcome' while either is true: the username was generated rather than
+     chosen, or the profile hasn't accepted the current privacy policy. */
+  needsUsername: false,
+  needsConsent: false
 };
+
+function onboardingPending() { return app.needsUsername || app.needsConsent; }
 
 /* ---- auth ----------------------------------------------------------------- */
 function initialsFrom(name) {
@@ -116,6 +127,9 @@ async function loadCurrentUser() {
   if (!app.session) return;
   try {
     const profile = await db.profiles.get(app.session.user.id);
+    app.needsUsername = profile.username_confirmed === false;
+    // Before supabase/schema.sql adds the column there's nothing to save an answer to, so don't ask.
+    app.needsConsent = 'privacy_version' in profile && profile.privacy_version !== PRIVACY_VERSION;
     await Promise.all([loadFriends(), loadMyActivity(), loadBlocks()]);
 
     DATA.me.name = profile.name;
@@ -395,10 +409,12 @@ async function handleSignup(form) {
   const username = form.querySelector('#authUsername').value.trim();
   const email = form.querySelector('#authEmail').value.trim();
   const pass = form.querySelector('#authPass').value;
+  const consent = form.querySelector('#authConsent');
+  if (!consent.checked) { consentMissing(consent, 'Accept the privacy policy to create an account.'); return; }
   const btn = document.getElementById('authSignupSubmit');
   btn.disabled = true; btn.textContent = 'Creating account…';
   try {
-    const data = await db.auth.signUp(email, pass, { username, name });
+    const data = await db.auth.signUp(email, pass, { username, name, privacyVersion: PRIVACY_VERSION });
     if (!data.session) {
       showAuthMessage('Check your email to confirm your account, then log in.', false);
       btn.disabled = false; btn.textContent = 'Create account';
@@ -636,6 +652,8 @@ let pendingDeepLink = null;
 
 function currentRoute() {
   const r = routeParts();
+  // A password-reset link still opens its own screen; onboarding resumes after it.
+  if (app.session && onboardingPending() && r.head !== 'reset') return 'welcome';
   if (DYNAMIC_ROUTES[r.head] && r.param) {
     if (app.session) return DYNAMIC_ROUTES[r.head];
     pendingDeepLink = '#/' + r.head + '/' + encodeURIComponent(r.param);
@@ -646,7 +664,7 @@ function currentRoute() {
   const target = VIEWS[raw] && !dynamicView ? raw : 'home';
   const isPublic = PUBLIC_VIEWS.indexOf(target) > -1;
   if (!app.session && !isPublic) return 'login';
-  if (app.session && isPublic) return 'home';
+  if (app.session && (isPublic || target === 'welcome')) return 'home';
   return target;
 }
 
@@ -1645,33 +1663,106 @@ function openEditProfile(focusId) {
   first.setSelectionRange(first.value.length, first.value.length);
 }
 
-function setUsernameHint(text, state) {
-  const hint = document.getElementById('editUsernameHint');
+function setUsernameHint(text, state, hintId) {
+  const hint = document.getElementById(hintId || 'editUsernameHint');
   if (!hint) return;
   hint.textContent = text;
   hint.dataset.state = state || '';
 }
 
-/* Live feedback while typing; the save re-checks, since this can go stale. */
-function checkUsernameInput(value) {
+/* Live feedback while typing; the save re-checks, since this can go stale.
+   `first` is the choose-your-username screen, where nothing links to the old handle yet. */
+function checkUsernameInput(value, first) {
   clearTimeout(usernameCheckTimer);
   const seq = ++usernameCheckSeq;
+  const hintId = first ? 'welcomeUsernameHint' : 'editUsernameHint';
   const u = value.trim();
   if (u.toLowerCase() === myHandle().toLowerCase()) {
-    setUsernameHint('Your profile link is ' + location.host + '/#/u/' + (u || myHandle()));
+    setUsernameHint('Your profile link is ' + location.host + '/#/u/' + (u || myHandle()), '', hintId);
     return;
   }
-  if (!USERNAME_RE.test(u)) { setUsernameHint('Use 3 to 20 letters, numbers or _', 'bad'); return; }
-  setUsernameHint('Checking @' + u + '…');
+  if (!USERNAME_RE.test(u)) { setUsernameHint('Use 3 to 20 letters, numbers or _', 'bad', hintId); return; }
+  setUsernameHint('Checking @' + u + '…', '', hintId);
   usernameCheckTimer = setTimeout(async function () {
     try {
       const taken = await db.profiles.usernameTaken(u, app.session.user.id);
       if (seq !== usernameCheckSeq) return;
-      setUsernameHint(taken ? '@' + u + ' is taken' : '@' + u + ' is free. Links to your old username will stop working.', taken ? 'bad' : 'good');
+      setUsernameHint(taken ? '@' + u + ' is taken'
+        : '@' + u + ' is free.' + (first ? '' : ' Links to your old username will stop working.'), taken ? 'bad' : 'good', hintId);
     } catch (err) {
-      if (seq === usernameCheckSeq) setUsernameHint('Could not check this username right now');
+      if (seq === usernameCheckSeq) setUsernameHint('Could not check this username right now', '', hintId);
     }
   }, 350);
+}
+
+/* Nothing is sent until the box is ticked; the label turns red so the reason is next to the box. */
+function consentMissing(input, msg) {
+  showAuthMessage(msg, true);
+  input.closest('.consent').dataset.invalid = 'true';
+  input.focus();
+}
+
+/* Holds the session until the generated handle is confirmed (first Google sign-in) and the
+   current privacy policy is accepted. The form only shows the parts still missing. */
+async function handleWelcome(form) {
+  const nameInput = form.querySelector('#welcomeName');
+  const consent = form.querySelector('#welcomeConsent');
+  const fields = {};
+  let username = '';
+  if (nameInput) {
+    const name = nameInput.value.replace(/\s+/g, ' ').trim();
+    username = form.querySelector('#welcomeUsername').value.trim();
+    if (!name) { showAuthMessage('Add a display name.', true); return; }
+    if (!USERNAME_RE.test(username)) { showAuthMessage('Usernames use 3 to 20 letters, numbers or _.', true); return; }
+    fields.name = name.slice(0, NAME_MAX);
+    fields.username = username;
+    fields.username_confirmed = true;
+  }
+  if (consent) {
+    if (!consent.checked) { consentMissing(consent, 'Accept the privacy policy to continue.'); return; }
+    fields.privacy_version = PRIVACY_VERSION;
+  }
+  const btn = document.getElementById('authWelcomeSubmit');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const me = app.session.user.id;
+  try {
+    if (nameInput && username.toLowerCase() !== myHandle().toLowerCase() && await db.profiles.usernameTaken(username, me)) {
+      btn.disabled = false; btn.textContent = 'Continue';
+      showAuthMessage('@' + username + ' is taken. Try another.', true);
+      return;
+    }
+    await db.profiles.update(me, fields);
+    app.needsUsername = false;
+    app.needsConsent = false;
+    await loadCurrentUser();
+    location.hash = pendingDeepLink || '#/home';
+    pendingDeepLink = null;
+    setView(currentRoute());
+  } catch (err) {
+    console.error('Could not save username:', err);
+    btn.disabled = false; btn.textContent = 'Continue';
+    showAuthMessage(err && err.code === '23505' ? '@' + username + ' is taken. Try another.' : 'Could not save. Check your connection and try again.', true);
+  }
+}
+
+async function handleGoogle(btn) {
+  // On the signup page the policy box covers Google too. From log in, a new account accepts on the welcome screen.
+  const consent = document.getElementById('authConsent');
+  if (consent && !consent.checked) { consentMissing(consent, 'Accept the privacy policy to create an account.'); return; }
+  const label = btn.querySelector('span');
+  btn.disabled = true; label.textContent = 'Opening Google…';
+  // The page is about to leave, so the shared link a logged-out visitor opened, and the box ticked
+  // on the signup page, ride along in sessionStorage.
+  try {
+    sessionStorage.setItem('vortex.oauth', JSON.stringify({ back: pendingDeepLink, privacy: consent ? PRIVACY_VERSION : null }));
+  } catch (e) { /* private mode */ }
+  try {
+    await db.auth.signInWithGoogle();
+  } catch (err) {
+    console.error('Google sign-in failed:', err);
+    btn.disabled = false; label.textContent = 'Continue with Google';
+    showAuthMessage((err && err.message) || 'Could not start Google sign-in. Try again.', true);
+  }
 }
 
 async function handleProfileSubmit(form) {
@@ -2554,6 +2645,8 @@ document.addEventListener('click', function (e) {
     forgotState.sentTo = null;
     return;
   }
+  const googleBtn = t.closest('[data-action="google-signin"]');
+  if (googleBtn) { handleGoogle(googleBtn); return; }
   if (t.closest('[data-action="forgot-resend"]')) { resendResetLink(); return; }
   if (t.closest('[data-action="reset-skip"]')) { location.hash = resetReturn; return; }
   if (t.closest('[data-action="notif-retry"]')) {
@@ -2821,6 +2914,7 @@ document.addEventListener('input', function (e) {
     pinSearchTimer = setTimeout(function () { runPinSearch(e.target.value); }, 300);
   }
   if (e.target.id === 'editUsername') checkUsernameInput(e.target.value);
+  if (e.target.id === 'welcomeUsername') checkUsernameInput(e.target.value, true);
   if (e.target.id === 'editBio') document.getElementById('editBioCount').textContent = e.target.value.length + ' / ' + BIO_MAX;
   // Hand-editing the song means the picked Spotify cover may no longer match.
   if ((e.target.id === 'postTitle' || e.target.id === 'postArtist') && postTrack) setPostTrack(null);
@@ -2828,6 +2922,11 @@ document.addEventListener('input', function (e) {
 
 document.addEventListener('change', function (e) {
   if (e.target.name === 'reason' && e.target.closest('#reportForm')) document.getElementById('reportError').hidden = true;
+  if (e.target.id === 'authConsent' || e.target.id === 'welcomeConsent') {
+    delete e.target.closest('.consent').dataset.invalid;
+    const text = document.getElementById('authErrorText');
+    if (e.target.checked && /^Accept the privacy policy/.test(text.textContent)) document.getElementById('authError').hidden = true;
+  }
   if (e.target.id === 'avatarFile') {
     const file = e.target.files[0];
     e.target.value = '';
@@ -2868,6 +2967,7 @@ document.addEventListener('submit', function (e) {
   if (e.target.id === 'authSignupForm') { e.preventDefault(); handleSignup(e.target); }
   if (e.target.id === 'authForgotForm') { e.preventDefault(); handleForgot(e.target); }
   if (e.target.id === 'authResetForm') { e.preventDefault(); handleReset(e.target); }
+  if (e.target.id === 'authWelcomeForm') { e.preventDefault(); handleWelcome(e.target); }
   if (e.target.id === 'postForm') { e.preventDefault(); handlePostSubmit(e.target); }
   if (e.target.id === 'pinForm') { e.preventDefault(); handlePinSubmit(e.target); }
   if (e.target.id === 'profileForm') { e.preventDefault(); handleProfileSubmit(e.target); }
@@ -2898,6 +2998,11 @@ document.addEventListener('keydown', function (e) {
   if (e.key === '/' && document.activeElement === document.body) { e.preventDefault(); openCmdk(); }
 });
 
+// Back from Google's page restores this document with the button still disabled.
+window.addEventListener('pageshow', function (e) {
+  if (e.persisted && PUBLIC_VIEWS.indexOf(app.view) > -1) setView(app.view);
+});
+
 window.addEventListener('hashchange', function () {
   const name = currentRoute();
   if (name === 'reset' && app.view !== 'reset') resetReturn = app.view === 'settings' ? '#/settings' : '#/home';
@@ -2925,12 +3030,28 @@ window.addEventListener('hashchange', function () {
   RAIL_NARROW.addEventListener('change', applyRail);
   setAmbient(STORE.get('ambient', '1') === '1');
 
+  // Set by handleGoogle just before leaving the page; read once so a later reload isn't mistaken for a return.
+  let oauthReturn = null;
+  try {
+    oauthReturn = JSON.parse(sessionStorage.getItem('vortex.oauth') || 'null');
+    sessionStorage.removeItem('vortex.oauth');
+  } catch (e) { /* private mode */ }
+
   app.session = await db.auth.getSession();
   if (app.session) await loadCurrentUser();
+  // The policy box was ticked on the signup page before leaving for Google.
+  if (app.session && app.needsConsent && oauthReturn && oauthReturn.privacy === PRIVACY_VERSION) {
+    try {
+      await db.profiles.update(app.session.user.id, { privacy_version: PRIVACY_VERSION });
+      app.needsConsent = false;
+    } catch (err) { console.error('Could not record privacy consent:', err); }
+  }
 
   db.auth.onChange(function (event, session) {
     app.session = session;
     if (event === 'SIGNED_OUT') {
+      app.needsUsername = false;
+      app.needsConsent = false;
       // Spotify tokens are per-browser, so the next vortex account must not inherit them.
       spotify.auth.disconnect();
       stopSpotifyPolling();
@@ -2954,8 +3075,9 @@ window.addEventListener('hashchange', function () {
     if (event === 'SIGNED_IN' && PUBLIC_VIEWS.indexOf(app.view) === -1) return;
     if (event === 'SIGNED_IN') {
       loadCurrentUser().then(function () {
-        location.hash = pendingDeepLink || '#/home';
-        pendingDeepLink = null;
+        // A pending shared link waits for the welcome screen, then opens.
+        location.hash = onboardingPending() ? '#/welcome' : pendingDeepLink || '#/home';
+        if (!onboardingPending()) pendingDeepLink = null;
         setView(currentRoute());
         startSpotifyPolling();
         startListeningFeed();
@@ -2964,15 +3086,24 @@ window.addEventListener('hashchange', function () {
     }
   });
 
-  // Swap the token fragment from an email link for a real route, so it never lingers in the address bar.
+  // Swap the token fragment from an email link or Google sign-in for a real route, so it never lingers in the address bar.
   if (AUTH_LINK) {
-    const dest = !app.session ? '#/login' : AUTH_LINK.type === 'recovery' ? '#/reset' : '#/home';
+    if (app.session && AUTH_LINK.type !== 'recovery' && oauthReturn && /^#\/(u|compare|p)\/[^/]+$/.test(oauthReturn.back || '')) {
+      pendingDeepLink = oauthReturn.back;
+    }
+    const dest = !app.session ? '#/login'
+      : AUTH_LINK.type === 'recovery' ? '#/reset'
+      : onboardingPending() ? '#/welcome'
+      : pendingDeepLink || '#/home';
+    if (dest === pendingDeepLink) pendingDeepLink = null;
     history.replaceState(null, '', location.pathname + location.search + dest);
   }
   if (!location.hash) location.hash = app.session ? '#/home' : '#/login';
   setView(currentRoute());
   if (AUTH_LINK && AUTH_LINK.error && app.view === 'login') {
-    showAuthMessage('That email link has expired or was already used. To reset your password, use “Forgot password?” to get a new one.', true);
+    showAuthMessage(oauthReturn
+      ? 'Google sign-in didn’t finish. Try again, or use your email.'
+      : 'That email link has expired or was already used. To reset your password, use “Forgot password?” to get a new one.', true);
   }
   startSpotifyPolling();
   startListeningFeed();

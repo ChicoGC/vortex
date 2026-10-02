@@ -1086,6 +1086,8 @@ VIEWS.settings = function () {
         row('sparkle', 'Share my music DNA',
           'Friends can compare tastes with you: your top 50 artists and tracks from the last ~6 months. Turning it off deletes the copy vortex keeps.',
           '<button class="toggle" data-toggle="share-taste" role="switch" aria-checked="' + !!DATA.me.shareTaste + '" aria-label="Share my music DNA"></button>') +
+        row('lock', 'Privacy policy', 'What vortex keeps, who can see it, and how to delete your account.',
+          '<a class="btn btn--secondary btn--sm" href="' + PRIVACY_URL + '" target="_blank" rel="noopener">Read</a>') +
       '</div>' +
     '</section>';
 

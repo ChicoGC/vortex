@@ -17,10 +17,8 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
-drop policy if exists "profiles are publicly readable" on public.profiles;
-create policy "profiles are publicly readable"
-  on public.profiles for select
-  using (true);
+-- The "profiles are publicly readable" select policy is defined further down,
+-- after username_confirmed exists, since it hides accounts still being set up.
 
 drop policy if exists "users can update own profile" on public.profiles;
 create policy "users can update own profile"
@@ -66,12 +64,66 @@ alter table public.profiles drop constraint if exists profiles_name_length_check
 alter table public.profiles add constraint profiles_name_length_check
   check (char_length(name) <= 80) not valid;
 
+-- username_confirmed: false while the handle was generated rather than picked
+-- (a first Google sign-in). The app holds those accounts on a "choose your
+-- @username" screen until it flips to true. Existing rows default to true.
+alter table public.profiles
+  add column if not exists username_confirmed boolean not null default true;
+
+-- An account still on that screen hasn't accepted the privacy policy yet
+-- either (both are confirmed together), so nobody else can see or find it.
+drop policy if exists "profiles are publicly readable" on public.profiles;
+create policy "profiles are publicly readable"
+  on public.profiles for select
+  using (username_confirmed or auth.uid() = id);
+
+-- ==========================================================================
+-- privacy policy consent
+-- privacy_version is the effective date of the policy the person accepted
+-- (web/privacy.html); the app asks again whenever it's older than the
+-- current one (PRIVACY_VERSION in web/js/app.js). The server stamps
+-- privacy_accepted_at, so the time can't be backdated from the client.
+-- ==========================================================================
+alter table public.profiles add column if not exists privacy_version text;
+alter table public.profiles add column if not exists privacy_accepted_at timestamptz;
+
+alter table public.profiles drop constraint if exists profiles_privacy_version_check;
+alter table public.profiles add constraint profiles_privacy_version_check
+  check (privacy_version is null or privacy_version ~ '^\d{4}-\d{2}-\d{2}$');
+
+create or replace function public.stamp_privacy_acceptance()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.privacy_version := coalesce(new.privacy_version, old.privacy_version);
+  if new.privacy_version is distinct from old.privacy_version then
+    new.privacy_accepted_at := now();
+  else
+    new.privacy_accepted_at := old.privacy_accepted_at;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_privacy_stamp on public.profiles;
+create trigger profiles_privacy_stamp
+  before update on public.profiles
+  for each row execute function public.stamp_privacy_acceptance();
+
 -- Auto-create a profile row whenever a new auth user signs up.
 -- A valid username from the signup metadata is used as-is; if it's taken the
 -- unique index rejects the signup, rather than silently handing out a
 -- different handle than the one the person picked. A missing or invalid one
 -- falls back to the email's local part with disallowed characters stripped,
--- cut to 20 and padded to 3, plus a short random suffix on collision.
+-- cut to 20 and padded to 3, plus a short random suffix on collision, and the
+-- profile is marked username_confirmed = false.
+--
+-- Email signups must carry the accepted privacy_version in their metadata or
+-- the signup is rejected. That includes users added from the Supabase
+-- dashboard: create those through the app instead. Google sign-ins can't
+-- carry metadata, so they accept on the choose-your-username screen.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -79,14 +131,22 @@ security definer set search_path = public
 as $$
 declare
   requested text := new.raw_user_meta_data->>'username';
-  display_name text := coalesce(new.raw_user_meta_data->>'name', nullif(split_part(new.email, '@', 1), ''));
+  display_name text := left(coalesce(nullif(trim(new.raw_user_meta_data->>'name'), ''), nullif(split_part(new.email, '@', 1), '')), 50);
+  consent text := new.raw_user_meta_data->>'privacy_version';
   base text;
   candidate text;
   attempts int := 0;
 begin
+  if consent !~ '^\d{4}-\d{2}-\d{2}$' then
+    consent := null;
+  end if;
+  if consent is null and new.raw_app_meta_data->>'provider' = 'email' then
+    raise exception 'Accept the privacy policy to create an account.' using errcode = 'P0001', hint = 'privacy_not_accepted';
+  end if;
+
   if requested ~ '^[A-Za-z0-9_]{3,20}$' then
-    insert into public.profiles (id, username, name)
-    values (new.id, requested, coalesce(display_name, requested));
+    insert into public.profiles (id, username, name, privacy_version, privacy_accepted_at)
+    values (new.id, requested, coalesce(display_name, requested), consent, case when consent is not null then now() end);
     return new;
   end if;
 
@@ -98,8 +158,8 @@ begin
 
   loop
     begin
-      insert into public.profiles (id, username, name)
-      values (new.id, candidate, coalesce(display_name, candidate));
+      insert into public.profiles (id, username, name, username_confirmed, privacy_version, privacy_accepted_at)
+      values (new.id, candidate, coalesce(display_name, candidate), false, consent, case when consent is not null then now() end);
       return new;
     exception when unique_violation then
       -- Retrying on the violation itself (not a prior "exists" check) also

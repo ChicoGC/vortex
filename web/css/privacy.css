@@ -1,0 +1,209 @@
+/* ==========================================================================
+   vortex — privacy policy page (web/privacy.html)
+   A long-form reading page on the app's tokens. base.css locks the body for
+   the app shell, so this page gives the scroll back.
+   ========================================================================== */
+
+html, body.doc { height: auto; }
+body.doc { overflow-x: hidden; overflow-y: auto; font-size: 16px; line-height: 27px; }
+
+.doc-bar,
+.doc-main,
+.doc-foot {
+  position: relative; z-index: 1;
+  width: 100%; max-width: 1096px;
+  margin: 0 auto;
+  padding-left: 32px; padding-right: 32px;
+}
+
+/* ---- top bar ---------------------------------------------------------------- */
+.doc-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding-top: 20px; padding-bottom: 20px;
+}
+.doc-bar__brand {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: -.01em;
+  border-radius: var(--radius-sm);
+}
+.doc-bar__brand img { display: block; }
+
+/* ---- hero -------------------------------------------------------------------- */
+.doc-hero { padding: 64px 0 44px; max-width: 760px; }
+.doc-hero__title {
+  font-size: clamp(42px, 7vw, 72px); line-height: .98;
+  font-weight: 600; letter-spacing: -.035em;
+  color: var(--text-primary);
+}
+.doc-hero__lede {
+  margin-top: 22px; max-width: 58ch;
+  font-size: 18px; line-height: 29px; color: var(--text-secondary);
+}
+.doc-hero__date {
+  margin-top: 18px;
+  font-family: var(--font-mono); font-size: 13px; line-height: 16px; color: var(--text-tertiary);
+}
+
+/* ---- who can see what -------------------------------------------------------- */
+.reach {
+  border-radius: var(--radius-xl);
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--elev-panel);
+  backdrop-filter: blur(var(--blur-subtle));
+  -webkit-backdrop-filter: blur(var(--blur-subtle));
+}
+.reach__title {
+  padding: 22px 28px 0;
+  font-size: 15px; line-height: 20px; font-weight: 600; color: var(--text-primary);
+}
+.reach__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.reach__col { padding: 22px 28px 26px; }
+.reach__col + .reach__col { border-left: 1px solid var(--border-subtle); }
+
+/* Three rings per audience; the lit rings and the shaded disc show how far the data reaches. */
+.reach__rings { width: 52px; height: 52px; margin-bottom: 16px; overflow: visible; }
+.reach__rings circle {
+  fill: none; stroke: var(--border-strong); stroke-width: 1.5;
+  transform-box: fill-box; transform-origin: center;
+  animation: ring-in var(--dur-slower) var(--ease-spring) both;
+}
+.reach__rings circle:nth-child(3) { fill: var(--accent-base); stroke: var(--accent-base); animation-delay: 80ms; }
+.reach__rings circle:nth-child(2) { animation-delay: 180ms; }
+.reach__rings circle:nth-child(1) { animation-delay: 280ms; }
+[data-reach="3"] .reach__rings circle:nth-child(1) { stroke: var(--accent-base); fill: var(--accent-soft); }
+[data-reach="3"] .reach__rings circle:nth-child(2),
+[data-reach="2"] .reach__rings circle:nth-child(2) { stroke: var(--accent-base); }
+[data-reach="2"] .reach__rings circle:nth-child(2) { fill: var(--accent-soft); }
+.reach__col[data-reach="2"] .reach__rings circle { animation-delay: 380ms; }
+.reach__col[data-reach="1"] .reach__rings circle { animation-delay: 680ms; }
+@keyframes ring-in { from { opacity: 0; transform: scale(.35); } to { opacity: 1; transform: none; } }
+
+.reach__who { font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -.008em; color: var(--text-primary); }
+.reach__note { margin-top: 3px; font-size: 13px; line-height: 18px; color: var(--text-tertiary); }
+.reach__list { margin-top: 14px; display: flex; flex-direction: column; gap: 7px; }
+.reach__list li { font-size: 14px; line-height: 20px; color: var(--text-secondary); padding-left: 16px; position: relative; }
+.reach__list li::before {
+  content: ""; position: absolute; left: 1px; top: 8px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong);
+}
+.reach__never {
+  padding: 16px 28px 18px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 14px; line-height: 20px; color: var(--text-primary);
+}
+
+/* ---- contents + article ------------------------------------------------------ */
+.doc-body {
+  display: grid; grid-template-columns: 216px minmax(0, 1fr); gap: 64px;
+  margin-top: 64px; padding-bottom: 72px;
+}
+
+.toc { position: sticky; top: 24px; align-self: start; }
+.toc__title {
+  font-size: 13px; line-height: 16px; font-weight: 600; color: var(--text-primary);
+  padding: 0 10px 10px; list-style: none; cursor: default;
+}
+.toc__title::-webkit-details-marker { display: none; }
+.toc__list { display: flex; flex-direction: column; gap: 1px; counter-reset: toc; }
+.toc__list a {
+  position: relative; display: flex; gap: 10px;
+  padding: 6px 10px; border-radius: var(--radius-sm);
+  font-size: 13px; line-height: 18px; color: var(--text-tertiary);
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.toc__list a::before {
+  counter-increment: toc; content: counter(toc);
+  min-width: 14px; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary);
+}
+.toc__list a:hover { color: var(--text-primary); }
+.toc__list a[aria-current] { color: var(--text-primary); background: var(--glass-panel); }
+.toc__list a[aria-current]::after {
+  content: ""; position: absolute; left: 0; top: 7px; bottom: 7px;
+  width: 2.5px; border-radius: 2px; background: var(--accent-base);
+}
+
+.prose { max-width: 68ch; color: var(--text-secondary); }
+.prose section { scroll-margin-top: 24px; }
+.prose section + section { margin-top: 56px; }
+.prose h2 {
+  display: flex; align-items: baseline; gap: 14px;
+  font-size: 24px; line-height: 30px; font-weight: 600; letter-spacing: -.012em;
+  color: var(--text-primary); margin-bottom: 16px;
+}
+.prose h2 .n { font-family: var(--font-mono); font-size: 14px; font-weight: 500; color: var(--text-tertiary); min-width: 18px; }
+.prose h3 {
+  font-size: 16px; line-height: 22px; font-weight: 600; color: var(--text-primary);
+  margin: 28px 0 10px;
+}
+.prose h2 + h3 { margin-top: 0; }
+.prose p + p, .prose p + ul, .prose ul + p { margin-top: 14px; }
+.prose ul { display: flex; flex-direction: column; gap: 10px; }
+.prose li { position: relative; padding-left: 20px; }
+.prose li::before {
+  content: ""; position: absolute; left: 3px; top: 11px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong);
+}
+.prose strong { color: var(--text-primary); font-weight: 500; }
+.prose a, .doc-foot a {
+  color: var(--text-primary);
+  text-decoration: underline; text-decoration-color: var(--accent-border);
+  text-decoration-thickness: 1.5px; text-underline-offset: 3px;
+  border-radius: 2px;
+  transition: text-decoration-color var(--dur-fast) var(--ease-out);
+}
+.prose a:hover, .doc-foot a:hover { text-decoration-color: var(--accent-base); }
+
+.providers { margin: 16px 0; border-top: 1px solid var(--border-subtle); }
+.providers div {
+  display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 16px;
+  padding: 12px 0; border-bottom: 1px solid var(--border-subtle);
+}
+.providers dt { color: var(--text-primary); font-weight: 500; }
+.providers dd { margin: 0; }
+
+/* ---- footer ------------------------------------------------------------------ */
+.doc-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding-top: 22px; padding-bottom: 40px;
+  font-size: 13px; line-height: 18px; color: var(--text-tertiary);
+}
+/* A border would span the padding; this rule lines up with the content instead. */
+.doc-foot::before {
+  content: ""; position: absolute; top: 0; left: 32px; right: 32px;
+  height: 1px; background: var(--border-subtle);
+}
+
+/* ---- narrow ------------------------------------------------------------------ */
+@media (max-width: 900px) {
+  .doc-body { grid-template-columns: minmax(0, 1fr); gap: 32px; margin-top: 40px; }
+  .toc { position: static; }
+  .toc__box {
+    border-radius: var(--radius-lg);
+    background: var(--glass-panel); border: 1px solid var(--glass-border);
+    padding: 14px 8px 8px;
+  }
+  .toc__box:not([open]) { padding-bottom: 4px; }
+  .toc__title { cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding-right: 12px; }
+  .toc__title::after { content: "+"; font-family: var(--font-mono); color: var(--text-tertiary); }
+  .toc__box[open] .toc__title::after { content: "−"; }
+}
+
+@media (max-width: 760px) {
+  .reach__grid { grid-template-columns: minmax(0, 1fr); }
+  .reach__col + .reach__col { border-left: 0; border-top: 1px solid var(--border-subtle); }
+  .reach__col { display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: 16px; }
+  .reach__rings { grid-row: span 3; width: 44px; height: 44px; margin: 0; }
+}
+
+@media (max-width: 560px) {
+  .doc-bar, .doc-main, .doc-foot { padding-left: 16px; padding-right: 16px; }
+  .doc-foot::before { left: 16px; right: 16px; }
+  .doc-hero { padding: 40px 0 32px; }
+  .doc-hero__lede { font-size: 16px; line-height: 26px; }
+  .reach__title { padding: 20px 20px 0; }
+  .reach__col { padding: 18px 20px 20px; }
+  .reach__never { padding: 14px 20px 16px; }
+  .prose h2 { font-size: 21px; line-height: 27px; }
+  .providers div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}

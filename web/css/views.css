@@ -363,8 +363,23 @@ a.post__author:hover .t-body-m-med { text-decoration: underline; }
 /* ---- experimental / auth ------------------------------------------------ */
 .auth-wrap {
   flex: 1; min-height: 0; overflow-y: auto;
-  display: grid; place-items: center; padding: 16px 0 24px;
+  display: grid; place-items: center; align-content: center; gap: 14px; padding: 16px 0 24px;
 }
+.auth__legal a { color: var(--text-tertiary); border-radius: var(--radius-sm); transition: color var(--dur-fast) var(--ease-out); }
+.auth__legal a:hover { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Native checkbox kept in the tab order and drawn as .check next to it. */
+.consent { position: relative; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.consent__input { position: absolute; opacity: 0; width: 18px; height: 18px; margin: 0; cursor: pointer; }
+.consent .check { margin-top: 0; }
+.consent .check svg { opacity: 0; transform: scale(.6); transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-spring); }
+.consent__input:checked + .check { background: var(--accent-base); border-color: var(--accent-base); color: var(--text-on-accent); }
+.consent__input:checked + .check svg { opacity: 1; transform: none; }
+.consent__input:focus-visible + .check { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.consent[data-invalid] .check { border-color: var(--state-negative); }
+.consent[data-invalid] { color: var(--text-primary); }
+.consent__link { color: var(--text-primary); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; border-radius: var(--radius-sm); }
+.consent__link:hover { text-decoration-color: var(--accent-base); }
 .auth { width: min(408px, 100%); padding: 24px; display: flex; flex-direction: column; gap: 16px; }
 .auth__head { display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center; }
 .auth__mark { margin-bottom: 4px; display: block; }
@@ -378,6 +393,8 @@ a.post__author:hover .t-body-m-med { text-decoration: underline; }
 .auth__steps svg { color: var(--text-tertiary); margin-top: 1px; }
 .auth__sep { display: flex; align-items: center; gap: 12px; color: var(--text-tertiary); }
 .auth__sep::before, .auth__sep::after { content: ""; flex: 1; height: 1px; background: var(--border-subtle); }
+.auth__google { gap: 10px; }
+.auth__google svg { flex: none; }
 .auth__providers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .auth__note {
   display: flex; gap: 9px; padding: 10px 12px;

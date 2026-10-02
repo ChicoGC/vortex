@@ -20,11 +20,12 @@ const POST_SELECT = '*, author:user_id(id, username, name, avatar_url), reaction
 
 const db = {
   auth: {
-    async signUp(email, password, { username, name }) {
+    /* privacyVersion is required: the signup trigger rejects an email signup without it. */
+    async signUp(email, password, { username, name, privacyVersion }) {
       const { data, error } = await supabaseClient.auth.signUp({
         email,
         password,
-        options: { data: { username, name } }
+        options: { data: { username, name, privacy_version: privacyVersion } }
       });
       if (error) throw error;
       return data;
@@ -34,6 +35,16 @@ const db = {
       const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (error) throw error;
       return data;
+    },
+
+    /* Leaves the page for Google and comes back to the site root signed in. The same email as an
+       existing password account is linked to it by Supabase rather than creating a second user. */
+    async signInWithGoogle() {
+      const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: location.origin + '/', queryParams: { prompt: 'select_account' } }
+      });
+      if (error) throw error;
     },
 
     /* Succeeds whether or not the email has an account, so it can't be used to probe for one. */

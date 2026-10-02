@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy Policy · vortex</title>
+<meta name="description" content="What vortex keeps about you, who can see it, and how to have it deleted.">
+<meta name="color-scheme" content="dark light">
+<script>
+  /* Same theme and accent as the app, so following the link doesn't flash a different look. */
+  (function () {
+    var root = document.documentElement;
+    function get(k) { try { return localStorage.getItem('vortex.' + k); } catch (e) { return null; } }
+    var light = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches;
+    root.dataset.theme = get('theme') || (light ? 'light' : 'dark');
+    var accent = get('look.accent');
+    if (accent && accent !== 'ember') root.dataset.accent = accent;
+  })();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/privacy.css">
+
+<link rel="icon" type="image/png" sizes="64x64" href="assets/logo-64.png">
+<link rel="apple-touch-icon" href="assets/logo-256.png">
+</head>
+<body class="doc">
+
+<div class="ambient" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+<header class="doc-bar">
+  <a class="doc-bar__brand" href="/">
+    <img src="assets/logo-64.png" width="26" height="26" alt="">
+    <span>vortex</span>
+  </a>
+  <a class="btn btn--secondary btn--sm" href="/">Open vortex</a>
+</header>
+
+<main class="doc-main">
+
+  <header class="doc-hero">
+    <h1 class="doc-hero__title">Privacy Policy</h1>
+    <p class="doc-hero__lede">vortex is a small, independent app for sharing what you listen to with your friends. This policy explains what it keeps about you, who can see it, and how to have it deleted.</p>
+    <p class="doc-hero__date">Effective <time datetime="2026-10-02">2 October 2026</time></p>
+  </header>
+
+  <!-- The one picture on the page: each audience is a ring, and the rings that are lit show how far that data reaches. -->
+  <section class="reach" aria-labelledby="reachTitle">
+    <h2 class="reach__title" id="reachTitle">Who can see what</h2>
+    <div class="reach__grid">
+      <div class="reach__col" data-reach="3">
+        <svg class="reach__rings" viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="21"/><circle cx="24" cy="24" r="13.5"/><circle cx="24" cy="24" r="6"/>
+        </svg>
+        <h3 class="reach__who">Anyone</h3>
+        <p class="reach__note">Including people who aren’t signed in</p>
+        <ul class="reach__list">
+          <li>Your name and @username</li>
+          <li>Bio, profile photo and pinned song</li>
+          <li>Songs you share, with your notes</li>
+          <li>Your comments and reactions</li>
+        </ul>
+      </div>
+      <div class="reach__col" data-reach="2">
+        <svg class="reach__rings" viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="21"/><circle cx="24" cy="24" r="13.5"/><circle cx="24" cy="24" r="6"/>
+        </svg>
+        <h3 class="reach__who">Friends you’ve accepted</h3>
+        <p class="reach__note">Each one can be switched off in Settings</p>
+        <ul class="reach__list">
+          <li>What you’re playing on Spotify right now</li>
+          <li>Your music taste: top 50 artists and tracks</li>
+        </ul>
+      </div>
+      <div class="reach__col" data-reach="1">
+        <svg class="reach__rings" viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="21"/><circle cx="24" cy="24" r="13.5"/><circle cx="24" cy="24" r="6"/>
+        </svg>
+        <h3 class="reach__who">Only you</h3>
+        <p class="reach__note">Not shown to anyone else in vortex</p>
+        <ul class="reach__list">
+          <li>Your email address and how you sign in</li>
+          <li>Notifications and the accounts you’ve blocked</li>
+          <li>Your settings and preferences</li>
+        </ul>
+      </div>
+    </div>
+    <p class="reach__never">vortex doesn’t sell your data, doesn’t show ads, and doesn’t use analytics or tracking scripts.</p>
+  </section>
+
+  <div class="doc-body">
+    <nav class="toc" aria-label="Contents">
+      <details class="toc__box" open>
+        <summary class="toc__title">Contents</summary>
+        <ol class="toc__list">
+          <li><a href="#who">Who runs vortex</a></li>
+          <li><a href="#collect">What vortex collects</a></li>
+          <li><a href="#use">How it’s used</a></li>
+          <li><a href="#visibility">Who can see it</a></li>
+          <li><a href="#providers">Service providers</a></li>
+          <li><a href="#transfers">Data outside Brazil</a></li>
+          <li><a href="#retention">How long it’s kept</a></li>
+          <li><a href="#rights">Your rights and choices</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="#age">Minimum age</a></li>
+          <li><a href="#changes">Changes to this policy</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ol>
+      </details>
+    </nav>
+
+    <article class="prose">
+
+      <section id="who">
+        <h2><span class="n">1</span>Who runs vortex</h2>
+        <p>vortex is built and run by Pietro, an independent developer based in Brazil. Pietro is the controller of your personal data under Brazil’s General Data Protection Law (Lei Geral de Proteção de Dados, LGPD) and the person to contact about anything in this policy: <a href="mailto:pietro@influi.com.br">pietro@influi.com.br</a>.</p>
+      </section>
+
+      <section id="collect">
+        <h2><span class="n">2</span>What vortex collects</h2>
+
+        <h3>When you create an account</h3>
+        <ul>
+          <li>Your email address, name and @username.</li>
+          <li>Your password, if you choose one. It’s stored by the sign-in provider as a one-way hash, so nobody, including vortex, can read it.</li>
+          <li>Which version of this policy you accepted, and when.</li>
+          <li>If you sign in with Google: Google shares your name, email address, a link to your Google profile picture and an account identifier. vortex uses your name and email. It doesn’t receive your Google password, contacts, files or anything else from your Google account.</li>
+        </ul>
+
+        <h3>What you add</h3>
+        <ul>
+          <li>Your bio, profile photo, and a pinned song with an optional note.</li>
+          <li>Songs you share: title, artist, album, cover art and your note.</li>
+          <li>Comments, replies and reactions.</li>
+          <li>Friend requests and friendships, and the accounts you block.</li>
+          <li>Reports you send: the reason, any details you write, and a copy of the reported post.</li>
+        </ul>
+
+        <h3>From Spotify, only if you connect it</h3>
+        <ul>
+          <li><strong>What you’re playing now:</strong> title, artist, album, cover and playback position. It’s shared with your friends while vortex is open and sharing is on. Plays in a Spotify private session are never shared.</li>
+          <li><strong>Your music taste:</strong> your top 50 artists and top 50 tracks from roughly the last six months, kept so friends can compare tastes with you. Turning this sharing off deletes the copy vortex keeps.</li>
+          <li><strong>Read in your browser only:</strong> your recently played tracks, your top artists and tracks over other time ranges, and your playlists. They build the Activity, Music and Recap pages and are not saved on vortex’s servers.</li>
+          <li><strong>Playlists:</strong> vortex creates one in your Spotify account only when you choose “Save as playlist”, and it’s created as private.</li>
+          <li>The keys that let vortex talk to Spotify on your behalf stay in your browser. vortex’s servers never receive them, and they’re removed when you log out or disconnect Spotify.</li>
+        </ul>
+
+        <h3>Stored in your browser</h3>
+        <p>vortex keeps a few things in your browser’s local storage: your sign-in session, appearance and sound preferences, your sidebar layout, a cache of album covers, a count of recent failed sign-in attempts, and the Spotify keys above. None of it is used for advertising or tracking, and clearing this site’s data in your browser removes all of it.</p>
+
+        <h3>Technical data</h3>
+        <p>The companies that host vortex (see section 5) record standard server logs, such as your IP address, browser type and the time of each request, to keep the service secure and running. vortex itself doesn’t run analytics.</p>
+      </section>
+
+      <section id="use">
+        <h2><span class="n">3</span>How it’s used</h2>
+        <p>vortex uses your data only to run the app and keep it safe:</p>
+        <ul>
+          <li><strong>To provide the service you signed up for:</strong> your account, profile, feed, friends and the Spotify features. Under the LGPD, this is processing needed to perform the service you asked for (art. 7, V).</li>
+          <li><strong>To keep vortex safe:</strong> limiting repeated sign-in attempts, enforcing blocks, and reviewing reports. This is vortex’s legitimate interest in protecting the people who use it (art. 7, IX).</li>
+          <li><strong>To send account emails:</strong> confirming your address and resetting your password. vortex doesn’t send marketing email.</li>
+        </ul>
+        <p>Sharing your listening and music taste with friends is your choice, and you can switch either one off at any time in Settings. vortex doesn’t profile you for advertising or make automated decisions about you.</p>
+      </section>
+
+      <section id="visibility">
+        <h2><span class="n">4</span>Who can see it</h2>
+        <p>The summary at the top of this page is the short version. A few details:</p>
+        <ul>
+          <li><strong>Public means public.</strong> Profiles, shared songs, comments, reactions and profile photos can be seen by anyone who opens them, including people without a vortex account. Don’t put anything there you want to keep private.</li>
+          <li><strong>Blocking</strong> someone ends any friendship between you and stops them from sending you friend requests, commenting on or reacting to your posts, and notifying you. It doesn’t hide public content from people who aren’t signed in.</li>
+          <li><strong>Reports</strong> are seen only by Pietro, who reviews them. The person you report isn’t told who reported them.</li>
+          <li>Pietro can access vortex’s database to operate the service, fix problems and review reports, and does so only for those reasons.</li>
+        </ul>
+      </section>
+
+      <section id="providers">
+        <h2><span class="n">5</span>Service providers</h2>
+        <p>vortex relies on these companies, which process data on its behalf:</p>
+        <dl class="providers">
+          <div><dt>Supabase</dt><dd>Database, sign-in, profile photo storage and account emails.</dd></div>
+          <div><dt>Vercel</dt><dd>Hosts the website.</dd></div>
+          <div><dt>Spotify</dt><dd>Only if you connect it. Spotify’s own privacy policy covers your Spotify account.</dd></div>
+          <div><dt>Google</dt><dd>Sign-in, if you use “Continue with Google”. Google also serves the fonts on this site, so your browser contacts Google when pages load.</dd></div>
+          <div><dt>jsDelivr</dt><dd>Delivers a code library the app needs to load.</dd></div>
+        </dl>
+        <p>vortex doesn’t share your data with anyone else, except when the law requires it or to protect someone’s safety.</p>
+      </section>
+
+      <section id="transfers">
+        <h2><span class="n">6</span>Data outside Brazil</h2>
+        <p>The providers above may store or process data outside Brazil, including in the United States. These transfers rely on the providers’ contractual safeguards, as allowed by article 33 of the LGPD.</p>
+      </section>
+
+      <section id="retention">
+        <h2><span class="n">7</span>How long it’s kept</h2>
+        <ul>
+          <li><strong>Your account, profile and content</strong> stay for as long as your account exists. A post or comment you delete is removed straight away.</li>
+          <li><strong>What you’re playing now</strong> is replaced as you listen. When you stop, friends see it as the last song you played until you log out or switch sharing off, which deletes it.</li>
+          <li><strong>Your music taste</strong> is refreshed at most every 12 hours and deleted when you switch that sharing off.</li>
+          <li><strong>Notifications</strong> are removed along with what they point to, such as a deleted comment or a cancelled friend request, and otherwise stay until your account is deleted.</li>
+          <li><strong>When your account is deleted</strong>, everything tied to it is deleted within 30 days, including reports you sent or that were made about you. Backups kept by providers expire on their own schedule.</li>
+          <li><strong>Server logs</strong> are kept by the hosting providers for their standard periods, usually days to a few weeks.</li>
+        </ul>
+      </section>
+
+      <section id="rights">
+        <h2><span class="n">8</span>Your rights and choices</h2>
+        <p>Under article 18 of the LGPD you can ask vortex to confirm whether it holds your data, give you a copy, correct it, delete it, anonymise or block data that isn’t needed, move it to another service, tell you who it has been shared with, and withdraw consent you gave.</p>
+        <p>You can do much of this yourself:</p>
+        <ul>
+          <li>Edit your name, username, bio and photo from your profile.</li>
+          <li>Delete posts and comments you’ve made.</li>
+          <li>Switch off listening and music-taste sharing in Settings.</li>
+          <li>Disconnect Spotify in Settings, and revoke vortex’s access on Spotify’s Apps page in your Spotify account.</li>
+        </ul>
+        <p>To delete your account or get a copy of your data, email <a href="mailto:pietro@influi.com.br">pietro@influi.com.br</a> from the address on your account. You’ll get an answer within 15 days. You can also complain to Brazil’s data protection authority, the Autoridade Nacional de Proteção de Dados (ANPD). If you live in the European Union or the United Kingdom, you have similar rights under the GDPR.</p>
+      </section>
+
+      <section id="security">
+        <h2><span class="n">9</span>Security</h2>
+        <p>vortex is served only over HTTPS. Database rules let each account change only its own data, passwords are stored as one-way hashes, and Spotify keys never leave your browser. No system is perfectly secure. If a security incident puts your data at risk, vortex will tell you and the ANPD, as the LGPD requires.</p>
+      </section>
+
+      <section id="age">
+        <h2><span class="n">10</span>Minimum age</h2>
+        <p>You must be at least 13 years old to use vortex. If you’re under 18, you need permission from a parent or guardian. Accounts found to belong to someone under 13 are deleted.</p>
+      </section>
+
+      <section id="changes">
+        <h2><span class="n">11</span>Changes to this policy</h2>
+        <p>When this policy changes, the effective date at the top changes with it. If a change affects what vortex collects or who can see it, the app asks you to review and accept the new version the next time you open it, and you can’t keep using vortex without accepting.</p>
+      </section>
+
+      <section id="contact">
+        <h2><span class="n">12</span>Contact</h2>
+        <p>Questions, requests or concerns about your privacy: <a href="mailto:pietro@influi.com.br">pietro@influi.com.br</a>.</p>
+      </section>
+
+    </article>
+  </div>
+</main>
+
+<footer class="doc-foot">
+  <p>Effective 2 October 2026</p>
+  <a href="/">Back to vortex</a>
+</footer>
+
+<script>
+  /* Contents start folded on phones, where they'd push the policy below the fold.
+     Then mark the section being read. */
+  (function () {
+    var box = document.querySelector('.toc__box');
+    var narrow = window.matchMedia('(max-width: 900px)');
+    if (narrow.matches) box.open = false;
+    box.addEventListener('toggle', function () { if (!narrow.matches) box.open = true; });
+    box.addEventListener('click', function (e) { if (narrow.matches && e.target.closest('.toc__list a')) box.open = false; });
+
+    var links = {};
+    document.querySelectorAll('.toc__list a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+    if (!('IntersectionObserver' in window)) return;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        Object.keys(links).forEach(function (id) { links[id].removeAttribute('aria-current'); });
+        if (links[e.target.id]) links[e.target.id].setAttribute('aria-current', 'location');
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    document.querySelectorAll('.prose section[id]').forEach(function (s) { io.observe(s); });
+  })();
+</script>
+</body>
+</html>

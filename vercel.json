@@ -1,6 +1,7 @@
 {
   "outputDirectory": "web",
   "rewrites": [
-    { "source": "/callback", "destination": "/index.html" }
+    { "source": "/callback", "destination": "/index.html" },
+    { "source": "/privacy", "destination": "/privacy.html" }
   ]
 }

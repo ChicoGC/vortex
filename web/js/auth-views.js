@@ -4,6 +4,34 @@
    boot-time session check, route guarding).
    ========================================================================== */
 
+/* Google's "G" keeps its brand colours, so it's inline SVG instead of a themed icon. */
+const GOOGLE_G =
+  '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.7v3h3.9c2.3-2.1 3.5-5.2 3.5-8.9z"/>' +
+    '<path fill="#34A853" d="M12 24c3.2 0 6-1.1 7.9-3l-3.9-3c-1.1.7-2.4 1.1-4 1.1-3.1 0-5.7-2.1-6.7-4.9H1.3v3.1A12 12 0 0 0 12 24z"/>' +
+    '<path fill="#FBBC05" d="M5.3 14.2a7.2 7.2 0 0 1 0-4.6V6.5H1.3a12 12 0 0 0 0 11z"/>' +
+    '<path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.5l4 3.1C6.3 6.9 8.9 4.8 12 4.8z"/>' +
+  '</svg>';
+
+/* A real checkbox (keyboard, screen readers, form state) drawn as the app's .check square. */
+function consentBox(id, lead) {
+  return '<label class="consent t-body-s c-secondary">' +
+    '<input type="checkbox" class="consent__input" id="' + id + '">' +
+    '<span class="check" aria-hidden="true">' + icon('check', 12) + '</span>' +
+    '<span>' + lead + ' <a class="consent__link" href="' + PRIVACY_URL + '" target="_blank" rel="noopener">Privacy Policy</a>.</span>' +
+  '</label>';
+}
+
+function legalFooter() {
+  return '<p class="auth__legal t-caption"><a href="' + PRIVACY_URL + '" target="_blank" rel="noopener">Privacy Policy</a></p>';
+}
+
+function googleButton() {
+  return '<button type="button" class="btn btn--secondary auth__google" data-action="google-signin" style="width:100%">' +
+    GOOGLE_G + '<span>Continue with Google</span></button>' +
+    '<div class="auth__sep t-caption" role="separator"><span>or use your email</span></div>';
+}
+
 VIEWS.login = function () {
   const form =
     '<form class="panel panel--raised auth" id="authLoginForm" novalidate>' +
@@ -15,6 +43,7 @@ VIEWS.login = function () {
       '<div class="auth__note auth__note--error" id="authError" hidden>' + icon('close', 16) +
         '<p class="t-body-s c-secondary" id="authErrorText"></p>' +
       '</div>' +
+      googleButton() +
       '<div class="auth__field">' +
         '<label class="t-label-m c-secondary" for="authEmail">Email</label>' +
         '<span class="field">' + icon('mail', 17) +
@@ -35,7 +64,7 @@ VIEWS.login = function () {
 
   return '<div class="view">' +
     pageHead('Welcome back', 'Sign in') +
-    '<div class="auth-wrap scroll">' + form + '</div>' +
+    '<div class="auth-wrap scroll">' + form + legalFooter() + '</div>' +
   '</div>';
 };
 
@@ -50,6 +79,7 @@ VIEWS.signup = function () {
       '<div class="auth__note auth__note--error" id="authError" hidden>' + icon('close', 16) +
         '<p class="t-body-s c-secondary" id="authErrorText"></p>' +
       '</div>' +
+      googleButton() +
       '<div class="auth__field">' +
         '<label class="t-label-m c-secondary" for="authName">Name</label>' +
         '<span class="field">' + icon('user', 17) +
@@ -72,6 +102,7 @@ VIEWS.signup = function () {
           '<button type="button" class="iconbtn" data-pass-toggle aria-label="Show password">' + icon('eye', 17) + '</button>' +
         '</span>' +
       '</div>' +
+      consentBox('authConsent', 'I’ve read and agree to the vortex') +
       '<button type="submit" class="btn btn--primary" id="authSignupSubmit" style="width:100%;padding:0 16px">Create account</button>' +
       '<p class="t-body-s c-tertiary" style="text-align:center">Already have an account? ' +
         '<a class="btn btn--ghost btn--sm" href="#/login" style="padding:0 4px;display:inline-flex">Log in</a></p>' +
@@ -79,7 +110,7 @@ VIEWS.signup = function () {
 
   return '<div class="view">' +
     pageHead('Join vortex', 'Create account') +
-    '<div class="auth-wrap scroll">' + form + '</div>' +
+    '<div class="auth-wrap scroll">' + form + legalFooter() + '</div>' +
   '</div>';
 };
 
@@ -121,6 +152,41 @@ VIEWS.forgot = function () {
         '<a class="btn btn--ghost btn--sm" href="#/login" style="align-self:center">Back to log in</a>' +
       '</form>';
   return '<div class="view">' + pageHead('Account', 'Forgot password') + '<div class="auth-wrap scroll">' + body + '</div></div>';
+};
+
+/* Shown until the account is set up. A first Google sign-in confirms the handle generated from the
+   email and accepts the policy; an account that accepted an older policy (or none) only re-accepts. */
+VIEWS.welcome = function () {
+  const me = DATA.me;
+  const handle = myHandle();
+  const first = esc(me.name.split(/\s+/)[0] || 'there');
+  const head = app.needsUsername
+    ? authHead('Choose your username', 'Welcome, <b class="c-primary">' + first + '</b>. This is how friends find you, and it’s the link to your profile.')
+    : authHead('Review the privacy policy', 'Hi <b class="c-primary">' + first + '</b>. The policy explains what vortex keeps and who can see it. Accept it to keep using vortex.');
+  const nameFields = !app.needsUsername ? '' :
+      '<div class="auth__field">' +
+        '<label class="t-label-m c-secondary" for="welcomeName">Display name</label>' +
+        '<span class="field">' + icon('user', 17) +
+          '<input id="welcomeName" type="text" maxlength="' + NAME_MAX + '" autocomplete="name" required value="' + esc(me.name) + '"></span>' +
+      '</div>' +
+      '<div class="auth__field">' +
+        '<label class="t-label-m c-secondary" for="welcomeUsername">Username</label>' +
+        '<span class="field"><span class="field__at" aria-hidden="true">@</span>' +
+          '<input id="welcomeUsername" type="text" maxlength="20" autocomplete="username" spellcheck="false" required value="' + esc(handle) + '" aria-describedby="welcomeUsernameHint"></span>' +
+        '<p class="t-caption field-hint" id="welcomeUsernameHint">We picked this from your email. Your profile link is ' + esc(location.host) + '/#/u/' + esc(handle) + '</p>' +
+      '</div>';
+  const form =
+    '<form class="panel panel--raised auth" id="authWelcomeForm" novalidate>' +
+      head +
+      authErrorBox() +
+      nameFields +
+      (app.needsConsent ? consentBox('welcomeConsent', 'I’ve read and agree to the vortex') : '') +
+      '<button type="submit" class="btn btn--primary" id="authWelcomeSubmit" style="width:100%;padding:0 16px">Continue</button>' +
+      '<button type="button" class="btn btn--ghost btn--sm" data-action="logout" style="align-self:center">' + (app.needsUsername ? 'Use a different account' : 'Log out') + '</button>' +
+    '</form>';
+  return '<div class="view">' +
+    pageHead('Almost there', app.needsUsername ? 'Choose username' : 'Privacy policy') +
+    '<div class="auth-wrap scroll">' + form + '</div></div>';
 };
 
 VIEWS.reset = function () {
