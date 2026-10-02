@@ -4,18 +4,18 @@
 
 const NAV = [
   { group: 'Listening' },
-  { id: 'home',         label: 'Home',         icon: 'home' },
-  { id: 'feed',         label: 'Feed',         icon: 'broadcast' },
-  { id: 'friends',      label: 'Friends',      icon: 'users' },
-  { id: 'notifications', label: 'Notifications', icon: 'bell' },
-  { id: 'activity',     label: 'Activity',     icon: 'activity' },
-  { id: 'music',        label: 'Music',        icon: 'disc' },
+  { id: 'home',         label: t('Home'),         icon: 'home' },
+  { id: 'feed',         label: t('Feed'),         icon: 'broadcast' },
+  { id: 'friends',      label: t('Friends'),      icon: 'users' },
+  { id: 'notifications', label: t('Notifications'), icon: 'bell' },
+  { id: 'activity',     label: t('Activity'),     icon: 'activity' },
+  { id: 'music',        label: t('Music'),        icon: 'disc' },
   { group: 'You' },
-  { id: 'profile',      label: 'Profile',      icon: 'user' },
-  { id: 'recap',        label: 'Recap',        icon: 'sparkle' },
-  { id: 'customization', label: 'Customization', icon: 'droplet' },
-  { id: 'experimental', label: 'Experimental', icon: 'flask', dot: true },
-  { id: 'settings',     label: 'Settings',     icon: 'sliders' }
+  { id: 'profile',      label: t('Profile'),      icon: 'user' },
+  { id: 'recap',        label: t('Recap'),        icon: 'sparkle' },
+  { id: 'customization', label: t('Customization'), icon: 'droplet' },
+  { id: 'experimental', label: t('Experimental'), icon: 'flask', dot: true },
+  { id: 'settings',     label: t('Settings'),     icon: 'sliders' }
 ];
 
 const MOBILE_NAV = ['home', 'feed', 'friends', 'music', 'profile'];
@@ -26,7 +26,7 @@ const BARE_VIEWS = PUBLIC_VIEWS.concat('reset', 'welcome');
 /* The effective date printed in web/privacy.html. Bump both together when the policy
    changes materially: everyone who accepted an older one is asked again on their next visit. */
 const PRIVACY_VERSION = '2026-10-02';
-const PRIVACY_URL = '/privacy';
+const PRIVACY_URL = LANG === 'pt' ? '/privacidade' : '/privacy';
 
 const STORE = {
   get: function (k, fallback) {
@@ -60,17 +60,17 @@ function formatTimeAgo(isoDate) {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return 'now';
-  if (diffMins < 60) return diffMins + 'm';
-  if (diffHours < 24) return diffHours + 'h';
-  if (diffDays < 7) return diffDays + 'd';
+  if (diffMins < 1) return t('now');
+  if (diffMins < 60) return t('{n}m', { n: diffMins });
+  if (diffHours < 24) return t('{n}h', { n: diffHours });
+  if (diffDays < 7) return t('{n}d', { n: diffDays });
 
-  const posted_short = posted.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const posted_short = posted.toLocaleDateString(loc('en-US'), { month: 'short', day: 'numeric' });
   return posted_short;
 }
 
 function transformComment(c, currentUserId) {
-  const name = c.author ? c.author.name : 'Unknown';
+  const name = c.author ? c.author.name : t('Unknown');
   return {
     id: c.id,
     parentId: c.parent_id || null,
@@ -143,9 +143,9 @@ async function loadCurrentUser() {
     DATA.me.shareTaste = profile.share_taste !== false;
 
     const joinedDate = new Date(profile.created_at);
-    const month = joinedDate.toLocaleString('en-US', { month: 'long' });
+    const month = joinedDate.toLocaleString(loc('en-US'), { month: 'long' });
     const year = joinedDate.getFullYear();
-    DATA.me.joined = month + ' ' + year;
+    DATA.me.joined = t('{month} {year}', { month: month, year: year });
 
     repaintSidebar();
 
@@ -222,7 +222,7 @@ function updateFriendsBadge() {
   } else if (!DATA.incoming.length && dot) {
     dot.remove();
   }
-  if (dot) dot.setAttribute('aria-label', countLabel(DATA.incoming.length, 'friend request'));
+  if (dot) dot.setAttribute('aria-label', tn(DATA.incoming.length, '{n} friend request', '{n} friend requests'));
 }
 
 let feedLoadSeq = 0;
@@ -346,9 +346,9 @@ function recordLoginFailure() {
 
 function formatWait(ms) {
   const s = Math.ceil(ms / 1000);
-  if (s < 60) return s + 's';
+  if (s < 60) return t('{n}s', { n: s });
   const r = s % 60;
-  return Math.floor(s / 60) + 'm ' + (r < 10 ? '0' : '') + r + 's';
+  return t('{m}m {s}s', { m: Math.floor(s / 60), s: (r < 10 ? '0' : '') + r });
 }
 
 function paintLoginLock() {
@@ -359,11 +359,11 @@ function paintLoginLock() {
     const left = loginLockRemaining();
     if (!btn.isConnected || left <= 0) {
       clearInterval(loginLockTimer);
-      if (btn.isConnected) { btn.disabled = false; btn.textContent = 'Log in'; }
+      if (btn.isConnected) { btn.disabled = false; btn.textContent = t('Log in'); }
       return;
     }
     btn.disabled = true;
-    btn.textContent = 'Try again in ' + formatWait(left);
+    btn.textContent = t('Try again in {time}', { time: formatWait(left) });
   }
   tick();
   if (loginLockRemaining() > 0) loginLockTimer = setInterval(tick, 1000);
@@ -378,29 +378,30 @@ async function handleLogin(form) {
   const email = form.querySelector('#authEmail').value.trim();
   const pass = form.querySelector('#authPass').value;
   const btn = document.getElementById('authLoginSubmit');
-  btn.disabled = true; btn.textContent = 'Signing in…';
+  btn.disabled = true; btn.textContent = t('Signing in…');
   try {
     await db.auth.signIn(email, pass);
     writeLoginGuard({});
   } catch (err) {
-    btn.disabled = false; btn.textContent = 'Log in';
+    btn.disabled = false; btn.textContent = t('Log in');
     if (err && err.status === 429) {
-      showAuthMessage('Too many sign-in attempts from this network. Wait a few minutes and try again.', true);
+      showAuthMessage(t('Too many sign-in attempts from this network. Wait a few minutes and try again.'), true);
       return;
     }
     if (isBadCredentials(err)) {
       const g = recordLoginFailure();
       if (loginLockRemaining() > 0) {
-        showAuthMessage('Too many failed attempts. Sign-in is paused for ' + formatWait(loginLockRemaining()) + '.', true);
+        showAuthMessage(t('Too many failed attempts. Sign-in is paused for {time}.', { time: formatWait(loginLockRemaining()) }), true);
         paintLoginLock();
         return;
       }
       const left = LOGIN_GUARD.maxFails - g.fails;
-      showAuthMessage('Wrong email or password.' +
-        (left <= 2 ? ' ' + left + (left === 1 ? ' attempt' : ' attempts') + ' left before sign-in is paused.' : ''), true);
+      showAuthMessage(left <= 2
+        ? tn(left, 'Wrong email or password. {n} attempt left before sign-in is paused.', 'Wrong email or password. {n} attempts left before sign-in is paused.')
+        : t('Wrong email or password.'), true);
       return;
     }
-    showAuthMessage(err.message || 'Could not sign in', true);
+    showAuthMessage(err.message || t('Could not sign in'), true);
   }
 }
 
@@ -410,18 +411,18 @@ async function handleSignup(form) {
   const email = form.querySelector('#authEmail').value.trim();
   const pass = form.querySelector('#authPass').value;
   const consent = form.querySelector('#authConsent');
-  if (!consent.checked) { consentMissing(consent, 'Accept the privacy policy to create an account.'); return; }
+  if (!consent.checked) { consentMissing(consent, t('Accept the privacy policy to create an account.')); return; }
   const btn = document.getElementById('authSignupSubmit');
-  btn.disabled = true; btn.textContent = 'Creating account…';
+  btn.disabled = true; btn.textContent = t('Creating account…');
   try {
     const data = await db.auth.signUp(email, pass, { username, name, privacyVersion: PRIVACY_VERSION });
     if (!data.session) {
-      showAuthMessage('Check your email to confirm your account, then log in.', false);
-      btn.disabled = false; btn.textContent = 'Create account';
+      showAuthMessage(t('Check your email to confirm your account, then log in.'), false);
+      btn.disabled = false; btn.textContent = t('Create account');
     }
   } catch (err) {
-    showAuthMessage(err.message || 'Could not create account', true);
-    btn.disabled = false; btn.textContent = 'Create account';
+    showAuthMessage(err.message || t('Could not create account'), true);
+    btn.disabled = false; btn.textContent = t('Create account');
   }
 }
 
@@ -440,21 +441,21 @@ async function sendResetLink(email) {
 }
 
 function resetErrorText(err) {
-  if (err && err.status === 429) return 'Too many reset emails were sent. Wait a few minutes and try again.';
-  return (err && err.message) || 'Could not send the email. Try again in a moment.';
+  if (err && err.status === 429) return t('Too many reset emails were sent. Wait a few minutes and try again.');
+  return (err && err.message) || t('Could not send the email. Try again in a moment.');
 }
 
 async function handleForgot(form) {
   const email = form.querySelector('#authEmail').value.trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthMessage('Enter the email address you signed up with.', true); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthMessage(t('Enter the email address you signed up with.'), true); return; }
   const btn = document.getElementById('authForgotSubmit');
-  btn.disabled = true; btn.textContent = 'Sending…';
+  btn.disabled = true; btn.textContent = t('Sending…');
   try {
     await sendResetLink(email);
     setView('forgot');
   } catch (err) {
     console.error('Password reset email failed:', err);
-    btn.disabled = false; btn.textContent = 'Send reset link';
+    btn.disabled = false; btn.textContent = t('Send reset link');
     showAuthMessage(resetErrorText(err), true);
   }
 }
@@ -462,11 +463,11 @@ async function handleForgot(form) {
 async function resendResetLink() {
   if (!forgotState.sentTo || Date.now() < forgotState.cooldownUntil) return;
   const btn = document.getElementById('forgotResend');
-  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('Sending…'); }
   try {
     await sendResetLink(forgotState.sentTo);
     showToast('<span class="toast__well toast__well--success">' + icon('check', 15) + '</span>' +
-      '<span class="toast__body"><span class="t-label-m">Sent again</span><span class="t-caption c-tertiary">Use the newest email; older links stop working</span></span>');
+      '<span class="toast__body"><span class="t-label-m">' + t('Sent again') + '</span><span class="t-caption c-tertiary">' + t('Use the newest email; older links stop working') + '</span></span>');
   } catch (err) {
     console.error('Password reset email failed:', err);
     toast('resetFailed');
@@ -481,7 +482,7 @@ function paintForgotCooldown() {
     const left = forgotState.cooldownUntil - Date.now();
     if (!btn) { clearInterval(forgotTimer); return; }
     btn.disabled = left > 0;
-    btn.textContent = left > 0 ? 'Send it again in ' + Math.ceil(left / 1000) + 's' : 'Send it again';
+    btn.textContent = left > 0 ? t('Send it again in {n}s', { n: Math.ceil(left / 1000) }) : t('Send it again');
     if (left <= 0) clearInterval(forgotTimer);
   }
   tick();
@@ -491,20 +492,20 @@ function paintForgotCooldown() {
 async function handleReset(form) {
   const pass = form.querySelector('#authNewPass').value;
   const again = form.querySelector('#authNewPass2').value;
-  if (pass.length < 6) { showAuthMessage('Use at least 6 characters.', true); return; }
-  if (pass !== again) { showAuthMessage('The two passwords don’t match.', true); return; }
+  if (pass.length < 6) { showAuthMessage(t('Use at least 6 characters.'), true); return; }
+  if (pass !== again) { showAuthMessage(t('The two passwords don’t match.'), true); return; }
   const btn = document.getElementById('authResetSubmit');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = t('Saving…');
   try {
     await db.auth.setPassword(pass);
     location.hash = resetReturn;
     toast('passwordUpdated');
   } catch (err) {
     console.error('Password update failed:', err);
-    btn.disabled = false; btn.textContent = 'Save new password';
+    btn.disabled = false; btn.textContent = t('Save new password');
     showAuthMessage(err && err.code === 'same_password'
-      ? 'That’s your current password. Pick a different one.'
-      : (err && err.message) || 'Could not save the password. Try again.', true);
+      ? t('That’s your current password. Pick a different one.')
+      : (err && err.message) || t('Could not save the password. Try again.'), true);
   }
 }
 
@@ -517,10 +518,10 @@ function renderNowPlayingMini() {
       '<div class="np__top">' +
         '<div class="art np__placeholder" style="width:38px;height:38px" aria-hidden="true">' + icon('spotify', 18) + '</div>' +
         '<div class="np__meta">' +
-          '<span class="t-label-m truncate">' + (connected ? 'Nothing playing' : 'Spotify not connected') + '</span>' +
-          '<span class="t-caption c-tertiary truncate">' + (connected ? 'Play something on Spotify' : 'Connect to show your music') + '</span>' +
+          '<span class="t-label-m truncate">' + (connected ? t('Nothing playing') : t('Spotify not connected')) + '</span>' +
+          '<span class="t-caption c-tertiary truncate">' + (connected ? t('Play something on Spotify') : t('Connect to show your music')) + '</span>' +
         '</div>' +
-        (connected ? '' : '<button class="iconbtn" data-action="spotify-connect" data-tip="Connect Spotify" aria-label="Connect Spotify">' + icon('plus', 17) + '</button>') +
+        (connected ? '' : '<button class="iconbtn" data-action="spotify-connect" data-tip="' + t('Connect Spotify') + '" aria-label="' + t('Connect Spotify') + '">' + icon('plus', 17) + '</button>') +
       '</div>' +
     '</div>';
   }
@@ -532,8 +533,8 @@ function renderNowPlayingMini() {
         '<span class="t-caption c-tertiary truncate">' + esc(np.artist) + '</span>' +
       '</div>' +
       (np.playing
-        ? '<span class="eq" aria-label="Playing"><i></i><i></i><i></i></span>'
-        : '<span class="t-meta c-tertiary">Paused</span>') +
+        ? '<span class="eq" aria-label="' + t('Playing') + '"><i></i><i></i><i></i></span>'
+        : '<span class="t-meta c-tertiary">' + t('Paused') + '</span>') +
     '</div>' +
     '<div class="track track--thin"><i data-np-bar style="width:0%"></i></div>' +
     '<div class="np__times">' +
@@ -551,19 +552,19 @@ function renderSidebar() {
     return '<a class="nav" href="#/' + n.id + '" data-view-link="' + n.id + '">' +
       icon(n.icon, 19) +
       '<span>' + n.label + '</span>' +
-      (n.dot ? '<span class="nav__dot" aria-label="In development"></span>' : '') +
+      (n.dot ? '<span class="nav__dot" aria-label="' + t('In development') + '"></span>' : '') +
       (n.id === 'friends' && DATA.incoming.length
-        ? '<span class="nav__dot" aria-label="' + countLabel(DATA.incoming.length, 'friend request') + '"></span>' : '') +
+        ? '<span class="nav__dot" aria-label="' + tn(DATA.incoming.length, '{n} friend request', '{n} friend requests') + '"></span>' : '') +
       (n.id === 'notifications' ? notifCountEl() : '') +
     '</a>';
   }
   let nav = layout.groups.map(function (g) {
     const items = g.ids.filter(function (id) { return !layout.hidden[id]; }).map(function (id) { return link(byId[id]); });
-    return items.length ? '<p class="nav-group t-overline">' + g.name + '</p>' + items.join('') : '';
+    return items.length ? '<p class="nav-group t-overline">' + t(g.name) + '</p>' + items.join('') : '';
   }).join('');
   const pinned = layout.pins.map(function (u) { return DATA.friends.filter(function (f) { return f.username === u; })[0]; }).filter(Boolean);
   if (pinned.length) {
-    nav += '<p class="nav-group t-overline">Pinned</p>' + pinned.map(function (f) {
+    nav += '<p class="nav-group t-overline">' + t('Pinned') + '</p>' + pinned.map(function (f) {
       return '<a class="nav nav--person" href="#/u/' + esc(f.username) + '" data-profile-link="' + esc(f.username) + '">' +
         avatarEl(f.initials, '24', null, f.avatarUrl) + '<span>' + esc(f.name) + '</span></a>';
     }).join('');
@@ -572,11 +573,11 @@ function renderSidebar() {
   return '' +
   '<div class="sidebar__brand">' +
     '<a class="brand" href="#/home"><img class="brand__mark" src="assets/logo-64.png" width="22" height="22" alt="vortex"><b>vortex</b></a>' +
-    '<button class="iconbtn" id="railToggle" data-tip="Collapse sidebar" aria-label="Collapse sidebar">' +
+    '<button class="iconbtn" id="railToggle" data-tip="' + t('Collapse sidebar') + '" aria-label="' + t('Collapse sidebar') + '">' +
       icon('chevronLeft', 17) + '</button>' +
   '</div>' +
   '<button class="field field--sm sidebar__search" id="openCmdk">' +
-    icon('search', 15) + '<span class="c-tertiary">Search</span>' +
+    icon('search', 15) + '<span class="c-tertiary">' + t('Search') + '</span>' +
     '<span class="field__kbd">⌘K</span>' +
   '</button>' +
   '<nav class="sidebar__nav scroll">' + nav + '</nav>' +
@@ -603,15 +604,15 @@ function renderBottomNav() {
 function renderMobileBar() {
   return '<a class="brand" href="#/home"><img class="brand__mark" src="assets/logo-64.png" width="20" height="20" alt="vortex"><b style="font-size:17px">vortex</b></a>' +
     '<span class="spacer"></span>' +
-    '<a class="iconbtn iconbtn--lg mbell" href="#/notifications" data-view-link="notifications" aria-label="Notifications">' + icon('bell', 18) +
+    '<a class="iconbtn iconbtn--lg mbell" href="#/notifications" data-view-link="notifications" aria-label="' + t('Notifications') + '">' + icon('bell', 18) +
       (DATA.notifications.unread ? '<b class="mbell__dot"></b>' : '') + '</a>' +
-    '<button class="iconbtn iconbtn--lg" id="openCmdkMobile" aria-label="Search">' + icon('search', 18) + '</button>' +
-    '<button class="iconbtn iconbtn--lg" data-nav="settings" aria-label="Settings">' + icon('sliders', 18) + '</button>';
+    '<button class="iconbtn iconbtn--lg" id="openCmdkMobile" aria-label="' + t('Search') + '">' + icon('search', 18) + '</button>' +
+    '<button class="iconbtn iconbtn--lg" data-nav="settings" aria-label="' + t('Settings') + '">' + icon('sliders', 18) + '</button>';
 }
 
 function notifCountEl() {
   const n = DATA.notifications.unread;
-  return n ? '<b class="nav__count" aria-label="' + countLabel(n, 'unread notification') + '">' + (n > 9 ? '9+' : n) + '</b>' : '';
+  return n ? '<b class="nav__count" aria-label="' + tn(n, '{n} unread notification', '{n} unread notifications') + '">' + (n > 9 ? '9+' : n) + '</b>' : '';
 }
 
 function updateNotifBadge() {
@@ -678,9 +679,9 @@ function setView(name) {
   document.getElementById('bottomnav').hidden = !authed;
   document.getElementById('mobilebar').hidden = !authed;
   const fp = UI.friendProfile && UI.friendProfile.status === 'ok' && UI.friendProfile.username === friendProfileUsername() ? UI.friendProfile.profile : null;
-  const label = name === 'friendProfile' ? (fp ? fp.name : 'Profile')
-    : name === 'compare' ? (fp ? 'You and ' + fp.name.split(/\s+/)[0] : 'Compare')
-    : name === 'post' ? 'Post'
+  const label = name === 'friendProfile' ? (fp ? fp.name : t('Profile'))
+    : name === 'compare' ? (fp ? t('You and {name}', { name: fp.name.split(/\s+/)[0] }) : t('Compare'))
+    : name === 'post' ? t('Post')
     : (NAV.filter(function (n) { return n.id === name; })[0] || {}).label || 'vortex';
   document.title = label + ' · vortex';
   syncAppearanceControls();
@@ -734,7 +735,7 @@ function applyRail() {
   const btn = document.getElementById('railToggle');
   if (btn) {
     btn.style.transform = compact ? 'rotate(180deg)' : '';
-    btn.dataset.tip = compact ? 'Expand sidebar' : 'Collapse sidebar';
+    btn.dataset.tip = compact ? t('Expand sidebar') : t('Collapse sidebar');
   }
   syncAppearanceControls();
 }
@@ -1194,7 +1195,7 @@ async function recapImage(btn, share) {
     const file = new File([blob], 'vortex-recap.png', { type: 'image/png' });
     if (share && navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: 'My last 4 weeks on vortex' });
+        await navigator.share({ files: [file], title: t('My last 4 weeks on vortex') });
       } catch (err) {
         if (err && err.name !== 'AbortError') throw err;
       }
@@ -1253,11 +1254,11 @@ async function runPinSearch(query) {
             '<span class="row__meta"><span class="t-body-m-med truncate">' + esc(t.title) + '</span>' +
             '<span class="t-body-s c-tertiary truncate">' + esc(t.artist) + '</span></span></button>';
         }).join('')
-      : '<p class="t-body-s c-tertiary">No songs found.</p>';
+      : '<p class="t-body-s c-tertiary">' + t('No songs found.') + '</p>';
   } catch (err) {
     if (seq !== pinSearchSeq) return;
     console.error('Spotify search failed:', err);
-    box.innerHTML = '<p class="t-body-s c-tertiary">Spotify search failed. Try again in a moment.</p>';
+    box.innerHTML = '<p class="t-body-s c-tertiary">' + t('Spotify search failed. Try again in a moment.') + '</p>';
   }
 }
 
@@ -1272,7 +1273,7 @@ async function handlePinSubmit(form) {
     if (title && artist) pick = { trackId: null, title: title, artist: artist, image: null };
   }
   if (!pick) {
-    errText.textContent = form.querySelector('#pinSearch') ? 'Search for a song and pick one from the list.' : 'Type the song and the artist.';
+    errText.textContent = form.querySelector('#pinSearch') ? t('Search for a song and pick one from the list.') : t('Type the song and the artist.');
     errBox.hidden = false;
     return;
   }
@@ -1291,7 +1292,7 @@ async function handlePinSubmit(form) {
     toast('pinSaved');
   } catch (err) {
     console.error('Could not pin song:', err);
-    errText.textContent = 'Could not save it. Check your connection and try again.';
+    errText.textContent = t('Could not save it. Check your connection and try again.');
     errBox.hidden = false;
     btn.disabled = false;
   }
@@ -1392,11 +1393,11 @@ async function saveTopTracksPlaylist() {
   if (!tracks || !tracks.length) return;
   UI.savedPlaylist[range] = { status: 'saving' };
   paintLibraryPanels();
-  const month = new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+  const month = new Date().toLocaleDateString(loc('en-GB'), { month: 'short', year: 'numeric' });
   try {
     const res = await spotify.createPlaylist(
-      'vortex · top tracks · ' + RANGE_LABEL[range].toLowerCase() + ' (' + month + ')',
-      'Your ' + tracks.length + ' top tracks on Spotify over the last ' + RANGE_LABEL[range].toLowerCase() + ', saved from vortex.',
+      t('vortex · top tracks · {range} ({month})', { range: t(RANGE_LABEL[range]).toLowerCase(), month: month }),
+      t('Your {n} top tracks on Spotify over the last {range}, saved from vortex.', { n: tracks.length, range: t(RANGE_LABEL[range]).toLowerCase() }),
       tracks.map(function (t) { return t.id; })
     );
     UI.savedPlaylist[range] = { status: 'ok', url: res.url };
@@ -1417,14 +1418,14 @@ async function saveBlend(profileId) {
   const mine = mySnapshot();
   if (!fp || fp.status !== 'ok' || fp.profile.id !== profileId || !theirs || !mine) return;
   const b = blendTracks(mine, theirs);
-  const me = (DATA.me.name || 'You').split(/\s+/)[0];
+  const me = (DATA.me.name || t('You')).split(/\s+/)[0];
   const them = fp.profile.name.split(/\s+/)[0];
   UI.blend[profileId] = { status: 'saving' };
   paintLibraryPanels();
   try {
     const res = await spotify.createPlaylist(
       'vortex · ' + me + ' + ' + them,
-      'What ' + me + ' and ' + them + ' both love, then each one\'s favorites, taking turns. Made on vortex.',
+      t('What {me} and {them} both love, then each one\'s favorites, taking turns. Made on vortex.', { me: me, them: them }),
       b.tracks.map(function (t) { return t.id; })
     );
     UI.blend[profileId] = { status: 'ok', url: res.url };
@@ -1526,47 +1527,47 @@ async function connectSpotify() {
 
 /* ---- toasts -------------------------------------------------------------- */
 const TOASTS = {
-  postDeleted: ['success', 'Post deleted', 'It no longer shows up in anyone\'s feed'],
-  postLinkCopied: ['success', 'Link copied', 'Anyone on vortex with the link can open this post'],
-  profileLinkCopied: ['success', 'Link copied', 'It opens the profile, with an Add friend button'],
-  linkFailed: ['error', 'Could not copy the link', 'Your browser blocked the clipboard'],
-  profileSaved: ['success', 'Profile saved', 'Everyone sees the new version now'],
-  passwordUpdated: ['success', 'Password changed', 'Use the new one next time you log in'],
-  userBlocked: ['success', 'Blocked', 'Unblock any time in Settings'],
-  userUnblocked: ['info', 'Unblocked', 'They can find and add you again'],
-  blockFailed: ['error', 'Something went wrong', 'Check your connection and try again'],
-  resetFailed: ['error', 'Email not sent', 'Wait a few minutes and try again'],
-  reactionFailed: ['error', 'Reaction not saved', 'Check your connection and try again'],
-  commentFailed: ['error', 'Comment not sent', 'Your text is still in the box, try again'],
-  commentRateLimited: ['error', 'Slow down', 'Max 3 comments per post per minute. Your text is still in the box'],
-  friendRequested: ['success', 'Request sent', 'They show up in your friends once they accept'],
-  friendAccepted: ['success', 'You are now friends', 'Their posts now show in your feed'],
-  friendDeclined: ['info', 'Request declined', 'They will not be notified'],
-  friendCancelled: ['info', 'Request cancelled', 'You can send it again any time'],
-  friendRemoved: ['success', 'Friend removed', 'Their posts no longer show in your Friends feed'],
-  friendFailed: ['error', 'Something went wrong', 'The list was refreshed. Try again'],
-  shareOn: ['success', 'Sharing is on', 'Friends can see what you are listening to'],
-  shareOff: ['info', 'Sharing is off', 'Friends no longer see what you are listening to'],
-  settingFailed: ['error', 'Setting not saved', 'Check your connection and try again'],
-  tasteOn: ['success', 'Music DNA shared', 'Friends can now compare tastes with you'],
-  tasteOff: ['info', 'Music DNA private', 'Your snapshot was deleted from vortex'],
-  playlistSaved: ['success', 'Playlist saved', 'It\'s private, in your Spotify library'],
-  playlistFailed: ['error', 'Playlist not saved', 'Spotify refused it. Try again in a moment'],
-  imageFailed: ['error', 'Image not created', 'Your browser blocked the export. Try again'],
-  avatarUpdated: ['success', 'Photo updated', 'Your new photo is now visible to everyone'],
-  avatarFailed: ['error', 'Photo not saved', 'Check your connection and try again'],
-  avatarInvalid: ['error', 'Unsupported file', 'Use a PNG, JPEG, WebP or GIF image'],
-  avatarTooBig: ['error', 'Image too large', 'Photos must be 5MB or smaller'],
-  lookReset: ['info', 'Back to defaults', 'Accent, glass, density, animations, sound and sidebar were reset'],
-  pinSaved: ['success', 'Song pinned', 'It\'s the first thing people see on your profile'],
-  pinCleared: ['info', 'Song unpinned', 'Pin another one any time from your profile'],
-  recapNoShare: ['info', 'Saved instead', 'This browser can\'t share images, so the recap was downloaded'],
-  spotifyConnected: ['success', 'Spotify connected', 'What you play now shows up in vortex'],
-  spotifyCancelled: ['info', 'Spotify not connected', 'You cancelled on the Spotify screen'],
-  spotifyFailed: ['error', 'Could not connect Spotify', 'Try again in a moment'],
-  spotifyDisconnected: ['success', 'Spotify disconnected', 'Remove full access at spotify.com/account/apps'],
-  spotifyExpired: ['error', 'Spotify session ended', 'Connect again in Settings'],
-  spotifyForbidden: ['error', 'Spotify blocked this account', 'While in development, only accounts on the tester list can connect']
+  postDeleted: ['success', t('Post deleted'), t('It no longer shows up in anyone\'s feed')],
+  postLinkCopied: ['success', t('Link copied'), t('Anyone on vortex with the link can open this post')],
+  profileLinkCopied: ['success', t('Link copied'), t('It opens the profile, with an Add friend button')],
+  linkFailed: ['error', t('Could not copy the link'), t('Your browser blocked the clipboard')],
+  profileSaved: ['success', t('Profile saved'), t('Everyone sees the new version now')],
+  passwordUpdated: ['success', t('Password changed'), t('Use the new one next time you log in')],
+  userBlocked: ['success', t('Blocked'), t('Unblock any time in Settings')],
+  userUnblocked: ['info', t('Unblocked'), t('They can find and add you again')],
+  blockFailed: ['error', t('Something went wrong'), t('Check your connection and try again')],
+  resetFailed: ['error', t('Email not sent'), t('Wait a few minutes and try again')],
+  reactionFailed: ['error', t('Reaction not saved'), t('Check your connection and try again')],
+  commentFailed: ['error', t('Comment not sent'), t('Your text is still in the box, try again')],
+  commentRateLimited: ['error', t('Slow down'), t('Max 3 comments per post per minute. Your text is still in the box')],
+  friendRequested: ['success', t('Request sent'), t('They show up in your friends once they accept')],
+  friendAccepted: ['success', t('You are now friends'), t('Their posts now show in your feed')],
+  friendDeclined: ['info', t('Request declined'), t('They will not be notified')],
+  friendCancelled: ['info', t('Request cancelled'), t('You can send it again any time')],
+  friendRemoved: ['success', t('Friend removed'), t('Their posts no longer show in your Friends feed')],
+  friendFailed: ['error', t('Something went wrong'), t('The list was refreshed. Try again')],
+  shareOn: ['success', t('Sharing is on'), t('Friends can see what you are listening to')],
+  shareOff: ['info', t('Sharing is off'), t('Friends no longer see what you are listening to')],
+  settingFailed: ['error', t('Setting not saved'), t('Check your connection and try again')],
+  tasteOn: ['success', t('Music DNA shared'), t('Friends can now compare tastes with you')],
+  tasteOff: ['info', t('Music DNA private'), t('Your snapshot was deleted from vortex')],
+  playlistSaved: ['success', t('Playlist saved'), t('It\'s private, in your Spotify library')],
+  playlistFailed: ['error', t('Playlist not saved'), t('Spotify refused it. Try again in a moment')],
+  imageFailed: ['error', t('Image not created'), t('Your browser blocked the export. Try again')],
+  avatarUpdated: ['success', t('Photo updated'), t('Your new photo is now visible to everyone')],
+  avatarFailed: ['error', t('Photo not saved'), t('Check your connection and try again')],
+  avatarInvalid: ['error', t('Unsupported file'), t('Use a PNG, JPEG, WebP or GIF image')],
+  avatarTooBig: ['error', t('Image too large'), t('Photos must be 5MB or smaller')],
+  lookReset: ['info', t('Back to defaults'), t('Accent, glass, density, animations, sound and sidebar were reset')],
+  pinSaved: ['success', t('Song pinned'), t('It\'s the first thing people see on your profile')],
+  pinCleared: ['info', t('Song unpinned'), t('Pin another one any time from your profile')],
+  recapNoShare: ['info', t('Saved instead'), t('This browser can\'t share images, so the recap was downloaded')],
+  spotifyConnected: ['success', t('Spotify connected'), t('What you play now shows up in vortex')],
+  spotifyCancelled: ['info', t('Spotify not connected'), t('You cancelled on the Spotify screen')],
+  spotifyFailed: ['error', t('Could not connect Spotify'), t('Try again in a moment')],
+  spotifyDisconnected: ['success', t('Spotify disconnected'), t('Remove full access at spotify.com/account/apps')],
+  spotifyExpired: ['error', t('Spotify session ended'), t('Connect again in Settings')],
+  spotifyForbidden: ['error', t('Spotify blocked this account'), t('While in development, only accounts on the tester list can connect')]
 };
 
 function toast(kind) {
@@ -1598,7 +1599,7 @@ function showToast(inner) {
   const el = document.createElement('div');
   el.className = 'toast';
   el.setAttribute('role', 'status');
-  el.innerHTML = inner + '<button class="iconbtn" aria-label="Dismiss">' + icon('close', 15) + '</button>';
+  el.innerHTML = inner + '<button class="iconbtn" aria-label="' + t('Dismiss') + '">' + icon('close', 15) + '</button>';
   const link = el.querySelector('.toast__link');
   if (link) link.addEventListener('click', function () { el.remove(); });
   const stack = document.getElementById('toasts');
@@ -1629,32 +1630,32 @@ function openEditProfile(focusId) {
       '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="profileFormTitle">' +
         '<div class="modal__head">' +
           '<span class="toast__well toast__well--info">' + icon('user', 15) + '</span>' +
-          '<h2 class="t-title-s" id="profileFormTitle">Edit profile</h2>' +
+          '<h2 class="t-title-s" id="profileFormTitle">' + t('Edit profile') + '</h2>' +
         '</div>' +
         '<form id="profileForm" class="modal__body" novalidate>' +
           '<div class="auth__note auth__note--error" id="profileError" hidden>' + icon('close', 16) +
             '<p class="t-body-s c-secondary" id="profileErrorText"></p>' +
           '</div>' +
           '<div class="auth__field">' +
-            '<label class="t-label-m c-secondary" for="editName">Display name</label>' +
+            '<label class="t-label-m c-secondary" for="editName">' + t('Display name') + '</label>' +
             '<span class="field">' + icon('user', 17) +
               '<input id="editName" type="text" maxlength="' + NAME_MAX + '" autocomplete="name" required value="' + esc(me.name) + '"></span>' +
           '</div>' +
           '<div class="auth__field">' +
-            '<label class="t-label-m c-secondary" for="editUsername">Username</label>' +
+            '<label class="t-label-m c-secondary" for="editUsername">' + t('Username') + '</label>' +
             '<span class="field"><span class="field__at" aria-hidden="true">@</span>' +
               '<input id="editUsername" type="text" maxlength="20" autocomplete="username" spellcheck="false" required value="' + esc(myHandle()) + '" aria-describedby="editUsernameHint"></span>' +
-            '<p class="t-caption field-hint" id="editUsernameHint">Your profile link is ' + esc(location.host) + '/#/u/' + esc(myHandle()) + '</p>' +
+            '<p class="t-caption field-hint" id="editUsernameHint">' + t('Your profile link is {link}', { link: esc(location.host) + '/#/u/' + esc(myHandle()) }) + '</p>' +
           '</div>' +
           '<div class="auth__field">' +
-            '<label class="t-label-m c-secondary field-label-row" for="editBio">Bio<span class="t-caption c-tertiary" id="editBioCount">' + (me.bio || '').length + ' / ' + BIO_MAX + '</span></label>' +
+            '<label class="t-label-m c-secondary field-label-row" for="editBio">' + t('Bio') + '<span class="t-caption c-tertiary" id="editBioCount">' + (me.bio || '').length + ' / ' + BIO_MAX + '</span></label>' +
             '<span class="field field--area">' + icon('comment', 17) +
-              '<textarea id="editBio" maxlength="' + BIO_MAX + '" rows="3" placeholder="A line about you and what you listen to">' + esc(me.bio || '') + '</textarea></span>' +
+              '<textarea id="editBio" maxlength="' + BIO_MAX + '" rows="3" placeholder="' + t('A line about you and what you listen to') + '">' + esc(me.bio || '') + '</textarea></span>' +
           '</div>' +
         '</form>' +
         '<div class="modal__foot">' +
-          '<button type="button" class="btn btn--ghost btn--sm" data-close>Cancel</button>' +
-          '<button type="submit" class="btn btn--primary btn--sm" form="profileForm" id="profileSubmit">Save</button>' +
+          '<button type="button" class="btn btn--ghost btn--sm" data-close>' + t('Cancel') + '</button>' +
+          '<button type="submit" class="btn btn--primary btn--sm" form="profileForm" id="profileSubmit">' + t('Save') + '</button>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -1678,19 +1679,19 @@ function checkUsernameInput(value, first) {
   const hintId = first ? 'welcomeUsernameHint' : 'editUsernameHint';
   const u = value.trim();
   if (u.toLowerCase() === myHandle().toLowerCase()) {
-    setUsernameHint('Your profile link is ' + location.host + '/#/u/' + (u || myHandle()), '', hintId);
+    setUsernameHint(t('Your profile link is {link}', { link: location.host + '/#/u/' + (u || myHandle()) }), '', hintId);
     return;
   }
-  if (!USERNAME_RE.test(u)) { setUsernameHint('Use 3 to 20 letters, numbers or _', 'bad', hintId); return; }
-  setUsernameHint('Checking @' + u + '…', '', hintId);
+  if (!USERNAME_RE.test(u)) { setUsernameHint(t('Use 3 to 20 letters, numbers or _'), 'bad', hintId); return; }
+  setUsernameHint(t('Checking @{username}…', { username: u }), '', hintId);
   usernameCheckTimer = setTimeout(async function () {
     try {
       const taken = await db.profiles.usernameTaken(u, app.session.user.id);
       if (seq !== usernameCheckSeq) return;
-      setUsernameHint(taken ? '@' + u + ' is taken'
-        : '@' + u + ' is free.' + (first ? '' : ' Links to your old username will stop working.'), taken ? 'bad' : 'good', hintId);
+      setUsernameHint(taken ? t('@{username} is taken', { username: u })
+        : first ? t('@{username} is free.', { username: u }) : t('@{username} is free. Links to your old username will stop working.', { username: u }), taken ? 'bad' : 'good', hintId);
     } catch (err) {
-      if (seq === usernameCheckSeq) setUsernameHint('Could not check this username right now', '', hintId);
+      if (seq === usernameCheckSeq) setUsernameHint(t('Could not check this username right now'), '', hintId);
     }
   }, 350);
 }
@@ -1712,23 +1713,23 @@ async function handleWelcome(form) {
   if (nameInput) {
     const name = nameInput.value.replace(/\s+/g, ' ').trim();
     username = form.querySelector('#welcomeUsername').value.trim();
-    if (!name) { showAuthMessage('Add a display name.', true); return; }
-    if (!USERNAME_RE.test(username)) { showAuthMessage('Usernames use 3 to 20 letters, numbers or _.', true); return; }
+    if (!name) { showAuthMessage(t('Add a display name.'), true); return; }
+    if (!USERNAME_RE.test(username)) { showAuthMessage(t('Usernames use 3 to 20 letters, numbers or _.'), true); return; }
     fields.name = name.slice(0, NAME_MAX);
     fields.username = username;
     fields.username_confirmed = true;
   }
   if (consent) {
-    if (!consent.checked) { consentMissing(consent, 'Accept the privacy policy to continue.'); return; }
+    if (!consent.checked) { consentMissing(consent, t('Accept the privacy policy to continue.')); return; }
     fields.privacy_version = PRIVACY_VERSION;
   }
   const btn = document.getElementById('authWelcomeSubmit');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = t('Saving…');
   const me = app.session.user.id;
   try {
     if (nameInput && username.toLowerCase() !== myHandle().toLowerCase() && await db.profiles.usernameTaken(username, me)) {
-      btn.disabled = false; btn.textContent = 'Continue';
-      showAuthMessage('@' + username + ' is taken. Try another.', true);
+      btn.disabled = false; btn.textContent = t('Continue');
+      showAuthMessage(t('@{username} is taken. Try another.', { username: username }), true);
       return;
     }
     await db.profiles.update(me, fields);
@@ -1740,17 +1741,17 @@ async function handleWelcome(form) {
     setView(currentRoute());
   } catch (err) {
     console.error('Could not save username:', err);
-    btn.disabled = false; btn.textContent = 'Continue';
-    showAuthMessage(err && err.code === '23505' ? '@' + username + ' is taken. Try another.' : 'Could not save. Check your connection and try again.', true);
+    btn.disabled = false; btn.textContent = t('Continue');
+    showAuthMessage(err && err.code === '23505' ? t('@{username} is taken. Try another.', { username: username }) : t('Could not save. Check your connection and try again.'), true);
   }
 }
 
 async function handleGoogle(btn) {
   // On the signup page the policy box covers Google too. From log in, a new account accepts on the welcome screen.
   const consent = document.getElementById('authConsent');
-  if (consent && !consent.checked) { consentMissing(consent, 'Accept the privacy policy to create an account.'); return; }
+  if (consent && !consent.checked) { consentMissing(consent, t('Accept the privacy policy to create an account.')); return; }
   const label = btn.querySelector('span');
-  btn.disabled = true; label.textContent = 'Opening Google…';
+  btn.disabled = true; label.textContent = t('Opening Google…');
   // The page is about to leave, so the shared link a logged-out visitor opened, and the box ticked
   // on the signup page, ride along in sessionStorage.
   try {
@@ -1760,8 +1761,8 @@ async function handleGoogle(btn) {
     await db.auth.signInWithGoogle();
   } catch (err) {
     console.error('Google sign-in failed:', err);
-    btn.disabled = false; label.textContent = 'Continue with Google';
-    showAuthMessage((err && err.message) || 'Could not start Google sign-in. Try again.', true);
+    btn.disabled = false; label.textContent = t('Continue with Google');
+    showAuthMessage((err && err.message) || t('Could not start Google sign-in. Try again.'), true);
   }
 }
 
@@ -1776,16 +1777,16 @@ async function handleProfileSubmit(form) {
     errBox.hidden = false;
     if (focusId) form.querySelector('#' + focusId).focus();
   }
-  if (!name) return fail('Add a display name.', 'editName');
-  if (!USERNAME_RE.test(username)) return fail('Usernames use 3 to 20 letters, numbers or _.', 'editUsername');
+  if (!name) return fail(t('Add a display name.'), 'editName');
+  if (!USERNAME_RE.test(username)) return fail(t('Usernames use 3 to 20 letters, numbers or _.'), 'editUsername');
 
   const me = app.session.user.id;
   const btn = document.getElementById('profileSubmit');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = t('Saving…');
   try {
     if (username.toLowerCase() !== myHandle().toLowerCase() && await db.profiles.usernameTaken(username, me)) {
-      btn.disabled = false; btn.textContent = 'Save';
-      return fail('@' + username + ' is taken. Try another.', 'editUsername');
+      btn.disabled = false; btn.textContent = t('Save');
+      return fail(t('@{username} is taken. Try another.', { username: username }), 'editUsername');
     }
     const row = await db.profiles.update(me, { name: name.slice(0, NAME_MAX), username: username, bio: bio.slice(0, BIO_MAX) || null });
     DATA.me.name = row.name;
@@ -1798,8 +1799,8 @@ async function handleProfileSubmit(form) {
     toast('profileSaved');
   } catch (err) {
     console.error('Could not save profile:', err);
-    btn.disabled = false; btn.textContent = 'Save';
-    fail(err && err.code === '23505' ? '@' + username + ' is taken. Try another.' : 'Could not save. Check your connection and try again.');
+    btn.disabled = false; btn.textContent = t('Save');
+    fail(err && err.code === '23505' ? t('@{username} is taken. Try another.', { username: username }) : t('Could not save. Check your connection and try again.'));
   }
 }
 
@@ -1849,8 +1850,8 @@ function setPostTrack(track) {
   el.innerHTML = track
     ? '<div class="post-picked">' +
         art(artSeedFor(track.id), null, track.image) +
-        '<span class="t-body-s c-secondary truncate">Cover from Spotify · ' + esc(track.title) + '</span>' +
-        '<button type="button" class="iconbtn" data-action="post-clear-track" data-tip="Remove cover" aria-label="Remove cover">' + icon('close', 15) + '</button>' +
+        '<span class="t-body-s c-secondary truncate">' + t('Cover from Spotify · {track}', { track: esc(track.title) }) + '</span>' +
+        '<button type="button" class="iconbtn" data-action="post-clear-track" data-tip="' + t('Remove cover') + '" aria-label="' + t('Remove cover') + '">' + icon('close', 15) + '</button>' +
       '</div>'
     : '';
 }
@@ -1891,11 +1892,11 @@ async function runPostSearch(query) {
             '</span>' +
           '</button>';
         }).join('')
-      : '<p class="t-body-s c-tertiary">No songs found.</p>';
+      : '<p class="t-body-s c-tertiary">' + t('No songs found.') + '</p>';
   } catch (err) {
     if (seq !== postSearchSeq) return;
     console.error('Spotify search failed:', err);
-    box.innerHTML = '<p class="t-body-s c-tertiary">Spotify search failed. You can still type the song below.</p>';
+    box.innerHTML = '<p class="t-body-s c-tertiary">' + t('Spotify search failed. You can still type the song below.') + '</p>';
   }
 }
 
@@ -1909,7 +1910,7 @@ function openPostForm() {
       '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="postFormTitle">' +
         '<div class="modal__head">' +
           '<span class="toast__well toast__well--info">' + icon('broadcast', 15) + '</span>' +
-          '<h2 class="t-title-s" id="postFormTitle">Share a track</h2>' +
+          '<h2 class="t-title-s" id="postFormTitle">' + t('Share a track') + '</h2>' +
         '</div>' +
         '<form id="postForm" class="modal__body" novalidate>' +
           '<div class="auth__note auth__note--error" id="postError" hidden>' + icon('close', 16) +
@@ -1917,41 +1918,41 @@ function openPostForm() {
           '</div>' +
           (DATA.nowPlaying.status === 'track'
             ? '<button type="button" class="btn btn--secondary btn--sm" data-action="post-use-np" style="justify-content:flex-start;min-width:0">' +
-                icon('spotify', 15) + '<span class="truncate">Use what\'s playing: ' + esc(DATA.nowPlaying.title) + ' · ' + esc(DATA.nowPlaying.artist) + '</span></button>'
+                icon('spotify', 15) + '<span class="truncate">' + t('Use what\'s playing: {track}', { track: esc(DATA.nowPlaying.title) + ' · ' + esc(DATA.nowPlaying.artist) }) + '</span></button>'
             : '') +
           (spotify.auth.isConnected()
             ? '<div class="auth__field">' +
-                '<label class="t-label-m c-secondary" for="postSpotifySearch">Find on Spotify</label>' +
+                '<label class="t-label-m c-secondary" for="postSpotifySearch">' + t('Find on Spotify') + '</label>' +
                 '<span class="field">' + icon('search', 17) +
-                  '<input id="postSpotifySearch" type="search" placeholder="Search a song to add its cover" autocomplete="off" maxlength="100"></span>' +
+                  '<input id="postSpotifySearch" type="search" placeholder="' + t('Search a song to add its cover') + '" autocomplete="off" maxlength="100"></span>' +
                 '<div class="post-search" id="postSpotifyResults"></div>' +
               '</div>'
-            : '<p class="t-body-s c-tertiary">Tip: <button type="button" class="btn btn--ghost btn--sm" data-action="spotify-connect" style="display:inline-flex;padding:0 4px">connect Spotify</button> to search songs and add their cover.</p>') +
+            : '<p class="t-body-s c-tertiary">' + t('Tip: {button} to search songs and add their cover.', { button: '<button type="button" class="btn btn--ghost btn--sm" data-action="spotify-connect" style="display:inline-flex;padding:0 4px">' + t('connect Spotify') + '</button>' }) + '</p>') +
           '<div id="postPicked"></div>' +
           '<div class="auth__field">' +
-            '<label class="t-label-m c-secondary" for="postTitle">Track title</label>' +
+            '<label class="t-label-m c-secondary" for="postTitle">' + t('Track title') + '</label>' +
             '<span class="field">' + icon('disc', 17) +
-              '<input id="postTitle" type="text" placeholder="Song name" maxlength="200" required></span>' +
+              '<input id="postTitle" type="text" placeholder="' + t('Song name') + '" maxlength="200" required></span>' +
           '</div>' +
           '<div class="auth__field">' +
-            '<label class="t-label-m c-secondary" for="postArtist">Artist</label>' +
+            '<label class="t-label-m c-secondary" for="postArtist">' + t('Artist') + '</label>' +
             '<span class="field">' + icon('user', 17) +
-              '<input id="postArtist" type="text" placeholder="Artist name" maxlength="200" required></span>' +
+              '<input id="postArtist" type="text" placeholder="' + t('Artist name') + '" maxlength="200" required></span>' +
           '</div>' +
           '<div class="auth__field">' +
-            '<label class="t-label-m c-secondary" for="postAlbum">Album</label>' +
+            '<label class="t-label-m c-secondary" for="postAlbum">' + t('Album') + '</label>' +
             '<span class="field">' + icon('disc', 17) +
-              '<input id="postAlbum" type="text" placeholder="Optional" maxlength="200"></span>' +
+              '<input id="postAlbum" type="text" placeholder="' + t('Optional') + '" maxlength="200"></span>' +
           '</div>' +
           '<div class="auth__field">' +
-            '<label class="t-label-m c-secondary" for="postNote">Note</label>' +
+            '<label class="t-label-m c-secondary" for="postNote">' + t('Note') + '</label>' +
             '<span class="field field--area">' + icon('comment', 17) +
-              '<textarea id="postNote" placeholder="What do you think? (optional)" maxlength="500" rows="3"></textarea></span>' +
+              '<textarea id="postNote" placeholder="' + t('What do you think? (optional)') + '" maxlength="500" rows="3"></textarea></span>' +
           '</div>' +
         '</form>' +
         '<div class="modal__foot">' +
-          '<button type="button" class="btn btn--ghost btn--sm" data-close>Cancel</button>' +
-          '<button type="submit" class="btn btn--primary btn--sm" form="postForm" id="postSubmit">Share</button>' +
+          '<button type="button" class="btn btn--ghost btn--sm" data-close>' + t('Cancel') + '</button>' +
+          '<button type="submit" class="btn btn--primary btn--sm" form="postForm" id="postSubmit">' + t('Share') + '</button>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -2158,15 +2159,14 @@ function openRemoveFriend(friendshipId) {
       '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="removeFriendTitle">' +
         '<div class="modal__head">' +
           '<span class="toast__well toast__well--error">' + icon('users', 15) + '</span>' +
-          '<h2 class="t-title-s" id="removeFriendTitle">Remove ' + esc(friend.name) + '?</h2>' +
+          '<h2 class="t-title-s" id="removeFriendTitle">' + t('Remove {name}?', { name: esc(friend.name) }) + '</h2>' +
         '</div>' +
         '<div class="modal__body">' +
-          '<p class="t-body-m c-secondary">Their posts stop showing in your Friends feed, and yours in theirs. ' +
-            'You can add each other again later.</p>' +
+          '<p class="t-body-m c-secondary">' + t('Their posts stop showing in your Friends feed, and yours in theirs. You can add each other again later.') + '</p>' +
         '</div>' +
         '<div class="modal__foot">' +
-          '<button type="button" class="btn btn--ghost btn--sm" data-close>Cancel</button>' +
-          '<button type="button" class="btn btn--primary btn--sm" id="removeFriendConfirm">Remove friend</button>' +
+          '<button type="button" class="btn btn--ghost btn--sm" data-close>' + t('Cancel') + '</button>' +
+          '<button type="button" class="btn btn--primary btn--sm" id="removeFriendConfirm">' + t('Remove friend') + '</button>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -2180,12 +2180,12 @@ function openRemoveFriend(friendshipId) {
 
 /* ---- block & report --------------------------------------------------------------- */
 const REPORT_REASONS = [
-  ['spam', 'Spam', 'Ads, scams or the same thing over and over'],
-  ['harassment', 'Harassment or bullying', 'Picking on you or someone else'],
-  ['hate', 'Hate speech', 'Attacking someone for who they are'],
-  ['sexual_violent', 'Sexual or violent content', 'In a post, comment, photo or bio'],
-  ['impersonation', 'Pretending to be someone else', 'Using another person’s name or photo'],
-  ['other', 'Something else', 'Say what happened below']
+  ['spam', t('Spam'), t('Ads, scams or the same thing over and over')],
+  ['harassment', t('Harassment or bullying'), t('Picking on you or someone else')],
+  ['hate', t('Hate speech'), t('Attacking someone for who they are')],
+  ['sexual_violent', t('Sexual or violent content'), t('In a post, comment, photo or bio')],
+  ['impersonation', t('Pretending to be someone else'), t('Using another person’s name or photo')],
+  ['other', t('Something else'), t('Say what happened below')]
 ];
 
 let safety = null;   // { person: { id, name, username }, postId, step: 'menu'|'report'|'reported'|'block' }
@@ -2193,7 +2193,7 @@ let safety = null;   // { person: { id, name, username }, postId, step: 'menu'|'
 function safetyTrigger(person, postId, label) {
   return '<button class="iconbtn" data-safety="' + esc(person.id) + '" data-safety-name="' + esc(person.name) + '" ' +
     'data-safety-handle="' + esc(person.username) + '"' + (postId ? ' data-safety-post="' + esc(postId) + '"' : '') +
-    ' data-tip="More" aria-label="' + esc(label) + '">' + icon('dots', 16) + '</button>';
+    ' data-tip="' + t('More') + '" aria-label="' + esc(label) + '">' + icon('dots', 16) + '</button>';
 }
 
 function openSafety(person, postId) {
@@ -2220,55 +2220,55 @@ function paintSafety() {
       '<h2 class="t-title-s truncate" id="safetyTitle">' + esc(title) + '</h2></div>';
   };
   const blockRow = blocked
-    ? choiceRow('data-safety-unblock="' + esc(p.id) + '"', 'ban', 'Unblock ' + handle, 'They’ll be able to find and add you again.')
-    : choiceRow('data-safety-step="block"', 'ban', 'Block ' + handle, 'They can’t add you, react to or comment on your posts.', true);
+    ? choiceRow('data-safety-unblock="' + esc(p.id) + '"', 'ban', t('Unblock {name}', { name: handle }), t('They’ll be able to find and add you again.'))
+    : choiceRow('data-safety-step="block"', 'ban', t('Block {name}', { name: handle }), t('They can’t add you, react to or comment on your posts.'), true);
   let html;
   if (safety.step === 'menu') {
     html = head('info', 'user', p.name) +
       '<div class="modal__body sheet-options">' +
-        choiceRow('data-safety-step="report"', 'flag', safety.postId ? 'Report this post' : 'Report ' + handle, first + ' won’t know who reported them.') +
+        choiceRow('data-safety-step="report"', 'flag', safety.postId ? t('Report this post') : t('Report {name}', { name: handle }), t('{name} won’t know who reported them.', { name: first })) +
         blockRow +
       '</div>' +
-      '<div class="modal__foot"><button type="button" class="btn btn--ghost btn--sm" data-close>Cancel</button></div>';
+      '<div class="modal__foot"><button type="button" class="btn btn--ghost btn--sm" data-close>' + t('Cancel') + '</button></div>';
   } else if (safety.step === 'report') {
-    html = head('error', 'flag', safety.postId ? 'Report this post' : 'Report ' + handle) +
+    html = head('error', 'flag', safety.postId ? t('Report this post') : t('Report {name}', { name: handle })) +
       '<form class="modal__body" id="reportForm" novalidate>' +
         '<div class="auth__note auth__note--error" id="reportError" hidden>' + icon('close', 16) + '<p class="t-body-s c-secondary" id="reportErrorText"></p></div>' +
-        '<fieldset class="reasons"><legend class="t-label-m c-secondary">What’s wrong?</legend>' +
+        '<fieldset class="reasons"><legend class="t-label-m c-secondary">' + t('What’s wrong?') + '</legend>' +
           REPORT_REASONS.map(function (r) {
             return '<label class="reason"><input type="radio" name="reason" value="' + r[0] + '">' +
               '<span class="reason__meta"><span class="t-body-m-med">' + esc(r[1]) + '</span><span class="t-body-s c-tertiary">' + esc(r[2]) + '</span></span></label>';
           }).join('') +
         '</fieldset>' +
         '<div class="auth__field">' +
-          '<label class="t-label-m c-secondary" for="reportDetails">Anything we should know?</label>' +
-          '<span class="field field--area"><textarea id="reportDetails" placeholder="Optional, up to 500 characters" maxlength="500" rows="2"></textarea></span>' +
+          '<label class="t-label-m c-secondary" for="reportDetails">' + t('Anything we should know?') + '</label>' +
+          '<span class="field field--area"><textarea id="reportDetails" placeholder="' + t('Optional, up to 500 characters') + '" maxlength="500" rows="2"></textarea></span>' +
         '</div>' +
       '</form>' +
       '<div class="modal__foot">' +
-        '<button type="button" class="btn btn--ghost btn--sm" data-safety-step="menu">Back</button>' +
-        '<button type="submit" class="btn btn--primary btn--sm" form="reportForm" id="reportSubmit">Send report</button>' +
+        '<button type="button" class="btn btn--ghost btn--sm" data-safety-step="menu">' + t('Back') + '</button>' +
+        '<button type="submit" class="btn btn--primary btn--sm" form="reportForm" id="reportSubmit">' + t('Send report') + '</button>' +
       '</div>';
   } else if (safety.step === 'reported') {
-    html = head('success', 'check', 'Report sent') +
+    html = head('success', 'check', t('Report sent')) +
       '<div class="modal__body sheet-options">' +
-        '<p class="t-body-m c-secondary">Thanks for telling us. ' + esc(first) + ' isn’t told who sent it.</p>' +
+        '<p class="t-body-m c-secondary">' + t('Thanks for telling us. {name} isn’t told who sent it.', { name: esc(first) }) + '</p>' +
         (blocked ? '' : blockRow) +
       '</div>' +
-      '<div class="modal__foot"><button type="button" class="btn btn--primary btn--sm" data-close>Done</button></div>';
+      '<div class="modal__foot"><button type="button" class="btn btn--primary btn--sm" data-close>' + t('Done') + '</button></div>';
   } else {
-    html = head('error', 'ban', 'Block ' + handle + '?') +
+    html = head('error', 'ban', t('Block {name}?', { name: handle })) +
       '<div class="modal__body">' +
         '<ul class="consequences t-body-s c-secondary">' +
-          '<li>You stop being friends, and stop seeing each other’s listening and music DNA.</li>' +
-          '<li>' + esc(first) + ' can’t send you friend requests, or react to and comment on your posts.</li>' +
-          '<li>Their posts and comments are hidden from you.</li>' +
-          '<li>They aren’t told. You can unblock them in Settings.</li>' +
+          '<li>' + t('You stop being friends, and stop seeing each other’s listening and music DNA.') + '</li>' +
+          '<li>' + t('{name} can’t send you friend requests, or react to and comment on your posts.', { name: esc(first) }) + '</li>' +
+          '<li>' + t('Their posts and comments are hidden from you.') + '</li>' +
+          '<li>' + t('They aren’t told. You can unblock them in Settings.') + '</li>' +
         '</ul>' +
       '</div>' +
       '<div class="modal__foot">' +
-        '<button type="button" class="btn btn--ghost btn--sm" data-safety-step="menu">Back</button>' +
-        '<button type="button" class="btn btn--primary btn--sm" data-safety-block id="blockConfirm">Block ' + esc(first) + '</button>' +
+        '<button type="button" class="btn btn--ghost btn--sm" data-safety-step="menu">' + t('Back') + '</button>' +
+        '<button type="button" class="btn btn--primary btn--sm" data-safety-block id="blockConfirm">' + t('Block {name}', { name: esc(first) }) + '</button>' +
       '</div>';
   }
   modal.innerHTML = html;
@@ -2280,19 +2280,19 @@ async function handleReportSubmit(form) {
   const picked = form.querySelector('input[name="reason"]:checked');
   const err = document.getElementById('reportError');
   const say = function (msg) { document.getElementById('reportErrorText').textContent = msg; err.hidden = false; };
-  if (!picked) { say('Pick the reason that fits best.'); return; }
+  if (!picked) { say(t('Pick the reason that fits best.')); return; }
   const details = form.querySelector('#reportDetails').value.trim().slice(0, 500);
-  if (picked.value === 'other' && !details) { say('Say a few words about what happened.'); return; }
+  if (picked.value === 'other' && !details) { say(t('Say a few words about what happened.')); return; }
   const btn = document.getElementById('reportSubmit');
-  btn.disabled = true; btn.textContent = 'Sending…';
+  btn.disabled = true; btn.textContent = t('Sending…');
   try {
     await db.reports.create(app.session.user.id, { reportedId: safety.person.id, postId: safety.postId, reason: picked.value, details: details });
     safety.step = 'reported';
     paintSafety();
   } catch (e) {
     console.error('Report failed:', e);
-    btn.disabled = false; btn.textContent = 'Send report';
-    say('Could not send the report. Check your connection and try again.');
+    btn.disabled = false; btn.textContent = t('Send report');
+    say(t('Could not send the report. Check your connection and try again.'));
   }
 }
 
@@ -2308,7 +2308,7 @@ async function afterBlockChange() {
 
 async function blockPerson(btn) {
   const p = safety.person;
-  btn.disabled = true; btn.textContent = 'Blocking…';
+  btn.disabled = true; btn.textContent = t('Blocking…');
   try {
     await db.blocks.add(app.session.user.id, p.id);
     DATA.blocked = [{ id: p.id, name: p.name, username: p.username, initials: initialsFrom(p.name), avatarUrl: null }]
@@ -2320,7 +2320,7 @@ async function blockPerson(btn) {
     loadBlocks();
   } catch (e) {
     console.error('Block failed:', e);
-    btn.disabled = false; btn.textContent = 'Block ' + p.name.split(/\s+/)[0];
+    btn.disabled = false; btn.textContent = t('Block {name}', { name: p.name.split(/\s+/)[0] });
     toast('blockFailed');
   }
 }
@@ -2350,18 +2350,17 @@ function openDeletePost(postId) {
       '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="deletePostTitle">' +
         '<div class="modal__head">' +
           '<span class="toast__well toast__well--error">' + icon('trash', 15) + '</span>' +
-          '<h2 class="t-title-s" id="deletePostTitle">Delete this post?</h2>' +
+          '<h2 class="t-title-s" id="deletePostTitle">' + t('Delete this post?') + '</h2>' +
         '</div>' +
         '<div class="modal__body">' +
-          '<p class="t-body-m c-secondary">Your post of <span class="c-primary">' + esc(post.track) + '</span> by ' +
-            esc(post.artist) + ' will be removed, along with its reactions and comments. This cannot be undone.</p>' +
+          '<p class="t-body-m c-secondary">' + t('Your post of {track} by {artist} will be removed, along with its reactions and comments. This cannot be undone.', { track: '<span class="c-primary">' + esc(post.track) + '</span>', artist: esc(post.artist) }) + '</p>' +
           '<div class="auth__note auth__note--error" id="deletePostError" hidden>' + icon('close', 16) +
             '<p class="t-body-s c-secondary" id="deletePostErrorText"></p>' +
           '</div>' +
         '</div>' +
         '<div class="modal__foot">' +
-          '<button type="button" class="btn btn--ghost btn--sm" data-close>Cancel</button>' +
-          '<button type="button" class="btn btn--primary btn--sm" id="deletePostConfirm">Delete post</button>' +
+          '<button type="button" class="btn btn--ghost btn--sm" data-close>' + t('Cancel') + '</button>' +
+          '<button type="button" class="btn btn--primary btn--sm" id="deletePostConfirm">' + t('Delete post') + '</button>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -2371,7 +2370,7 @@ function openDeletePost(postId) {
 }
 
 async function handleDeletePost(postId, btn) {
-  btn.disabled = true; btn.textContent = 'Deleting…';
+  btn.disabled = true; btn.textContent = t('Deleting…');
   try {
     await db.posts.remove(postId);
     closeOverlay();
@@ -2381,9 +2380,9 @@ async function handleDeletePost(postId, btn) {
     toast('postDeleted');
     loadMyActivity();
   } catch (err) {
-    document.getElementById('deletePostErrorText').textContent = err.message || 'Could not delete this post.';
+    document.getElementById('deletePostErrorText').textContent = err.message || t('Could not delete this post.');
     document.getElementById('deletePostError').hidden = false;
-    btn.disabled = false; btn.textContent = 'Delete post';
+    btn.disabled = false; btn.textContent = t('Delete post');
   }
 }
 
@@ -2396,7 +2395,7 @@ async function handlePostSubmit(form) {
   const errText = document.getElementById('postErrorText');
 
   if (!trackTitle || !artist) {
-    errText.textContent = 'Track title and artist are required.';
+    errText.textContent = t('Track title and artist are required.');
     errBox.hidden = false;
     return;
   }
@@ -2406,7 +2405,7 @@ async function handlePostSubmit(form) {
   const trackId = postTrack && TRACK_ID.test(postTrack.id || '') ? postTrack.id : null;
 
   const btn = document.getElementById('postSubmit');
-  btn.disabled = true; btn.textContent = 'Sharing…';
+  btn.disabled = true; btn.textContent = t('Sharing…');
   try {
     await db.posts.create(app.session.user.id, {
       trackTitle: trackTitle,
@@ -2422,15 +2421,15 @@ async function handlePostSubmit(form) {
     if (app.view === 'feed') setView('feed');
     else location.hash = '#/feed';
   } catch (err) {
-    errText.textContent = err.message || 'Could not share this track.';
+    errText.textContent = err.message || t('Could not share this track.');
     errBox.hidden = false;
-    btn.disabled = false; btn.textContent = 'Share';
+    btn.disabled = false; btn.textContent = t('Share');
   }
 }
 
 const CMD_ACTIONS = [
-  { label: 'Toggle theme', hint: 'Customization', run: function () { setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); }, icon: 'droplet' },
-  { label: 'Toggle compact sidebar', hint: 'Navigation', run: function () { setRail(!railPref()); }, icon: 'bars' }
+  { label: t('Toggle theme'), hint: t('Customization'), run: function () { setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); }, icon: 'droplet' },
+  { label: t('Toggle compact sidebar'), hint: t('Navigation'), run: function () { setRail(!railPref()); }, icon: 'bars' }
 ];
 
 const RELATION_HINT = { friends: 'Friend', incoming: 'Wants to be friends', outgoing: 'Requested' };
@@ -2438,20 +2437,20 @@ const RELATION_HINT = { friends: 'Friend', incoming: 'Wants to be friends', outg
 function cmdkPerson(p) {
   const hint = RELATION_HINT[relationshipWith(p.id).state];
   return {
-    group: hint === 'Friend' ? 'Friends' : 'People',
+    group: hint === 'Friend' ? t('Friends') : t('People'),
     label: p.name, sub: '@' + p.username,
     lead: avatarEl(p.initials, '24', null, p.avatarUrl),
-    hint: hint || 'Profile',
+    hint: t(hint || 'Profile'),
     run: function () { location.hash = '#/u/' + encodeURIComponent(p.username); }
   };
 }
 
-function cmdkSong(t) {
+function cmdkSong(song) {
   return {
-    group: 'Songs on Spotify', label: t.title, sub: t.artist,
-    lead: art(artSeedFor(t.id), 'art--sm', t.thumb),
-    hint: 'Share',
-    run: function () { openPostForm(); fillPostTrack(t); }
+    group: t('Songs on Spotify'), label: song.title, sub: song.artist,
+    lead: art(artSeedFor(song.id), 'art--sm', song.thumb),
+    hint: t('Share'),
+    run: function () { openPostForm(); fillPostTrack(song); }
   };
 }
 
@@ -2461,13 +2460,13 @@ function openCmdk() {
   o.hidden = false;
   o.innerHTML =
     '<div class="scrim" data-scrim>' +
-      '<div class="modal cmdk" role="dialog" aria-modal="true" aria-label="Search">' +
+      '<div class="modal cmdk" role="dialog" aria-modal="true" aria-label="' + t('Search') + '">' +
         '<div class="cmdk__input">' + icon('search', 19) +
-          '<input id="cmdkInput" type="text" placeholder="Search people, songs and pages…" autocomplete="off" spellcheck="false" ' +
+          '<input id="cmdkInput" type="text" placeholder="' + t('Search people, songs and pages…') + '" autocomplete="off" spellcheck="false" ' +
             'role="combobox" aria-expanded="true" aria-controls="cmdkList" aria-autocomplete="list">' +
           '<span class="field__kbd">ESC</span>' +
         '</div>' +
-        '<div class="cmdk__list" id="cmdkList" role="listbox" aria-label="Results"></div>' +
+        '<div class="cmdk__list" id="cmdkList" role="listbox" aria-label="' + t('Results') + '"></div>' +
       '</div>' +
     '</div>';
 
@@ -2487,10 +2486,10 @@ function openCmdk() {
     const handle = q.replace(/^@/, '');
     const pages = NAV.filter(function (n) { return n.id && (!q || n.label.toLowerCase().indexOf(q) > -1); })
       .map(function (n) {
-        return { group: 'Pages', label: n.label, lead: icon(n.icon, 16), hint: 'Go to', run: function () { location.hash = '#/' + n.id; } };
+        return { group: t('Pages'), label: n.label, lead: icon(n.icon, 16), hint: t('Go to'), run: function () { location.hash = '#/' + n.id; } };
       });
     const acts = CMD_ACTIONS.filter(function (a) { return !q || a.label.toLowerCase().indexOf(q) > -1; })
-      .map(function (a) { return { group: 'Actions', label: a.label, lead: icon(a.icon, 16), hint: a.hint, run: a.run }; });
+      .map(function (a) { return { group: t('Actions'), label: a.label, lead: icon(a.icon, 16), hint: a.hint, run: a.run }; });
     if (!q) return pages.concat(acts);
 
     const friends = DATA.friends.filter(function (f) {
@@ -2509,10 +2508,10 @@ function openCmdk() {
     const searching = remote.loading && query().length >= 2;
     if (!rows.length) {
       list.innerHTML = searching
-        ? '<p class="cmdk__status t-body-s c-tertiary">Searching people and songs…</p>'
+        ? '<p class="cmdk__status t-body-s c-tertiary">' + t('Searching people and songs…') + '</p>'
         : '<div class="empty"><span class="empty__well">' + icon('search', 20) + '</span>' +
-            '<span class="t-body-m-med">Nothing for “' + esc(query()) + '”</span>' +
-            '<p class="t-body-s c-tertiary">Try a name, an @username, a song or a page.</p></div>';
+            '<span class="t-body-m-med">' + t('Nothing for “{query}”', { query: esc(query()) }) + '</span>' +
+            '<p class="t-body-s c-tertiary">' + t('Try a name, an @username, a song or a page.') + '</p></div>';
       input.removeAttribute('aria-activedescendant');
       return;
     }
@@ -2525,7 +2524,7 @@ function openCmdk() {
         '<span class="cmdk__text"><span class="truncate">' + esc(r.label) + '</span>' +
           (r.sub ? '<span class="t-caption c-tertiary truncate">' + esc(r.sub) + '</span>' : '') + '</span>' +
         '<kbd>' + esc(r.hint) + '</kbd></button>';
-    }).join('') + (searching ? '<p class="cmdk__status t-caption c-tertiary">Searching people and songs…</p>' : '');
+    }).join('') + (searching ? '<p class="cmdk__status t-caption c-tertiary">' + t('Searching people and songs…') + '</p>' : '');
     input.setAttribute('aria-activedescendant', 'cmdk-opt-' + active);
   }
 
@@ -2717,6 +2716,8 @@ document.addEventListener('click', function (e) {
 
   const themeBtn = t.closest('[data-theme-pick]');
   if (themeBtn) { setTheme(themeBtn.dataset.themePick); return; }
+  const langBtn = t.closest('[data-lang-pick]');
+  if (langBtn) { setLang(langBtn.dataset.langPick); return; }
 
   const accentBtn = t.closest('[data-accent-pick]');
   if (accentBtn) { setLook('accent', accentBtn.dataset.accentPick); return; }
@@ -2779,7 +2780,7 @@ document.addEventListener('click', function (e) {
     const shown = input.type === 'text';
     input.type = shown ? 'password' : 'text';
     passBtn.innerHTML = icon(shown ? 'eye' : 'eyeOff', 17);
-    passBtn.setAttribute('aria-label', shown ? 'Show password' : 'Hide password');
+    passBtn.setAttribute('aria-label', shown ? window.t('Show password') : window.t('Hide password'));
     return;
   }
 
@@ -2925,7 +2926,7 @@ document.addEventListener('change', function (e) {
   if (e.target.id === 'authConsent' || e.target.id === 'welcomeConsent') {
     delete e.target.closest('.consent').dataset.invalid;
     const text = document.getElementById('authErrorText');
-    if (e.target.checked && /^Accept the privacy policy/.test(text.textContent)) document.getElementById('authError').hidden = true;
+    if (e.target.checked && (text.textContent === t('Accept the privacy policy to create an account.') || text.textContent === t('Accept the privacy policy to continue.'))) document.getElementById('authError').hidden = true;
   }
   if (e.target.id === 'avatarFile') {
     const file = e.target.files[0];
@@ -3102,8 +3103,8 @@ window.addEventListener('hashchange', function () {
   setView(currentRoute());
   if (AUTH_LINK && AUTH_LINK.error && app.view === 'login') {
     showAuthMessage(oauthReturn
-      ? 'Google sign-in didn’t finish. Try again, or use your email.'
-      : 'That email link has expired or was already used. To reset your password, use “Forgot password?” to get a new one.', true);
+      ? t('Google sign-in didn’t finish. Try again, or use your email.')
+      : t('That email link has expired or was already used. To reset your password, use “Forgot password?” to get a new one.'), true);
   }
   startSpotifyPolling();
   startListeningFeed();

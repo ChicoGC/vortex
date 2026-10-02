@@ -29,17 +29,17 @@ function pinCard(pin, own) {
   return '<div class="pin">' +
     pinSleeve(pin) +
     '<div class="pin__meta">' +
-      '<span class="pin__kicker t-label-s">' + icon('pin', 13) + 'Song of the moment' +
+      '<span class="pin__kicker t-label-s">' + icon('pin', 13) + t('Song of the moment') +
         (pin.at ? '<span class="c-tertiary">' + esc(formatTimeAgo(pin.at)) + '</span>' : '') + '</span>' +
       '<span class="t-title-s truncate">' + esc(pin.title) + '</span>' +
       '<span class="t-body-s c-secondary truncate">' + esc(pin.artist) + '</span>' +
       (pin.note ? '<p class="t-body-s c-secondary pin__note">' + esc(pin.note) + '</p>' : '') +
     '</div>' +
     '<div class="pin__actions">' +
-      (href ? '<a class="post__play" href="' + href + '" target="_blank" rel="noopener" data-tip="Play on Spotify" aria-label="Play ' + esc(pin.title) + ' on Spotify">' + icon('play', 15) + '</a>' : '') +
+      (href ? '<a class="post__play" href="' + href + '" target="_blank" rel="noopener" data-tip="' + t('Play on Spotify') + '" aria-label="' + t('Play {title} on Spotify', { title: esc(pin.title) }) + '">' + icon('play', 15) + '</a>' : '') +
       (own
-        ? '<button class="btn btn--secondary btn--sm" data-action="pin-edit">Change</button>' +
-          '<button class="iconbtn" data-action="pin-clear" data-tip="Unpin" aria-label="Unpin this song">' + icon('close', 16) + '</button>'
+        ? '<button class="btn btn--secondary btn--sm" data-action="pin-edit">' + t('Change') + '</button>' +
+          '<button class="iconbtn" data-action="pin-clear" data-tip="' + t('Unpin') + '" aria-label="' + t('Unpin this song') + '">' + icon('close', 16) + '</button>'
         : '') +
     '</div>' +
   '</div>';
@@ -49,10 +49,10 @@ function pinInvite() {
   return '<button class="pin pin--empty" data-action="pin-edit">' +
     '<span class="pin__sleeve pin__sleeve--empty" aria-hidden="true">' + icon('disc', 22) + '</span>' +
     '<span class="pin__meta">' +
-      '<span class="t-body-m-med">Pin your song of the moment</span>' +
-      '<span class="t-body-s c-tertiary">It sits at the top of your profile, so friends see what you\'re into right now.</span>' +
+      '<span class="t-body-m-med">' + t('Pin your song of the moment') + '</span>' +
+      '<span class="t-body-s c-tertiary">' + t('It sits at the top of your profile, so friends see what you\'re into right now.') + '</span>' +
     '</span>' +
-    '<span class="btn btn--primary btn--sm">' + icon('pin', 15) + 'Pin a song</span>' +
+    '<span class="btn btn--primary btn--sm">' + icon('pin', 15) + t('Pin a song') + '</span>' +
   '</button>';
 }
 
@@ -61,7 +61,7 @@ function friendsPinsPanel() {
   const pinned = DATA.friends.filter(function (f) { return f.pin; })
     .sort(function (a, b) { return Date.parse(b.pin.at || 0) - Date.parse(a.pin.at || 0); }).slice(0, 6);
   if (!pinned.length) return '';
-  return '<section class="panel section">' + sectionHead('Songs of the moment', 'pinned by friends') +
+  return '<section class="panel section">' + sectionHead(t('Songs of the moment'), t('pinned by friends')) +
     '<div class="section__body">' + pinned.map(function (f) {
       const href = spotifyTrackUrl(f.pin.trackId);
       return '<div class="row pinrow">' +
@@ -69,7 +69,7 @@ function friendsPinsPanel() {
         art(artSeedFor(f.pin.trackId || f.pin.title), null, f.pin.image) +
         '<span class="row__meta"><span class="t-body-m-med truncate">' + esc(f.pin.title) + '</span>' +
           '<span class="t-body-s c-tertiary truncate">' + esc(f.pin.artist) + ' · ' + esc(f.name.split(/\s+/)[0]) + '</span></span>' +
-        (href ? '<a class="iconbtn" href="' + href + '" target="_blank" rel="noopener" data-tip="Play on Spotify" aria-label="Play ' + esc(f.pin.title) + ' on Spotify">' + icon('play', 14) + '</a>' : '') +
+        (href ? '<a class="iconbtn" href="' + href + '" target="_blank" rel="noopener" data-tip="' + t('Play on Spotify') + '" aria-label="' + t('Play {title} on Spotify', { title: esc(f.pin.title) }) + '">' + icon('play', 14) + '</a>' : '') +
       '</div>';
     }).join('') + '</div>' +
   '</section>';
@@ -83,51 +83,51 @@ function pinFormMarkup() {
     '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="pinFormTitle">' +
       '<div class="modal__head">' +
         '<span class="toast__well toast__well--info">' + icon('pin', 15) + '</span>' +
-        '<h2 class="t-title-s" id="pinFormTitle">Pin a song</h2>' +
+        '<h2 class="t-title-s" id="pinFormTitle">' + t('Pin a song') + '</h2>' +
       '</div>' +
       '<form id="pinForm" class="modal__body" novalidate>' +
         '<div class="auth__note auth__note--error" id="pinError" hidden>' + icon('close', 16) +
           '<p class="t-body-s c-secondary" id="pinErrorText"></p></div>' +
         (np.status === 'track'
           ? '<button type="button" class="btn btn--secondary btn--sm" data-action="pin-use-np" style="justify-content:flex-start;min-width:0">' +
-              icon('spotify', 15) + '<span class="truncate">Use what\'s playing: ' + esc(np.title) + ' · ' + esc(np.artist) + '</span></button>'
+              icon('spotify', 15) + '<span class="truncate">' + t('Use what\'s playing: {title} · {artist}', { title: esc(np.title), artist: esc(np.artist) }) + '</span></button>'
           : '') +
         (connected
           ? '<div class="auth__field">' +
-              '<label class="t-label-m c-secondary" for="pinSearch">Find the song</label>' +
+              '<label class="t-label-m c-secondary" for="pinSearch">' + t('Find the song') + '</label>' +
               '<span class="field">' + icon('search', 17) +
-                '<input id="pinSearch" type="search" placeholder="Search Spotify" autocomplete="off" maxlength="100"></span>' +
+                '<input id="pinSearch" type="search" placeholder="' + t('Search Spotify') + '" autocomplete="off" maxlength="100"></span>' +
               '<div class="post-search" id="pinResults"></div>' +
             '</div>'
           : '<div class="auth__field">' +
-              '<label class="t-label-m c-secondary" for="pinTitle">Song</label>' +
-              '<span class="field">' + icon('disc', 17) + '<input id="pinTitle" type="text" placeholder="Song name" maxlength="200"></span>' +
+              '<label class="t-label-m c-secondary" for="pinTitle">' + t('Song') + '</label>' +
+              '<span class="field">' + icon('disc', 17) + '<input id="pinTitle" type="text" placeholder="' + t('Song name') + '" maxlength="200"></span>' +
             '</div>' +
             '<div class="auth__field">' +
-              '<label class="t-label-m c-secondary" for="pinArtist">Artist</label>' +
-              '<span class="field">' + icon('user', 17) + '<input id="pinArtist" type="text" placeholder="Artist name" maxlength="200"></span>' +
+              '<label class="t-label-m c-secondary" for="pinArtist">' + t('Artist') + '</label>' +
+              '<span class="field">' + icon('user', 17) + '<input id="pinArtist" type="text" placeholder="' + t('Artist name') + '" maxlength="200"></span>' +
             '</div>' +
-            '<p class="t-body-s c-tertiary"><button type="button" class="btn btn--ghost btn--sm" data-action="spotify-connect" style="display:inline-flex;padding:0 4px">Connect Spotify</button> to search and show the cover.</p>') +
+            '<p class="t-body-s c-tertiary">' + t('{connect} to search and show the cover.', { connect: '<button type="button" class="btn btn--ghost btn--sm" data-action="spotify-connect" style="display:inline-flex;padding:0 4px">' + t('Connect Spotify') + '</button>' }) + '</p>') +
         '<div id="pinPicked"></div>' +
         '<div class="auth__field">' +
-          '<label class="t-label-m c-secondary" for="pinNote">Why this one?</label>' +
+          '<label class="t-label-m c-secondary" for="pinNote">' + t('Why this one?') + '</label>' +
           '<span class="field field--area">' + icon('comment', 17) +
-            '<textarea id="pinNote" placeholder="Optional, up to 140 characters" maxlength="140" rows="2"></textarea></span>' +
+            '<textarea id="pinNote" placeholder="' + t('Optional, up to 140 characters') + '" maxlength="140" rows="2"></textarea></span>' +
         '</div>' +
       '</form>' +
       '<div class="modal__foot">' +
-        '<button type="button" class="btn btn--ghost btn--sm" data-close>Cancel</button>' +
-        '<button type="submit" class="btn btn--primary btn--sm" form="pinForm" id="pinSubmit">' + icon('pin', 15) + 'Pin song</button>' +
+        '<button type="button" class="btn btn--ghost btn--sm" data-close>' + t('Cancel') + '</button>' +
+        '<button type="submit" class="btn btn--primary btn--sm" form="pinForm" id="pinSubmit">' + icon('pin', 15) + t('Pin song') + '</button>' +
       '</div>' +
     '</div>' +
   '</div>';
 }
 
-function pinPickedMarkup(t) {
+function pinPickedMarkup(track) {
   return '<div class="post-picked">' +
-    art(artSeedFor(t.trackId || t.title), null, t.image) +
-    '<span class="t-body-s c-secondary truncate"><span class="c-primary">' + esc(t.title) + '</span> · ' + esc(t.artist) + '</span>' +
-    '<button type="button" class="iconbtn" data-action="pin-unpick" data-tip="Pick another" aria-label="Pick another song">' + icon('close', 15) + '</button>' +
+    art(artSeedFor(track.trackId || track.title), null, track.image) +
+    '<span class="t-body-s c-secondary truncate"><span class="c-primary">' + esc(track.title) + '</span> · ' + esc(track.artist) + '</span>' +
+    '<button type="button" class="iconbtn" data-action="pin-unpick" data-tip="' + t('Pick another') + '" aria-label="' + t('Pick another song') + '">' + icon('close', 15) + '</button>' +
   '</div>';
 }
 
@@ -143,14 +143,15 @@ const NOTIF_GLYPH = {
 function notifText(n) {
   const who = '<b>' + esc(n.actor.name) + '</b>';
   const track = n.post
-    ? '<b>' + esc(n.post.track) + '</b>' + (n.post.artist ? ' by ' + esc(n.post.artist) : '')
-    : 'your post';
+    ? (n.post.artist ? t('{track} by {artist}', { track: '<b>' + esc(n.post.track) + '</b>', artist: esc(n.post.artist) }) : '<b>' + esc(n.post.track) + '</b>')
+    : t('your post');
+  const v = { who: who, track: track };
   switch (n.type) {
-    case 'reaction': return who + (n.reaction === 'heart' ? ' loved ' : ' gave a flame to ') + track;
-    case 'comment': return who + ' commented on ' + track;
-    case 'reply': return who + ' replied to your comment' + (n.post ? ' on ' + track : '');
-    case 'friend_request': return who + ' wants to be friends';
-    default: return who + ' accepted your friend request';
+    case 'reaction': return n.reaction === 'heart' ? t('{who} loved {track}', v) : t('{who} gave a flame to {track}', v);
+    case 'comment': return t('{who} commented on {track}', v);
+    case 'reply': return n.post ? t('{who} replied to your comment on {track}', v) : t('{who} replied to your comment', v);
+    case 'friend_request': return t('{who} wants to be friends', v);
+    default: return t('{who} accepted your friend request', v);
   }
 }
 
@@ -165,11 +166,11 @@ function notifRow(n) {
     const rel = relationshipWith(n.actor.id);
     if (rel.state === 'incoming') {
       side = '<div class="notif__side">' +
-        '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(rel.friendshipId) + '">Accept</button>' +
-        '<button class="btn btn--ghost btn--sm" data-friend-decline="' + esc(rel.friendshipId) + '">Decline</button>' +
+        '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(rel.friendshipId) + '">' + t('Accept') + '</button>' +
+        '<button class="btn btn--ghost btn--sm" data-friend-decline="' + esc(rel.friendshipId) + '">' + t('Decline') + '</button>' +
       '</div>';
     } else if (rel.state === 'friends') {
-      side = '<div class="notif__side"><span class="badge badge--positive">' + icon('check', 13) + 'Friends</span></div>';
+      side = '<div class="notif__side"><span class="badge badge--positive">' + icon('check', 13) + t('Friends') + '</span></div>';
     }
   } else if (n.post) {
     side = '<a class="notif__side" href="' + notifHref(n) + '" tabindex="-1" aria-hidden="true">' + art(n.post.art, null, n.post.image) + '</a>';
@@ -191,31 +192,31 @@ VIEWS.notifications = function () {
   const st = DATA.notifications;
   let body;
   if ((st.status === 'idle' || st.status === 'loading') && !st.items.length) {
-    body = '<section class="panel section"><div class="section__body section__body--pad">' + dnaLoading('Loading notifications…') + '</div></section>';
+    body = '<section class="panel section"><div class="section__body section__body--pad">' + dnaLoading(t('Loading notifications…')) + '</div></section>';
   } else if (st.status === 'error' && !st.items.length) {
-    body = retryPanel('Could not load your notifications. Check your connection.', 'notif-retry');
+    body = retryPanel(t('Could not load your notifications. Check your connection.'), 'notif-retry');
   } else if (!st.items.length) {
-    body = ghostPanel(null, sharePostButton(false), 'Reactions, comments and friend requests show up here as soon as they happen.');
+    body = ghostPanel(null, sharePostButton(false), t('Reactions, comments and friend requests show up here as soon as they happen.'));
   } else {
     const fresh = st.items.filter(function (n) { return UI.notifFresh[n.id]; });
     const earlier = st.items.filter(function (n) { return !UI.notifFresh[n.id]; });
-    body = (fresh.length ? '<section class="panel section">' + sectionHead('New', String(fresh.length)) +
+    body = (fresh.length ? '<section class="panel section">' + sectionHead(t('New'), String(fresh.length)) +
         '<div class="section__body">' + fresh.map(notifRow).join('') + '</div></section>' : '') +
-      (earlier.length ? '<section class="panel section">' + sectionHead(fresh.length ? 'Earlier' : 'All caught up') +
+      (earlier.length ? '<section class="panel section">' + sectionHead(fresh.length ? t('Earlier') : t('All caught up')) +
         '<div class="section__body">' + earlier.map(notifRow).join('') + '</div></section>' : '');
   }
-  return wrap(pageHead('On your posts and requests', 'Notifications'), '<div class="notif-page">' + body + '</div>');
+  return wrap(pageHead(t('On your posts and requests'), t('Notifications')), '<div class="notif-page">' + body + '</div>');
 };
 
 /* ---- single post ------------------------------------------------------------ */
 VIEWS.post = function () {
   const pv = UI.postView;
-  const head = pageHead('Shared track', 'Post', '<button class="btn btn--ghost btn--sm" data-nav="feed">Open feed</button>');
+  const head = pageHead(t('Shared track'), t('Post'), '<button class="btn btn--ghost btn--sm" data-nav="feed">' + t('Open feed') + '</button>');
   if (!pv || pv.status === 'loading') {
     return wrap(head, '<div class="post-page">' + skeletonPosts(1) + '</div>');
   }
-  if (pv.status === 'notfound') return wrap(head, ghostPanel(null, null, 'This post was deleted.'));
-  if (pv.status === 'error') return wrap(head, ghostPanel(null, null, 'Could not load this post. Try again in a moment.'));
+  if (pv.status === 'notfound') return wrap(head, ghostPanel(null, null, t('This post was deleted.')));
+  if (pv.status === 'error') return wrap(head, ghostPanel(null, null, t('Could not load this post. Try again in a moment.')));
   if (isBlocked(pv.post.userId)) {
     return wrap(head, blockedPanel({ id: pv.post.userId, name: pv.post.user, username: pv.post.username, avatarUrl: pv.post.avatarUrl }));
   }
@@ -226,10 +227,12 @@ VIEWS.post = function () {
 function compareHero(profile, c) {
   const them = { initials: initialsFrom(profile.name), avatarUrl: profile.avatar_url };
   const first = profile.name.split(/\s+/)[0];
-  const facts = [plural(c.artists.n, 'artist'), plural(c.tracks.n, 'song')].join(' and ') + ' in common' +
-    (c.genre === null ? '' : ', ' + pct(c.genre) + '% genre overlap');
+  const counts = { artists: tn(c.artists.n, '{n} artist', '{n} artists'), songs: tn(c.tracks.n, '{n} song', '{n} songs') };
+  const facts = c.genre === null
+    ? t('{artists} and {songs} in common', counts)
+    : t('{artists} and {songs} in common, {pct}% genre overlap', Object.assign({ pct: pct(c.genre) }, counts));
   return '<section class="panel cmp-hero">' +
-    '<div class="cmp-hero__side">' + avatarEl(DATA.me.initials, '72', null, DATA.me.avatarUrl) + '<span class="t-label-m">You</span></div>' +
+    '<div class="cmp-hero__side">' + avatarEl(DATA.me.initials, '72', null, DATA.me.avatarUrl) + '<span class="t-label-m">' + t('You') + '</span></div>' +
     '<div class="cmp-hero__mid">' +
       ringEl(c.score) +
       '<span class="t-title-m">' + esc(c.label) + '</span>' +
@@ -254,17 +257,17 @@ function mirrorChart(c, first) {
   const bar = function (v, side) {
     return '<span class="mirror__bar mirror__bar--' + side + '"><i style="width:' + Math.round((v || 0) / max * 100) + '%"></i></span>';
   };
-  return '<section class="panel section">' + sectionHead('Genres side by side', 'share of top artists') +
+  return '<section class="panel section">' + sectionHead(t('Genres side by side'), t('share of top artists')) +
     '<div class="section__body section__body--pad">' +
-      '<div class="mirror" role="table" aria-label="Genre shares, you and ' + esc(first) + '">' +
+      '<div class="mirror" role="table" aria-label="' + t('Genre shares, you and {name}', { name: esc(first) }) + '">' +
         '<div class="mirror__row mirror__row--head" role="row">' +
-          '<span class="mirror__who mirror__who--me" role="columnheader"><em></em>You</span>' +
-          '<span role="columnheader" class="sr-only">Genre</span>' +
+          '<span class="mirror__who mirror__who--me" role="columnheader"><em></em>' + t('You') + '</span>' +
+          '<span role="columnheader" class="sr-only">' + t('Genre') + '</span>' +
           '<span class="mirror__who mirror__who--them" role="columnheader">' + esc(first) + '<em></em></span>' +
         '</div>' +
         names.map(function (n) {
           const a = mine[n] || 0, b = theirs[n] || 0;
-          return '<div class="mirror__row" role="row" title="' + esc(n + ': you ' + pct(a) + '%, ' + first + ' ' + pct(b) + '%') + '">' +
+          return '<div class="mirror__row" role="row" title="' + esc(t('{genre}: you {mine}%, {name} {theirs}%', { genre: n, mine: pct(a), name: first, theirs: pct(b) })) + '">' +
             '<span class="t-num c-tertiary mirror__num" role="cell">' + (a ? pct(a) + '%' : '–') + '</span>' +
             bar(a, 'me') +
             '<span class="t-body-s mirror__label truncate" role="cell">' + esc(n) + '</span>' +
@@ -290,12 +293,12 @@ function compareArtists(mine, theirs, c, first) {
   const theirSet = idSet(theirs.artists), mySet = idSet(mine.artists);
   const onlyMe = mine.artists.filter(function (a) { return !theirSet[a.id]; });
   const onlyThem = theirs.artists.filter(function (a) { return !mySet[a.id]; });
-  return '<section class="panel section">' + sectionHead('Artists', 'top 50 each, last 6 months') +
+  return '<section class="panel section">' + sectionHead(t('Artists'), t('top 50 each, last 6 months')) +
     '<div class="section__body section__body--pad">' +
       '<div class="venn">' +
-        artistColumn('Only you', onlyMe, 'venn__col--me', 'Every artist you love, ' + first + ' loves too.') +
-        artistColumn('Both of you', c.sharedArtists, 'venn__col--both', 'No artists in common yet.') +
-        artistColumn('Only ' + first, onlyThem, 'venn__col--them', 'Nothing new here.') +
+        artistColumn(t('Only you'), onlyMe, 'venn__col--me', t('Every artist you love, {name} loves too.', { name: first })) +
+        artistColumn(t('Both of you'), c.sharedArtists, 'venn__col--both', t('No artists in common yet.')) +
+        artistColumn(t('Only {name}', { name: first }), onlyThem, 'venn__col--them', t('Nothing new here.')) +
       '</div>' +
     '</div>' +
   '</section>';
@@ -306,14 +309,14 @@ function compareTracks(mine, theirs, c, first) {
   const tryThese = theirs.tracks.filter(function (t) { return !mySet[t.id]; }).slice(0, 6);
   if (!c.sharedTracks.length && !tryThese.length) return '';
   return '<div class="cols cols--half">' +
-    '<section class="panel section">' + sectionHead('Songs you both play') +
+    '<section class="panel section">' + sectionHead(t('Songs you both play')) +
       '<div class="section__body section__body--pad">' + (c.sharedTracks.length
         ? '<div class="achips">' + c.sharedTracks.slice(0, 8).map(trackChip).join('') + '</div>'
-        : '<p class="t-body-s c-tertiary">None of your top 50 songs overlap yet.</p>') + '</div></section>' +
-    '<section class="panel section">' + sectionHead('Try these from ' + first, 'in their top songs, not yours') +
+        : '<p class="t-body-s c-tertiary">' + t('None of your top 50 songs overlap yet.') + '</p>') + '</div></section>' +
+    '<section class="panel section">' + sectionHead(t('Try these from {name}', { name: first }), t('in their top songs, not yours')) +
       '<div class="section__body section__body--pad">' + (tryThese.length
         ? '<div class="achips">' + tryThese.map(trackChip).join('') + '</div>'
-        : '<p class="t-body-s c-tertiary">You already play everything in their top songs.</p>') + '</div></section>' +
+        : '<p class="t-body-s c-tertiary">' + t('You already play everything in their top songs.') + '</p>') + '</div></section>' +
   '</div>';
 }
 
@@ -356,27 +359,31 @@ function blendPanel(profile, mine, theirs) {
   let control;
   if (saved && saved.status === 'ok') {
     control = saved.url && /^https:\/\/open\.spotify\.com\//.test(saved.url)
-      ? '<a class="btn btn--primary btn--sm" href="' + esc(saved.url) + '" target="_blank" rel="noopener">' + icon('spotify', 15) + 'Open in Spotify</a>'
-      : '<span class="badge badge--positive"><span>' + icon('check', 13) + '</span>Saved to Spotify</span>';
+      ? '<a class="btn btn--primary btn--sm" href="' + esc(saved.url) + '" target="_blank" rel="noopener">' + icon('spotify', 15) + t('Open in Spotify') + '</a>'
+      : '<span class="badge badge--positive"><span>' + icon('check', 13) + '</span>' + t('Saved to Spotify') + '</span>';
   } else if (saved && saved.status === 'saving') {
-    control = '<button class="btn btn--primary btn--sm" disabled>Creating…</button>';
+    control = '<button class="btn btn--primary btn--sm" disabled>' + t('Creating…') + '</button>';
   } else if (!spotify.auth.hasScope('playlist-modify-private')) {
-    control = '<button class="btn btn--primary btn--sm" data-action="spotify-connect" data-tip="Spotify asks once for permission to create playlists">' + icon('spotify', 15) + 'Allow creating playlists</button>';
+    control = '<button class="btn btn--primary btn--sm" data-action="spotify-connect" data-tip="' + t('Spotify asks once for permission to create playlists') + '">' + icon('spotify', 15) + t('Allow creating playlists') + '</button>';
   } else {
-    control = '<button class="btn btn--primary btn--sm" data-action="blend-save" data-user="' + esc(profile.id) + '">' + icon('plus', 15) + 'Create the playlist</button>';
+    control = '<button class="btn btn--primary btn--sm" data-action="blend-save" data-user="' + esc(profile.id) + '">' + icon('plus', 15) + t('Create the playlist') + '</button>';
   }
+  const hv = { songs: tn(b.both, '{n} song', '{n} songs'), name: first };
   const how = b.common
-    ? (b.both ? plural(b.both, 'song') + ' you both play, then ' : '') +
-      (b.common > b.both ? 'songs by the artists you share, then ' : '') + 'your favorites and ' + first + '’s, taking turns.'
-    : 'Your favorites and ' + first + '’s, taking turns. You don’t share artists yet, so it’s a straight swap.';
+    ? (b.both
+      ? (b.common > b.both
+        ? t('{songs} you both play, then songs by the artists you share, then your favorites and {name}’s, taking turns.', hv)
+        : t('{songs} you both play, then your favorites and {name}’s, taking turns.', hv))
+      : t('songs by the artists you share, then your favorites and {name}’s, taking turns.', hv))
+    : t('Your favorites and {name}’s, taking turns. You don’t share artists yet, so it’s a straight swap.', hv);
   return '<section class="panel blend">' +
     '<div class="blend__covers" aria-hidden="true">' + b.tracks.slice(0, 4).map(function (t) {
       return art(artSeedFor(t.id), null, t.image);
     }).join('') + '</div>' +
     '<div class="blend__meta">' +
-      '<span class="t-title-s">A playlist for the two of you</span>' +
-      '<span class="t-body-s c-secondary">' + esc(plural(b.tracks.length, 'song') + ': ' + how) + '</span>' +
-      '<span class="t-caption c-tertiary">Private, in your Spotify library. ' + esc(first) + ' won’t see it unless you share it.</span>' +
+      '<span class="t-title-s">' + t('A playlist for the two of you') + '</span>' +
+      '<span class="t-body-s c-secondary">' + esc(tn(b.tracks.length, '{n} song', '{n} songs') + ': ' + how) + '</span>' +
+      '<span class="t-caption c-tertiary">' + t('Private, in your Spotify library. {name} won’t see it unless you share it.', { name: esc(first) }) + '</span>' +
     '</div>' +
     '<div class="blend__action">' + control + '</div>' +
   '</section>';
@@ -387,31 +394,31 @@ function compareBody(profile, relation) {
   if (isBlocked(profile.id)) return blockedPanel(profile);
   if (relation.state !== 'friends') {
     const action = relation.state === 'incoming'
-      ? '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(relation.friendshipId) + '">Accept request</button>'
+      ? '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(relation.friendshipId) + '">' + t('Accept request') + '</button>'
       : relation.state === 'outgoing' ? null
-      : '<button class="btn btn--primary btn--sm" data-friend-add="' + esc(profile.id) + '">' + icon('plus', 15) + 'Add friend</button>';
+      : '<button class="btn btn--primary btn--sm" data-friend-add="' + esc(profile.id) + '">' + icon('plus', 15) + t('Add friend') + '</button>';
     return ghostPanel(null, action, relation.state === 'outgoing'
-      ? 'Once ' + first + ' accepts your request, you can compare tastes here.'
-      : 'You can compare tastes with friends. Add ' + first + ' first.');
+      ? t('Once {name} accepts your request, you can compare tastes here.', { name: first })
+      : t('You can compare tastes with friends. Add {name} first.', { name: first }));
   }
   if (!spotify.auth.isConnected()) {
-    return ghostPanel(null, '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + 'Connect Spotify</button>',
-      'Connect Spotify so vortex can read your side of the comparison.');
+    return ghostPanel(null, '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + t('Connect Spotify') + '</button>',
+      t('Connect Spotify so vortex can read your side of the comparison.'));
   }
-  if (tastesStatus === 'idle') return '<section class="panel section"><div class="section__body section__body--pad">' + dnaLoading('Loading music DNA…') + '</div></section>';
-  if (tastesStatus === 'error') return ghostPanel(null, null, 'Could not load ' + first + '\'s music DNA. Try again in a moment.');
+  if (tastesStatus === 'idle') return '<section class="panel section"><div class="section__body section__body--pad">' + dnaLoading(t('Loading music DNA…')) + '</div></section>';
+  if (tastesStatus === 'error') return ghostPanel(null, null, t('Could not load {name}\'s music DNA. Try again in a moment.', { name: first }));
   const theirs = DATA.tastes[profile.id];
-  if (!theirs) return ghostPanel(null, null, first + ' hasn\'t shared their music DNA yet. It appears once they open vortex with Spotify connected.');
+  if (!theirs) return ghostPanel(null, null, t('{name} hasn\'t shared their music DNA yet. It appears once they open vortex with Spotify connected.', { name: first }));
   const mine = mySnapshot();
   if (!mine) {
     return libFailed('topArtists', 'medium_term') || libFailed('topTracks', 'medium_term')
-      ? ghostPanel(null, null, 'Could not reach Spotify. Try again in a moment.')
+      ? ghostPanel(null, null, t('Could not reach Spotify. Try again in a moment.'))
       : '<section class="panel section"><div class="section__body section__body--pad">' + dnaLoading() + '</div></section>';
   }
   const c = compatibility(mine, theirs);
-  if (!c) return ghostPanel(null, null, 'Not enough listening data on one side yet to compare.');
+  if (!c) return ghostPanel(null, null, t('Not enough listening data on one side yet to compare.'));
   return compareHero(profile, c) + blendPanel(profile, mine, theirs) + mirrorChart(c, first) + compareArtists(mine, theirs, c, first) + compareTracks(mine, theirs, c, first) +
-    '<p class="t-caption c-tertiary cmp-foot">How the score works: 45% genre overlap, 40% shared artists, 15% shared songs, from each person\'s top 50 over the last ~6 months.</p>';
+    '<p class="t-caption c-tertiary cmp-foot">' + t('How the score works: 45% genre overlap, 40% shared artists, 15% shared songs, from each person\'s top 50 over the last ~6 months.') + '</p>';
 }
 
 /* Registered in LIBRARY_PANELS so it repaints as Spotify data and snapshots arrive. */
@@ -425,25 +432,25 @@ VIEWS.compare = function () {
   const username = friendProfileUsername();
   const state = UI.friendProfile;
   if (!state || state.username !== username || state.status === 'loading') {
-    return wrap(pageHead('Taste match', 'Loading…'), friendProfileLoading());
+    return wrap(pageHead(t('Taste match'), t('Loading…')), friendProfileLoading());
   }
   if (state.status === 'notfound') {
-    return wrap(pageHead('Taste match', 'Not found'), ghostPanel(null, findFriendsButton(true), 'No vortex profile found for “' + username + '”.'));
+    return wrap(pageHead(t('Taste match'), t('Not found')), ghostPanel(null, findFriendsButton(true), t('No vortex profile found for “{username}”.', { username: username })));
   }
   if (state.status === 'error') {
-    return wrap(pageHead('Taste match', 'Compare'), ghostPanel(null, null, 'Could not load this profile. Try again in a moment.'));
+    return wrap(pageHead(t('Taste match'), t('Compare')), ghostPanel(null, null, t('Could not load this profile. Try again in a moment.')));
   }
   const p = state.profile;
   return wrap(
-    pageHead('Taste match', 'You and ' + esc(p.name.split(/\s+/)[0]),
-      '<a class="btn btn--ghost btn--sm" href="#/u/' + esc(p.username) + '">' + icon('user', 15) + 'View profile</a>'),
+    pageHead(t('Taste match'), t('You and {name}', { name: esc(p.name.split(/\s+/)[0]) }),
+      '<a class="btn btn--ghost btn--sm" href="#/u/' + esc(p.username) + '">' + icon('user', 15) + t('View profile') + '</a>'),
     compareBodyAuto()
   );
 };
 
 function compareButton(username, primary) {
   return '<a class="btn ' + (primary ? 'btn--primary' : 'btn--secondary') + ' btn--sm" href="#/compare/' + esc(username) + '">' +
-    icon('compare', 15) + 'Compare tastes</a>';
+    icon('compare', 15) + t('Compare tastes') + '</a>';
 }
 
 LIBRARY_PANELS.push(['compareBody', compareBodyAuto]);

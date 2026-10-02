@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Política de Privacidade · vortex</title>
+<meta name="description" content="O que o vortex guarda sobre você, quem pode ver e como pedir a exclusão.">
+<meta name="color-scheme" content="dark light">
+<link rel="alternate" hreflang="en" href="/privacy">
+<script>
+  /* Mesmo tema e cor de destaque do app, para o link não abrir com outra aparência. */
+  (function () {
+    var root = document.documentElement;
+    function get(k) { try { return localStorage.getItem('vortex.' + k); } catch (e) { return null; } }
+    var light = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches;
+    root.dataset.theme = get('theme') || (light ? 'light' : 'dark');
+    var accent = get('look.accent');
+    if (accent && accent !== 'ember') root.dataset.accent = accent;
+  })();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/privacy.css">
+
+<link rel="icon" type="image/png" sizes="64x64" href="assets/logo-64.png">
+<link rel="apple-touch-icon" href="assets/logo-256.png">
+</head>
+<body class="doc">
+
+<div class="ambient" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+<header class="doc-bar">
+  <a class="doc-bar__brand" href="/">
+    <img src="assets/logo-64.png" width="26" height="26" alt="">
+    <span>vortex</span>
+  </a>
+  <div class="doc-bar__actions">
+    <a class="btn btn--ghost btn--sm" href="/privacy" hreflang="en" lang="en" data-lang-switch="en">English</a>
+    <a class="btn btn--secondary btn--sm" href="/">Abrir o vortex</a>
+  </div>
+</header>
+
+<main class="doc-main">
+
+  <header class="doc-hero">
+    <h1 class="doc-hero__title">Política de Privacidade</h1>
+    <p class="doc-hero__lede">O vortex é um app pequeno e independente para compartilhar com seus amigos o que você está ouvindo. Esta política explica o que ele guarda sobre você, quem pode ver e como pedir a exclusão.</p>
+    <p class="doc-hero__date">Em vigor desde <time datetime="2026-10-02">2 de outubro de 2026</time></p>
+  </header>
+
+  <section class="reach" aria-labelledby="reachTitle">
+    <h2 class="reach__title" id="reachTitle">Quem pode ver o quê</h2>
+    <div class="reach__grid">
+      <div class="reach__col" data-reach="3">
+        <svg class="reach__rings" viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="21"/><circle cx="24" cy="24" r="13.5"/><circle cx="24" cy="24" r="6"/>
+        </svg>
+        <h3 class="reach__who">Qualquer pessoa</h3>
+        <p class="reach__note">Inclusive quem não entrou em uma conta</p>
+        <ul class="reach__list">
+          <li>Seu nome e @nome de usuário</li>
+          <li>Bio, foto de perfil e música fixada</li>
+          <li>Músicas que você compartilha, com suas notas</li>
+          <li>Seus comentários e reações</li>
+        </ul>
+      </div>
+      <div class="reach__col" data-reach="2">
+        <svg class="reach__rings" viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="21"/><circle cx="24" cy="24" r="13.5"/><circle cx="24" cy="24" r="6"/>
+        </svg>
+        <h3 class="reach__who">Amigos que você aceitou</h3>
+        <p class="reach__note">Cada item pode ser desligado nas Configurações</p>
+        <ul class="reach__list">
+          <li>O que você está ouvindo no Spotify agora</li>
+          <li>Seu gosto musical: 50 artistas e músicas mais ouvidos</li>
+        </ul>
+      </div>
+      <div class="reach__col" data-reach="1">
+        <svg class="reach__rings" viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="21"/><circle cx="24" cy="24" r="13.5"/><circle cx="24" cy="24" r="6"/>
+        </svg>
+        <h3 class="reach__who">Só você</h3>
+        <p class="reach__note">Ninguém mais vê no vortex</p>
+        <ul class="reach__list">
+          <li>Seu e-mail e a forma como você entra</li>
+          <li>Notificações e as contas que você bloqueou</li>
+          <li>Suas configurações e preferências</li>
+        </ul>
+      </div>
+    </div>
+    <p class="reach__never">O vortex não vende seus dados, não mostra anúncios e não usa ferramentas de análise ou rastreamento.</p>
+  </section>
+
+  <div class="doc-body">
+    <nav class="toc" aria-label="Sumário">
+      <details class="toc__box" open>
+        <summary class="toc__title">Sumário</summary>
+        <ol class="toc__list">
+          <li><a href="#who">Quem mantém o vortex</a></li>
+          <li><a href="#collect">O que o vortex coleta</a></li>
+          <li><a href="#use">Como os dados são usados</a></li>
+          <li><a href="#visibility">Quem pode ver</a></li>
+          <li><a href="#providers">Prestadores de serviço</a></li>
+          <li><a href="#transfers">Dados fora do Brasil</a></li>
+          <li><a href="#retention">Por quanto tempo</a></li>
+          <li><a href="#rights">Seus direitos e escolhas</a></li>
+          <li><a href="#security">Segurança</a></li>
+          <li><a href="#age">Idade mínima</a></li>
+          <li><a href="#changes">Mudanças nesta política</a></li>
+          <li><a href="#contact">Contato</a></li>
+        </ol>
+      </details>
+    </nav>
+
+    <article class="prose">
+
+      <section id="who">
+        <h2><span class="n">1</span>Quem mantém o vortex</h2>
+        <p>O vortex é criado e mantido por Pietro, um desenvolvedor independente no Brasil. Pietro é o controlador dos seus dados pessoais nos termos da Lei Geral de Proteção de Dados (LGPD) e a pessoa a quem você deve recorrer sobre qualquer ponto desta política: <a href="mailto:pietro@influi.com.br">pietro@influi.com.br</a>.</p>
+      </section>
+
+      <section id="collect">
+        <h2><span class="n">2</span>O que o vortex coleta</h2>
+
+        <h3>Quando você cria uma conta</h3>
+        <ul>
+          <li>Seu e-mail, nome e @nome de usuário.</li>
+          <li>Sua senha, se você criar uma. Ela é guardada pelo serviço de login como um hash irreversível, então ninguém consegue lê-la, nem o vortex.</li>
+          <li>Qual versão desta política você aceitou e quando.</li>
+          <li>Se você entrar com o Google: o Google compartilha seu nome, e-mail, um link para sua foto de perfil do Google e um identificador da conta. O vortex usa seu nome e e-mail. Ele não recebe sua senha do Google, seus contatos, arquivos nem nada mais da sua conta Google.</li>
+        </ul>
+
+        <h3>O que você adiciona</h3>
+        <ul>
+          <li>Sua bio, foto de perfil e uma música fixada com uma nota opcional.</li>
+          <li>Músicas que você compartilha: título, artista, álbum, capa e sua nota.</li>
+          <li>Comentários, respostas e reações.</li>
+          <li>Pedidos de amizade, amizades e as contas que você bloqueia.</li>
+          <li>Denúncias que você envia: o motivo, os detalhes que você escrever e uma cópia do post denunciado.</li>
+        </ul>
+
+        <h3>Do Spotify, só se você conectar</h3>
+        <ul>
+          <li><strong>O que você está ouvindo agora:</strong> título, artista, álbum, capa e o ponto da reprodução. Seus amigos veem enquanto o vortex está aberto e o compartilhamento está ligado. Músicas tocadas numa sessão privada do Spotify nunca são compartilhadas.</li>
+          <li><strong>Seu gosto musical:</strong> seus 50 artistas e 50 músicas mais ouvidos dos últimos seis meses, mais ou menos, guardados para que seus amigos possam comparar gostos com você. Desligar esse compartilhamento apaga a cópia que o vortex guarda.</li>
+          <li><strong>Lido só no seu navegador:</strong> as músicas tocadas recentemente, seus artistas e músicas mais ouvidos em outros períodos e suas playlists. Eles montam as páginas Atividade, Música e Retrospectiva e não são salvos nos servidores do vortex.</li>
+          <li><strong>Playlists:</strong> o vortex só cria uma na sua conta do Spotify quando você escolhe “Salvar como playlist”, e ela é criada como privada.</li>
+          <li>As chaves que permitem ao vortex falar com o Spotify em seu nome ficam no seu navegador. Os servidores do vortex nunca as recebem, e elas são removidas quando você sai da conta ou desconecta o Spotify.</li>
+        </ul>
+
+        <h3>Guardado no seu navegador</h3>
+        <p>O vortex guarda algumas coisas no armazenamento local do seu navegador: sua sessão de login, preferências de aparência e som, o layout da barra lateral, um cache de capas de álbuns, a contagem de tentativas de login que falharam recentemente e as chaves do Spotify citadas acima. Nada disso é usado para anúncios ou rastreamento, e limpar os dados deste site no navegador remove tudo.</p>
+
+        <h3>Dados técnicos</h3>
+        <p>As empresas que hospedam o vortex (veja a seção 5) registram logs comuns de servidor, como seu endereço IP, o tipo de navegador e o horário de cada acesso, para manter o serviço seguro e funcionando. O próprio vortex não usa ferramentas de análise.</p>
+      </section>
+
+      <section id="use">
+        <h2><span class="n">3</span>Como os dados são usados</h2>
+        <p>O vortex usa seus dados só para fazer o app funcionar e mantê-lo seguro:</p>
+        <ul>
+          <li><strong>Para oferecer o serviço que você contratou ao criar a conta:</strong> sua conta, perfil, feed, amigos e os recursos do Spotify. Pela LGPD, é o tratamento necessário para executar o serviço que você pediu (art. 7º, V).</li>
+          <li><strong>Para manter o vortex seguro:</strong> limitar tentativas repetidas de login, aplicar bloqueios e analisar denúncias. É o legítimo interesse do vortex em proteger quem usa o app (art. 7º, IX).</li>
+          <li><strong>Para enviar e-mails da conta:</strong> confirmar seu endereço e redefinir sua senha. O vortex não envia e-mails de marketing.</li>
+        </ul>
+        <p>Compartilhar o que você ouve e seu gosto musical com amigos é escolha sua, e você pode desligar cada um a qualquer momento nas Configurações. O vortex não cria perfis seus para anúncios nem toma decisões automatizadas sobre você.</p>
+      </section>
+
+      <section id="visibility">
+        <h2><span class="n">4</span>Quem pode ver</h2>
+        <p>O resumo no topo desta página é a versão curta. Alguns detalhes:</p>
+        <ul>
+          <li><strong>Público é público.</strong> Perfis, músicas compartilhadas, comentários, reações e fotos de perfil podem ser vistos por qualquer pessoa que os abra, inclusive quem não tem conta no vortex. Não coloque ali nada que você queira manter em segredo.</li>
+          <li><strong>Bloquear</strong> alguém desfaz qualquer amizade entre vocês e impede que a pessoa mande pedidos de amizade, comente ou reaja aos seus posts e gere notificações para você. Isso não esconde o conteúdo público de quem não entrou em uma conta.</li>
+          <li><strong>Denúncias</strong> são vistas só por Pietro, que as analisa. A pessoa denunciada não fica sabendo quem a denunciou.</li>
+          <li>Pietro pode acessar o banco de dados do vortex para operar o serviço, corrigir problemas e analisar denúncias, e só faz isso por esses motivos.</li>
+        </ul>
+      </section>
+
+      <section id="providers">
+        <h2><span class="n">5</span>Prestadores de serviço</h2>
+        <p>O vortex depende destas empresas, que tratam dados em nome dele:</p>
+        <dl class="providers">
+          <div><dt>Supabase</dt><dd>Banco de dados, login, armazenamento das fotos de perfil e e-mails da conta.</dd></div>
+          <div><dt>Vercel</dt><dd>Hospeda o site.</dd></div>
+          <div><dt>Spotify</dt><dd>Só se você conectar. A política de privacidade do próprio Spotify vale para sua conta do Spotify.</dd></div>
+          <div><dt>Google</dt><dd>Login, se você usar “Continuar com Google”. O Google também fornece as fontes deste site, então seu navegador se conecta ao Google quando as páginas carregam.</dd></div>
+          <div><dt>jsDelivr</dt><dd>Entrega uma biblioteca de código de que o app precisa para carregar.</dd></div>
+        </dl>
+        <p>O vortex não compartilha seus dados com mais ninguém, exceto quando a lei exigir ou para proteger a segurança de alguém.</p>
+      </section>
+
+      <section id="transfers">
+        <h2><span class="n">6</span>Dados fora do Brasil</h2>
+        <p>Os prestadores acima podem guardar ou tratar dados fora do Brasil, inclusive nos Estados Unidos. Essas transferências se apoiam nas garantias contratuais dos prestadores, como permite o artigo 33 da LGPD.</p>
+      </section>
+
+      <section id="retention">
+        <h2><span class="n">7</span>Por quanto tempo os dados ficam guardados</h2>
+        <ul>
+          <li><strong>Sua conta, perfil e conteúdo</strong> ficam guardados enquanto sua conta existir. Um post ou comentário que você apaga é removido na hora.</li>
+          <li><strong>O que você está ouvindo agora</strong> é substituído conforme você ouve. Quando você para, seus amigos veem a última música que você tocou até você sair da conta ou desligar o compartilhamento, o que a apaga.</li>
+          <li><strong>Seu gosto musical</strong> é atualizado no máximo a cada 12 horas e apagado quando você desliga esse compartilhamento.</li>
+          <li><strong>Notificações</strong> são removidas junto com aquilo a que se referem, como um comentário apagado ou um pedido de amizade cancelado, e no mais ficam até sua conta ser excluída.</li>
+          <li><strong>Quando sua conta é excluída</strong>, tudo o que está ligado a ela é apagado em até 30 dias, inclusive denúncias que você enviou ou que foram feitas sobre você. Backups mantidos pelos prestadores expiram de acordo com o prazo de cada um.</li>
+          <li><strong>Logs de servidor</strong> ficam com os provedores de hospedagem pelos prazos padrão deles, em geral de alguns dias a algumas semanas.</li>
+        </ul>
+      </section>
+
+      <section id="rights">
+        <h2><span class="n">8</span>Seus direitos e escolhas</h2>
+        <p>Pelo artigo 18 da LGPD, você pode pedir ao vortex que confirme se guarda dados seus, envie uma cópia, corrija, apague, anonimize ou bloqueie dados desnecessários, transfira os dados para outro serviço, informe com quem eles foram compartilhados e revogue um consentimento que você deu.</p>
+        <p>Boa parte disso você mesmo pode fazer:</p>
+        <ul>
+          <li>Editar seu nome, nome de usuário, bio e foto pelo seu perfil.</li>
+          <li>Apagar posts e comentários que você fez.</li>
+          <li>Desligar o compartilhamento do que você ouve e do seu gosto musical nas Configurações.</li>
+          <li>Desconectar o Spotify nas Configurações e revogar o acesso do vortex na página de apps da sua conta do Spotify.</li>
+        </ul>
+        <p>Para excluir sua conta ou receber uma cópia dos seus dados, envie um e-mail para <a href="mailto:pietro@influi.com.br">pietro@influi.com.br</a> a partir do endereço da sua conta. Você recebe uma resposta em até 15 dias. Você também pode reclamar à Autoridade Nacional de Proteção de Dados (ANPD). Se você mora na União Europeia ou no Reino Unido, tem direitos parecidos pelo GDPR.</p>
+      </section>
+
+      <section id="security">
+        <h2><span class="n">9</span>Segurança</h2>
+        <p>O vortex funciona só por HTTPS. Regras no banco de dados deixam cada conta alterar apenas os próprios dados, as senhas são guardadas como hashes irreversíveis e as chaves do Spotify nunca saem do seu navegador. Nenhum sistema é perfeitamente seguro. Se um incidente de segurança colocar seus dados em risco, o vortex vai avisar você e a ANPD, como a LGPD exige.</p>
+      </section>
+
+      <section id="age">
+        <h2><span class="n">10</span>Idade mínima</h2>
+        <p>Você precisa ter pelo menos 13 anos para usar o vortex. Se tiver menos de 18, precisa da permissão de um responsável. Contas que pertençam a alguém com menos de 13 anos são excluídas.</p>
+      </section>
+
+      <section id="changes">
+        <h2><span class="n">11</span>Mudanças nesta política</h2>
+        <p>Quando esta política muda, a data de vigência no topo muda junto. Se a mudança afetar o que o vortex coleta ou quem pode ver, o app pede que você leia e aceite a nova versão na próxima vez que abrir, e não é possível continuar usando o vortex sem aceitar.</p>
+      </section>
+
+      <section id="contact">
+        <h2><span class="n">12</span>Contato</h2>
+        <p>Dúvidas, pedidos ou preocupações sobre sua privacidade: <a href="mailto:pietro@influi.com.br">pietro@influi.com.br</a>.</p>
+      </section>
+
+      <p class="doc-note">Esta é a versão em português da política. Ela tem o mesmo conteúdo da <a href="/privacy" hreflang="en" lang="en" data-lang-switch="en">versão em inglês</a>.</p>
+
+    </article>
+  </div>
+</main>
+
+<footer class="doc-foot">
+  <p>Em vigor desde 2 de outubro de 2026</p>
+  <a href="/">Voltar para o vortex</a>
+</footer>
+
+<script>
+  /* O sumário começa fechado no celular, onde empurraria a política para baixo.
+     Depois marca a seção que está sendo lida. Trocar o idioma aqui também troca o do app. */
+  (function () {
+    document.querySelectorAll('[data-lang-switch]').forEach(function (a) {
+      a.addEventListener('click', function () { try { localStorage.setItem('vortex.lang', a.dataset.langSwitch); } catch (e) {} });
+    });
+
+    var box = document.querySelector('.toc__box');
+    var narrow = window.matchMedia('(max-width: 900px)');
+    if (narrow.matches) box.open = false;
+    box.addEventListener('toggle', function () { if (!narrow.matches) box.open = true; });
+    box.addEventListener('click', function (e) { if (narrow.matches && e.target.closest('.toc__list a')) box.open = false; });
+
+    var links = {};
+    document.querySelectorAll('.toc__list a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+    if (!('IntersectionObserver' in window)) return;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        Object.keys(links).forEach(function (id) { links[id].removeAttribute('aria-current'); });
+        if (links[e.target.id]) links[e.target.id].setAttribute('aria-current', 'location');
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    document.querySelectorAll('.prose section[id]').forEach(function (s) { io.observe(s); });
+  })();
+</script>
+</body>
+</html>

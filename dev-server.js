@@ -27,6 +27,7 @@ createServer(async (req, res) => {
   // Mirrors the rewrites in vercel.json: the Spotify OAuth redirect lands on the app, /privacy on the policy.
   if (rel === '/callback') rel = '/index.html';
   if (rel === '/privacy') rel = '/privacy.html';
+  if (rel === '/privacidade') rel = '/privacidade.html';
 
   const path = join(ROOT, normalize(rel));
   if (!path.startsWith(ROOT)) {

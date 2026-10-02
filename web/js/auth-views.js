@@ -18,18 +18,18 @@ function consentBox(id, lead) {
   return '<label class="consent t-body-s c-secondary">' +
     '<input type="checkbox" class="consent__input" id="' + id + '">' +
     '<span class="check" aria-hidden="true">' + icon('check', 12) + '</span>' +
-    '<span>' + lead + ' <a class="consent__link" href="' + PRIVACY_URL + '" target="_blank" rel="noopener">Privacy Policy</a>.</span>' +
+    '<span>' + t(lead, { link: '<a class="consent__link" href="' + PRIVACY_URL + '" target="_blank" rel="noopener">' + t('Privacy Policy') + '</a>' }) + '</span>' +
   '</label>';
 }
 
 function legalFooter() {
-  return '<p class="auth__legal t-caption"><a href="' + PRIVACY_URL + '" target="_blank" rel="noopener">Privacy Policy</a></p>';
+  return '<p class="auth__legal t-caption"><a href="' + PRIVACY_URL + '" target="_blank" rel="noopener">' + t('Privacy Policy') + '</a></p>';
 }
 
 function googleButton() {
   return '<button type="button" class="btn btn--secondary auth__google" data-action="google-signin" style="width:100%">' +
-    GOOGLE_G + '<span>Continue with Google</span></button>' +
-    '<div class="auth__sep t-caption" role="separator"><span>or use your email</span></div>';
+    GOOGLE_G + '<span>' + t('Continue with Google') + '</span></button>' +
+    '<div class="auth__sep t-caption" role="separator"><span>' + t('or use your email') + '</span></div>';
 }
 
 VIEWS.login = function () {
@@ -37,33 +37,33 @@ VIEWS.login = function () {
     '<form class="panel panel--raised auth" id="authLoginForm" novalidate>' +
       '<div class="auth__head">' +
         '<span class="auth__mark"><img src="assets/logo-64.png" width="30" height="30" alt=""></span>' +
-        '<h2 class="t-title-m">Sign in to vortex</h2>' +
-        '<p class="t-body-s c-tertiary">' + (pendingDeepLink ? 'Log in to open the link you were sent.' : 'See what your friends are listening to, in real time.') + '</p>' +
+        '<h2 class="t-title-m">' + t('Sign in to vortex') + '</h2>' +
+        '<p class="t-body-s c-tertiary">' + (pendingDeepLink ? t('Log in to open the link you were sent.') : t('See what your friends are listening to, in real time.')) + '</p>' +
       '</div>' +
       '<div class="auth__note auth__note--error" id="authError" hidden>' + icon('close', 16) +
         '<p class="t-body-s c-secondary" id="authErrorText"></p>' +
       '</div>' +
       googleButton() +
       '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="authEmail">Email</label>' +
+        '<label class="t-label-m c-secondary" for="authEmail">' + t('Email') + '</label>' +
         '<span class="field">' + icon('mail', 17) +
-          '<input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required></span>' +
+          '<input id="authEmail" type="email" placeholder="' + t('you@example.com') + '" autocomplete="email" required></span>' +
       '</div>' +
       '<div class="auth__field">' +
-        '<span class="field-label-row"><label class="t-label-m c-secondary" for="authPass">Password</label>' +
-          '<a class="t-label-s auth__forgot" href="#/forgot" data-forgot-link>Forgot password?</a></span>' +
+        '<span class="field-label-row"><label class="t-label-m c-secondary" for="authPass">' + t('Password') + '</label>' +
+          '<a class="t-label-s auth__forgot" href="#/forgot" data-forgot-link>' + t('Forgot password?') + '</a></span>' +
         '<span class="field">' + icon('lock', 17) +
           '<input id="authPass" type="password" placeholder="••••••••" autocomplete="current-password" required>' +
-          '<button type="button" class="iconbtn" data-pass-toggle aria-label="Show password">' + icon('eye', 17) + '</button>' +
+          '<button type="button" class="iconbtn" data-pass-toggle aria-label="' + t('Show password') + '">' + icon('eye', 17) + '</button>' +
         '</span>' +
       '</div>' +
-      '<button type="submit" class="btn btn--primary" id="authLoginSubmit" style="width:100%;padding:0 16px">Log in</button>' +
-      '<p class="t-body-s c-tertiary" style="text-align:center">No account yet? ' +
-        '<a class="btn btn--ghost btn--sm" href="#/signup" style="padding:0 4px;display:inline-flex">Create one</a></p>' +
+      '<button type="submit" class="btn btn--primary" id="authLoginSubmit" style="width:100%;padding:0 16px">' + t('Log in') + '</button>' +
+      '<p class="t-body-s c-tertiary" style="text-align:center">' + t('No account yet?') + ' ' +
+        '<a class="btn btn--ghost btn--sm" href="#/signup" style="padding:0 4px;display:inline-flex">' + t('Create one') + '</a></p>' +
     '</form>';
 
   return '<div class="view">' +
-    pageHead('Welcome back', 'Sign in') +
+    pageHead(t('Welcome back'), t('Sign in')) +
     '<div class="auth-wrap scroll">' + form + legalFooter() + '</div>' +
   '</div>';
 };
@@ -73,43 +73,43 @@ VIEWS.signup = function () {
     '<form class="panel panel--raised auth" id="authSignupForm" novalidate>' +
       '<div class="auth__head">' +
         '<span class="auth__mark"><img src="assets/logo-64.png" width="30" height="30" alt=""></span>' +
-        '<h2 class="t-title-m">Create your account</h2>' +
-        '<p class="t-body-s c-tertiary">' + (pendingDeepLink ? 'Sign up to open the link you were sent.' : 'Free while vortex is in beta.') + '</p>' +
+        '<h2 class="t-title-m">' + t('Create your account') + '</h2>' +
+        '<p class="t-body-s c-tertiary">' + (pendingDeepLink ? t('Sign up to open the link you were sent.') : t('Free while vortex is in beta.')) + '</p>' +
       '</div>' +
       '<div class="auth__note auth__note--error" id="authError" hidden>' + icon('close', 16) +
         '<p class="t-body-s c-secondary" id="authErrorText"></p>' +
       '</div>' +
       googleButton() +
       '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="authName">Name</label>' +
+        '<label class="t-label-m c-secondary" for="authName">' + t('Name') + '</label>' +
         '<span class="field">' + icon('user', 17) +
-          '<input id="authName" type="text" placeholder="Your name" autocomplete="name" maxlength="50" required></span>' +
+          '<input id="authName" type="text" placeholder="' + t('Your name') + '" autocomplete="name" maxlength="50" required></span>' +
       '</div>' +
       '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="authUsername">Username</label>' +
+        '<label class="t-label-m c-secondary" for="authUsername">' + t('Username') + '</label>' +
         '<span class="field">' + icon('user', 17) +
-          '<input id="authUsername" type="text" placeholder="handle" autocomplete="username" pattern="[a-zA-Z0-9_]{3,20}" required></span>' +
+          '<input id="authUsername" type="text" placeholder="' + t('handle') + '" autocomplete="username" pattern="[a-zA-Z0-9_]{3,20}" required></span>' +
       '</div>' +
       '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="authEmail">Email</label>' +
+        '<label class="t-label-m c-secondary" for="authEmail">' + t('Email') + '</label>' +
         '<span class="field">' + icon('mail', 17) +
-          '<input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required></span>' +
+          '<input id="authEmail" type="email" placeholder="' + t('you@example.com') + '" autocomplete="email" required></span>' +
       '</div>' +
       '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="authPass">Password</label>' +
+        '<label class="t-label-m c-secondary" for="authPass">' + t('Password') + '</label>' +
         '<span class="field">' + icon('lock', 17) +
-          '<input id="authPass" type="password" placeholder="At least 6 characters" autocomplete="new-password" minlength="6" required>' +
-          '<button type="button" class="iconbtn" data-pass-toggle aria-label="Show password">' + icon('eye', 17) + '</button>' +
+          '<input id="authPass" type="password" placeholder="' + t('At least 6 characters') + '" autocomplete="new-password" minlength="6" required>' +
+          '<button type="button" class="iconbtn" data-pass-toggle aria-label="' + t('Show password') + '">' + icon('eye', 17) + '</button>' +
         '</span>' +
       '</div>' +
-      consentBox('authConsent', 'I’ve read and agree to the vortex') +
-      '<button type="submit" class="btn btn--primary" id="authSignupSubmit" style="width:100%;padding:0 16px">Create account</button>' +
-      '<p class="t-body-s c-tertiary" style="text-align:center">Already have an account? ' +
-        '<a class="btn btn--ghost btn--sm" href="#/login" style="padding:0 4px;display:inline-flex">Log in</a></p>' +
+      consentBox('authConsent', 'I’ve read and agree to the vortex {link}.') +
+      '<button type="submit" class="btn btn--primary" id="authSignupSubmit" style="width:100%;padding:0 16px">' + t('Create account') + '</button>' +
+      '<p class="t-body-s c-tertiary" style="text-align:center">' + t('Already have an account?') + ' ' +
+        '<a class="btn btn--ghost btn--sm" href="#/login" style="padding:0 4px;display:inline-flex">' + t('Log in') + '</a></p>' +
     '</form>';
 
   return '<div class="view">' +
-    pageHead('Join vortex', 'Create account') +
+    pageHead(t('Join vortex'), t('Create account')) +
     '<div class="auth-wrap scroll">' + form + legalFooter() + '</div>' +
   '</div>';
 };
@@ -132,26 +132,26 @@ VIEWS.forgot = function () {
   const sent = forgotState.sentTo;
   const body = sent
     ? '<div class="panel panel--raised auth">' +
-        authHead('Check your inbox', 'If <b class="c-primary">' + esc(sent) + '</b> has a vortex account, a link to choose a new password is on its way.') +
+        authHead(t('Check your inbox'), t('If {email} has a vortex account, a link to choose a new password is on its way.', { email: '<b class="c-primary">' + esc(sent) + '</b>' })) +
         '<ul class="auth__steps t-body-s c-secondary">' +
-          '<li>' + icon('mail', 16) + '<span>It can take a minute. Check spam if it doesn’t show up.</span></li>' +
-          '<li>' + icon('lock', 16) + '<span>The link works once, on any device.</span></li>' +
+          '<li>' + icon('mail', 16) + '<span>' + t('It can take a minute. Check spam if it doesn’t show up.') + '</span></li>' +
+          '<li>' + icon('lock', 16) + '<span>' + t('The link works once, on any device.') + '</span></li>' +
         '</ul>' +
-        '<button type="button" class="btn btn--secondary" data-action="forgot-resend" id="forgotResend" style="width:100%">Send it again</button>' +
-        '<a class="btn btn--ghost btn--sm" href="#/login" style="align-self:center">Back to log in</a>' +
+        '<button type="button" class="btn btn--secondary" data-action="forgot-resend" id="forgotResend" style="width:100%">' + t('Send it again') + '</button>' +
+        '<a class="btn btn--ghost btn--sm" href="#/login" style="align-self:center">' + t('Back to log in') + '</a>' +
       '</div>'
     : '<form class="panel panel--raised auth" id="authForgotForm" novalidate>' +
-        authHead('Reset your password', 'Enter the email you signed up with and we’ll send you a link to choose a new one.') +
+        authHead(t('Reset your password'), t('Enter the email you signed up with and we’ll send you a link to choose a new one.')) +
         authErrorBox() +
         '<div class="auth__field">' +
-          '<label class="t-label-m c-secondary" for="authEmail">Email</label>' +
+          '<label class="t-label-m c-secondary" for="authEmail">' + t('Email') + '</label>' +
           '<span class="field">' + icon('mail', 17) +
-            '<input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required value="' + esc(forgotState.draft || '') + '"></span>' +
+            '<input id="authEmail" type="email" placeholder="' + t('you@example.com') + '" autocomplete="email" required value="' + esc(forgotState.draft || '') + '"></span>' +
         '</div>' +
-        '<button type="submit" class="btn btn--primary" id="authForgotSubmit" style="width:100%;padding:0 16px">Send reset link</button>' +
-        '<a class="btn btn--ghost btn--sm" href="#/login" style="align-self:center">Back to log in</a>' +
+        '<button type="submit" class="btn btn--primary" id="authForgotSubmit" style="width:100%;padding:0 16px">' + t('Send reset link') + '</button>' +
+        '<a class="btn btn--ghost btn--sm" href="#/login" style="align-self:center">' + t('Back to log in') + '</a>' +
       '</form>';
-  return '<div class="view">' + pageHead('Account', 'Forgot password') + '<div class="auth-wrap scroll">' + body + '</div></div>';
+  return '<div class="view">' + pageHead(t('Account'), t('Forgot password')) + '<div class="auth-wrap scroll">' + body + '</div></div>';
 };
 
 /* Shown until the account is set up. A first Google sign-in confirms the handle generated from the
@@ -159,55 +159,55 @@ VIEWS.forgot = function () {
 VIEWS.welcome = function () {
   const me = DATA.me;
   const handle = myHandle();
-  const first = esc(me.name.split(/\s+/)[0] || 'there');
+  const first = esc(me.name.split(/\s+/)[0] || t('there'));
   const head = app.needsUsername
-    ? authHead('Choose your username', 'Welcome, <b class="c-primary">' + first + '</b>. This is how friends find you, and it’s the link to your profile.')
-    : authHead('Review the privacy policy', 'Hi <b class="c-primary">' + first + '</b>. The policy explains what vortex keeps and who can see it. Accept it to keep using vortex.');
+    ? authHead(t('Choose your username'), t('Welcome, {name}. This is how friends find you, and it’s the link to your profile.', { name: '<b class="c-primary">' + first + '</b>' }))
+    : authHead(t('Review the privacy policy'), t('Hi {name}. The policy explains what vortex keeps and who can see it. Accept it to keep using vortex.', { name: '<b class="c-primary">' + first + '</b>' }));
   const nameFields = !app.needsUsername ? '' :
       '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="welcomeName">Display name</label>' +
+        '<label class="t-label-m c-secondary" for="welcomeName">' + t('Display name') + '</label>' +
         '<span class="field">' + icon('user', 17) +
           '<input id="welcomeName" type="text" maxlength="' + NAME_MAX + '" autocomplete="name" required value="' + esc(me.name) + '"></span>' +
       '</div>' +
       '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="welcomeUsername">Username</label>' +
+        '<label class="t-label-m c-secondary" for="welcomeUsername">' + t('Username') + '</label>' +
         '<span class="field"><span class="field__at" aria-hidden="true">@</span>' +
           '<input id="welcomeUsername" type="text" maxlength="20" autocomplete="username" spellcheck="false" required value="' + esc(handle) + '" aria-describedby="welcomeUsernameHint"></span>' +
-        '<p class="t-caption field-hint" id="welcomeUsernameHint">We picked this from your email. Your profile link is ' + esc(location.host) + '/#/u/' + esc(handle) + '</p>' +
+        '<p class="t-caption field-hint" id="welcomeUsernameHint">' + t('We picked this from your email. Your profile link is {link}', { link: esc(location.host) + '/#/u/' + esc(handle) }) + '</p>' +
       '</div>';
   const form =
     '<form class="panel panel--raised auth" id="authWelcomeForm" novalidate>' +
       head +
       authErrorBox() +
       nameFields +
-      (app.needsConsent ? consentBox('welcomeConsent', 'I’ve read and agree to the vortex') : '') +
-      '<button type="submit" class="btn btn--primary" id="authWelcomeSubmit" style="width:100%;padding:0 16px">Continue</button>' +
-      '<button type="button" class="btn btn--ghost btn--sm" data-action="logout" style="align-self:center">' + (app.needsUsername ? 'Use a different account' : 'Log out') + '</button>' +
+      (app.needsConsent ? consentBox('welcomeConsent', 'I’ve read and agree to the vortex {link}.') : '') +
+      '<button type="submit" class="btn btn--primary" id="authWelcomeSubmit" style="width:100%;padding:0 16px">' + t('Continue') + '</button>' +
+      '<button type="button" class="btn btn--ghost btn--sm" data-action="logout" style="align-self:center">' + (app.needsUsername ? t('Use a different account') : t('Log out')) + '</button>' +
     '</form>';
   return '<div class="view">' +
-    pageHead('Almost there', app.needsUsername ? 'Choose username' : 'Privacy policy') +
+    pageHead(t('Almost there'), app.needsUsername ? t('Choose username') : t('Privacy policy')) +
     '<div class="auth-wrap scroll">' + form + '</div></div>';
 };
 
 VIEWS.reset = function () {
   const form =
     '<form class="panel panel--raised auth" id="authResetForm" novalidate>' +
-      authHead('Choose a new password', 'For <b class="c-primary">' + esc((app.session && app.session.user.email) || 'your account') + '</b>. You’ll stay logged in on this device.') +
+      authHead(t('Choose a new password'), t('For {account}. You’ll stay logged in on this device.', { account: '<b class="c-primary">' + esc((app.session && app.session.user.email) || t('your account')) + '</b>' })) +
       authErrorBox() +
       '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="authNewPass">New password</label>' +
+        '<label class="t-label-m c-secondary" for="authNewPass">' + t('New password') + '</label>' +
         '<span class="field">' + icon('lock', 17) +
-          '<input id="authNewPass" type="password" placeholder="At least 6 characters" autocomplete="new-password" minlength="6" required>' +
-          '<button type="button" class="iconbtn" data-pass-toggle aria-label="Show password">' + icon('eye', 17) + '</button>' +
+          '<input id="authNewPass" type="password" placeholder="' + t('At least 6 characters') + '" autocomplete="new-password" minlength="6" required>' +
+          '<button type="button" class="iconbtn" data-pass-toggle aria-label="' + t('Show password') + '">' + icon('eye', 17) + '</button>' +
         '</span>' +
       '</div>' +
       '<div class="auth__field">' +
-        '<label class="t-label-m c-secondary" for="authNewPass2">Type it again</label>' +
+        '<label class="t-label-m c-secondary" for="authNewPass2">' + t('Type it again') + '</label>' +
         '<span class="field">' + icon('lock', 17) +
           '<input id="authNewPass2" type="password" autocomplete="new-password" minlength="6" required></span>' +
       '</div>' +
-      '<button type="submit" class="btn btn--primary" id="authResetSubmit" style="width:100%;padding:0 16px">Save new password</button>' +
-      '<button type="button" class="btn btn--ghost btn--sm" data-action="reset-skip" style="align-self:center">' + (resetReturn === '#/settings' ? 'Cancel' : 'Not now') + '</button>' +
+      '<button type="submit" class="btn btn--primary" id="authResetSubmit" style="width:100%;padding:0 16px">' + t('Save new password') + '</button>' +
+      '<button type="button" class="btn btn--ghost btn--sm" data-action="reset-skip" style="align-self:center">' + (resetReturn === '#/settings' ? t('Cancel') : t('Not now')) + '</button>' +
     '</form>';
-  return '<div class="view">' + pageHead('Account', 'New password') + '<div class="auth-wrap scroll">' + form + '</div></div>';
+  return '<div class="view">' + pageHead(t('Account'), t('New password')) + '<div class="auth-wrap scroll">' + form + '</div></div>';
 };

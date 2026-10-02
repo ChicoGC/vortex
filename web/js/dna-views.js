@@ -9,7 +9,7 @@ UI.playlistItems = {};
 UI.savedPlaylist = {};   // range -> { status: 'saving' | 'ok' | 'error', url }
 
 function dnaLoading(text) {
-  return skeletonRows(3, text || 'Loading from Spotify…');
+  return skeletonRows(3, text || t('Loading from Spotify…'));
 }
 
 function trunc(s, n) {
@@ -30,7 +30,7 @@ function dnaMeter(ratio, cls) {
 function ringEl(score, small) {
   const s = small ? 44 : 72, r = small ? 18 : 31, sw = small ? 4 : 5;
   const c = 2 * Math.PI * r;
-  return '<div class="' + cx('ring', small && 'ring--sm') + '" role="img" aria-label="' + score + ' out of 100">' +
+  return '<div class="' + cx('ring', small && 'ring--sm') + '" role="img" aria-label="' + t('{score} out of 100', { score: score }) + '">' +
     '<svg width="' + s + '" height="' + s + '" viewBox="0 0 ' + s + ' ' + s + '" aria-hidden="true">' +
       '<circle class="ring__track" cx="' + s / 2 + '" cy="' + s / 2 + '" r="' + r + '" fill="none" stroke-width="' + sw + '"/>' +
       '<circle class="ring__fill" cx="' + s / 2 + '" cy="' + s / 2 + '" r="' + r + '" fill="none" stroke-width="' + sw + '" ' +
@@ -52,7 +52,7 @@ function radarSvg(axes, series) {
   function poly(r) {
     return axes.map(function (_, i) { return pt(i, r).map(function (v) { return v.toFixed(1); }).join(','); }).join(' ');
   }
-  let out = '<svg class="radar" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Genre fingerprint">';
+  let out = '<svg class="radar" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + t('Genre fingerprint') + '">';
   [0.25, 0.5, 0.75, 1].forEach(function (k) { out += '<polygon class="radar__ring" points="' + poly(R * k) + '"/>'; });
   axes.forEach(function (_, i) {
     const p = pt(i, R);
@@ -64,7 +64,7 @@ function radarSvg(axes, series) {
       pts.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ') + '"/>';
     pts.forEach(function (p, i) {
       out += '<circle class="radar__dot" style="--c:' + s.color + '" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="4">' +
-        '<title>' + esc(s.name + ' · ' + axes[i] + ': ' + pct(s.values[axes[i]] || 0) + '% of top artists') + '</title></circle>';
+        '<title>' + esc(t('{name} · {genre}: {pct}% of top artists', { name: s.name, genre: axes[i], pct: pct(s.values[axes[i]] || 0) })) + '</title></circle>';
     });
   });
   axes.forEach(function (a, i) {
@@ -82,19 +82,19 @@ function slopeSvg(lines) {
   const lane = top + maxRank * rowH + 8, H = lane + 18;
   const xs = [190, 280, 370];
   const y = function (r) { return r && r <= maxRank ? top + (r - 1) * rowH : lane; };
-  let out = '<svg class="slope" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="How your top artists moved">';
+  let out = '<svg class="slope" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + t('How your top artists moved') + '">';
   ['~1 year', '6 months', '4 weeks'].forEach(function (h, i) {
-    out += '<text class="slope__head" x="' + xs[i] + '" y="16" text-anchor="middle">' + h + '</text>' +
+    out += '<text class="slope__head" x="' + xs[i] + '" y="16" text-anchor="middle">' + t(h) + '</text>' +
       '<line class="slope__guide" x1="' + xs[i] + '" y1="' + (top - 10) + '" x2="' + xs[i] + '" y2="' + (lane + 6) + '"/>';
   });
-  out += '<text class="slope__lane" x="' + (xs[0] - 12) + '" y="' + (lane + 4) + '" text-anchor="end">not in top ' + maxRank + '</text>';
+  out += '<text class="slope__lane" x="' + (xs[0] - 12) + '" y="' + (lane + 4) + '" text-anchor="end">' + t('not in top {n}', { n: maxRank }) + '</text>';
   lines.forEach(function (l) {
     const r = l.ranks;
     const d = (r[0] || 99) - (r[2] || 99);
     const trend = d >= 2 ? 'up' : d <= -2 ? 'down' : 'flat';
-    const fmt = function (v) { return v ? '#' + v : 'not in top 50'; };
+    const fmt = function (v) { return v ? '#' + v : t('not in top 50'); };
     out += '<g class="slope__line" data-trend="' + trend + '"><title>' +
-      esc(l.artist.name + ': ' + fmt(r[0]) + ' (~1 year) → ' + fmt(r[1]) + ' (6 months) → ' + fmt(r[2]) + ' (4 weeks)') + '</title>' +
+      esc(t('{artist}: {year} (~1 year) → {half} (6 months) → {month} (4 weeks)', { artist: l.artist.name, year: fmt(r[0]), half: fmt(r[1]), month: fmt(r[2]) })) + '</title>' +
       '<polyline points="' + xs.map(function (x, i) { return x + ',' + y(r[i]); }).join(' ') + '"/>' +
       xs.map(function (x, i) { return '<circle cx="' + x + '" cy="' + y(r[i]) + '" r="4"/>'; }).join('');
     if (l.rightLabel) out += '<text x="' + (xs[2] + 12) + '" y="' + (y(r[2]) + 4) + '">#' + r[2] + ' ' + esc(trunc(l.artist.name, 22)) + '</text>';
@@ -118,11 +118,11 @@ function emblem(result) {
 function badgeTile(r) {
   const b = r.badge;
   let foot;
-  if (r.state === 'loading') foot = '<span class="t-caption c-tertiary">Loading…</span>';
-  else if (r.state === 'error') foot = '<span class="t-caption c-tertiary">Spotify didn\'t answer</span>';
+  if (r.state === 'loading') foot = '<span class="t-caption c-tertiary">' + t('Loading…') + '</span>';
+  else if (r.state === 'error') foot = '<span class="t-caption c-tertiary">' + t('Spotify didn\'t answer') + '</span>';
   else {
     foot = dnaMeter(r.progress, r.tier === 3 && 'dna-meter--max') +
-      '<span class="t-meta c-tertiary">' + (r.next === null ? 'Maxed out' : 'Tier ' + roman(r.tier + 1) + ' at ' + esc(b.unit(r.next))) + '</span>';
+      '<span class="t-meta c-tertiary">' + (r.next === null ? t('Maxed out') : t('Tier {tier} at {unit}', { tier: roman(r.tier + 1), unit: esc(b.unit(r.next)) })) + '</span>';
   }
   return '<div class="bdg" data-tier="' + (r.tier || 0) + '" data-state="' + r.state + '">' +
     emblem(r) +
@@ -150,20 +150,20 @@ function dnaCardPanel() {
 
   return '<section class="panel dna-card" id="dnaCard">' +
     '<div class="dna-card__body">' +
-      '<span class="t-overline c-accent">Music DNA · last 6 months</span>' +
-      '<h2 class="dna-card__title">' + (loading ? 'Reading your taste…' : arche ? 'The ' + esc(arche.badge.name) : 'Still warming up') + '</h2>' +
-      '<p class="t-body-l c-secondary dna-card__tag">' + (loading ? 'Pulling your top artists and recent plays from Spotify.' :
-        arche ? esc(arche.badge.tagline) : 'Listen a little more and your badges will decide what you are.') + '</p>' +
+      '<span class="t-overline c-accent">' + t('Music DNA · last 6 months') + '</span>' +
+      '<h2 class="dna-card__title">' + (loading ? t('Reading your taste…') : arche ? t('The {name}', { name: esc(arche.badge.name) }) : t('Still warming up')) + '</h2>' +
+      '<p class="t-body-l c-secondary dna-card__tag">' + (loading ? t('Pulling your top artists and recent plays from Spotify.') :
+        arche ? esc(arche.badge.tagline) : t('Listen a little more and your badges will decide what you are.')) + '</p>' +
       (genres.length ? '<div class="dna-chips">' + genres.map(function (g, i) {
         return '<span class="dna-chip' + (i === 0 ? ' dna-chip--lead' : '') + '">' + esc(g.name) + '</span>';
       }).join('') + '</div>' : '') +
       '<div class="dna-level">' +
-        '<div class="dna-level__num"><span class="t-overline c-tertiary">Level</span><b>' + stars + '</b></div>' +
+        '<div class="dna-level__num"><span class="t-overline c-tertiary">' + t('Level') + '</span><b>' + stars + '</b></div>' +
         '<div class="dna-level__bar">' + dnaMeter(stars / max) +
-          '<span class="t-caption c-tertiary">' + stars + ' of ' + max + ' badge stars · every tier you unlock is one star</span></div>' +
+          '<span class="t-caption c-tertiary">' + t('{stars} of {max} badge stars · every tier you unlock is one star', { stars: stars, max: max }) + '</span></div>' +
       '</div>' +
       '<div class="dna-card__actions">' +
-        '<button class="btn btn--secondary btn--sm" data-action="save-dna-image"' + (artists ? '' : ' disabled') + '>' + icon('download', 15) + 'Save as image</button>' +
+        '<button class="btn btn--secondary btn--sm" data-action="save-dna-image"' + (artists ? '' : ' disabled') + '>' + icon('download', 15) + t('Save as image') + '</button>' +
       '</div>' +
     '</div>' +
     '<div class="dna-card__art" aria-hidden="true">' + covers.map(function (a, i) {
@@ -179,16 +179,17 @@ function dnaBadgesPanel() {
   const stars = starsOf(results), max = BADGES.length * 3;
   const quest = dnaNextQuest(results);
   return '<section class="panel section" id="dnaBadges">' +
-    sectionHead('Badges', stars + ' / ' + max + ' stars') +
+    sectionHead(t('Badges'), t('{stars} / {max} stars', { stars: stars, max: max })) +
     '<div class="section__body section__body--pad stack">' +
       (quest ? '<div class="quest">' +
         '<span class="quest__icon">' + icon('star', 16) + '</span>' +
-        '<span class="t-body-s c-secondary quest__text">Closest unlock: <b class="c-primary">' + esc(quest.badge.name) + ' ' + roman(quest.tier + 1) + '</b> at ' +
-          esc(quest.badge.unit(quest.next)) + '. You\'re at ' + esc(quest.badge.unit(quest.value)) + '.</span>' +
+        '<span class="t-body-s c-secondary quest__text">' + t('Closest unlock: {badge} at {next}. You\'re at {value}.', {
+          badge: '<b class="c-primary">' + esc(quest.badge.name) + ' ' + roman(quest.tier + 1) + '</b>',
+          next: esc(quest.badge.unit(quest.next)), value: esc(quest.badge.unit(quest.value)) }) + '</span>' +
         dnaMeter(quest.progress, 'quest__meter') +
       '</div>' : '') +
       '<div class="bdg-grid">' + results.map(badgeTile).join('') + '</div>' +
-      '<p class="t-caption c-tertiary">Badges read your Spotify top lists and your last 50 plays, so they move as you listen. Spotify\'s longest range covers about a year, not all time.</p>' +
+      '<p class="t-caption c-tertiary">' + t('Badges read your Spotify top lists and your last 50 plays, so they move as you listen. Spotify\'s longest range covers about a year, not all time.') + '</p>' +
     '</div>' +
   '</section>';
 }
@@ -197,30 +198,30 @@ function dnaGenresPanel() {
   const range = UI.dnaRange;
   const artists = libData('topArtists', range);
   let body;
-  if (!artists) body = libFailed('topArtists', range) ? ghostEmpty(null, 'Could not reach Spotify. Try again in a moment.') : dnaLoading();
+  if (!artists) body = libFailed('topArtists', range) ? ghostEmpty(null, t('Could not reach Spotify. Try again in a moment.')) : dnaLoading();
   else {
     const g = genreShares(artists);
     if (g.list.length < 3) {
       body = ghostEmpty(null, g.tagged
-        ? 'Spotify lists fewer than 3 genres for your top artists, not enough for a fingerprint.'
-        : 'Spotify doesn\'t list genres for your top artists in this range.');
+        ? t('Spotify lists fewer than 3 genres for your top artists, not enough for a fingerprint.')
+        : t('Spotify doesn\'t list genres for your top artists in this range.'));
     } else {
       const axes = g.list.slice(0, 6).map(function (x) { return x.name; });
       const values = {};
       g.list.forEach(function (x) { values[x.name] = x.share; });
       body = '<div class="section__body--pad stack stack--sm">' +
-        radarSvg(axes, [{ name: 'You', color: 'var(--accent-base)', values: values }]) +
+        radarSvg(axes, [{ name: t('You'), color: 'var(--accent-base)', values: values }]) +
         '<div class="genre-list">' + g.list.slice(0, 6).map(function (x, i) {
           return '<div class="genre-list__row"><span class="t-body-s' + (i === 0 ? ' c-primary' : ' c-secondary') + ' truncate">' + esc(x.name) + '</span>' +
             dnaMeter(x.share, i === 0 ? null : 'dna-meter--muted') + '<span class="t-num c-tertiary">' + pct(x.share) + '%</span></div>';
         }).join('') + '</div>' +
-        '<p class="t-caption c-tertiary">Share of your top ' + g.tagged + ' artists tagged with each genre on Spotify. Artists can have several genres, so it adds up past 100%.' +
-          (g.tagged < g.total ? ' ' + (g.total - g.tagged) + ' artists have no genre listed.' : '') + '</p>' +
+        '<p class="t-caption c-tertiary">' + t('Share of your top {n} artists tagged with each genre on Spotify. Artists can have several genres, so it adds up past 100%.', { n: g.tagged }) +
+          (g.tagged < g.total ? ' ' + t('{n} artists have no genre listed.', { n: g.total - g.tagged }) : '') + '</p>' +
       '</div>';
     }
   }
   return '<section class="panel section" id="dnaGenres">' +
-    sectionHead('Genre fingerprint', null, tabsEl('dna-range', ['4 weeks', '6 months', '1 year'], RANGE_LABEL[range])) +
+    sectionHead(t('Genre fingerprint'), null, tabsEl('dna-range', ['4 weeks', '6 months', '1 year'], RANGE_LABEL[range])) +
     '<div class="section__body">' + body + '</div></section>';
 }
 
@@ -234,31 +235,31 @@ function dnaEvolutionPanel() {
   const ev = dnaEvolution();
   const failed = libFailed('topArtists', 'short_term') || libFailed('topArtists', 'medium_term') || libFailed('topArtists', 'long_term');
   let body;
-  if (!ev) body = failed ? ghostEmpty(null, 'Could not reach Spotify. Try again in a moment.') : dnaLoading();
+  if (!ev) body = failed ? ghostEmpty(null, t('Could not reach Spotify. Try again in a moment.')) : dnaLoading();
   else if (ev.empty) body = ghostEmpty();
   else {
     const col = function (title, hint, list, cls, sub) {
       return '<div class="evo-col ' + cls + '"><span class="t-overline">' + title + '</span>' +
         '<span class="t-caption c-tertiary">' + hint + '</span>' +
         (list.length ? '<div class="evo-col__list">' + list.map(function (a) { return artistChip(a, sub(a)); }).join('') + '</div>'
-          : '<span class="t-body-s c-tertiary">Nobody yet</span>') + '</div>';
+          : '<span class="t-body-s c-tertiary">' + t('Nobody yet') + '</span>') + '</div>';
     };
     const rs = rankMap(libData('topArtists', 'short_term')), rl = rankMap(libData('topArtists', 'long_term'));
     body = '<div class="section__body--pad stack">' +
       '<div class="slope-wrap">' + slopeSvg(ev.lines) + '</div>' +
       '<div class="legend slope-legend">' +
-        '<div><em class="lg-up"></em><span class="t-body-s c-secondary">Climbing</span></div>' +
-        '<div><em class="lg-flat"></em><span class="t-body-s c-secondary">Holding</span></div>' +
-        '<div><em class="lg-down"></em><span class="t-body-s c-secondary">Cooling off</span></div>' +
+        '<div><em class="lg-up"></em><span class="t-body-s c-secondary">' + t('Climbing') + '</span></div>' +
+        '<div><em class="lg-flat"></em><span class="t-body-s c-secondary">' + t('Holding') + '</span></div>' +
+        '<div><em class="lg-down"></em><span class="t-body-s c-secondary">' + t('Cooling off') + '</span></div>' +
       '</div>' +
       '<div class="evo-cols">' +
-        col('New arrivals', 'In your 4-week top, not in your ~1-year top 50', ev.rising, 'evo-col--up', function (a) { return '#' + rs[a.id] + ' now'; }) +
-        col('Constants', 'In your top 50 across all three ranges', ev.constants, 'evo-col--flat', function (a) { return '#' + rs[a.id] + ' now · #' + rl[a.id] + ' over a year'; }) +
-        col('Cooling off', 'In your ~1-year top 20, gone from the last 4 weeks', ev.faded, 'evo-col--down', function (a) { return 'was #' + rl[a.id]; }) +
+        col(t('New arrivals'), t('In your 4-week top, not in your ~1-year top 50'), ev.rising, 'evo-col--up', function (a) { return t('#{rank} now', { rank: rs[a.id] }); }) +
+        col(t('Constants'), t('In your top 50 across all three ranges'), ev.constants, 'evo-col--flat', function (a) { return t('#{now} now · #{year} over a year', { now: rs[a.id], year: rl[a.id] }); }) +
+        col(t('Cooling off'), t('In your ~1-year top 20, gone from the last 4 weeks'), ev.faded, 'evo-col--down', function (a) { return t('was #{rank}', { rank: rl[a.id] }); }) +
       '</div>' +
     '</div>';
   }
-  return '<section class="panel section" id="dnaEvolution">' + sectionHead('How your taste moved', '~1 year → 4 weeks') +
+  return '<section class="panel section" id="dnaEvolution">' + sectionHead(t('How your taste moved'), t('~1 year → 4 weeks')) +
     '<div class="section__body">' + body + '</div></section>';
 }
 
@@ -270,9 +271,9 @@ function compatDetail(f, c, showProfileLink) {
   const vals = function (g) { const v = {}; g.list.forEach(function (x) { v[x.name] = x.share; }); return v; };
   const first = esc(f.name.split(/\s+/)[0]);
   const rows = [
-    ['Genre similarity', c.genre === null ? null : c.genre, c.genre === null ? 'no genre data' : pct(c.genre) + '%'],
-    ['Shared artists', c.artists.ratio, String(c.artists.n)],
-    ['Shared tracks', c.tracks.ratio, String(c.tracks.n)]
+    [t('Genre similarity'), c.genre === null ? null : c.genre, c.genre === null ? t('no genre data') : pct(c.genre) + '%'],
+    [t('Shared artists'), c.artists.ratio, String(c.artists.n)],
+    [t('Shared tracks'), c.tracks.ratio, String(c.tracks.n)]
   ];
   return '<div class="compat-detail">' +
     '<div class="compat-detail__bars">' + rows.map(function (r) {
@@ -281,33 +282,33 @@ function compatDetail(f, c, showProfileLink) {
     }).join('') + '</div>' +
     (axes.length >= 3 ? '<div class="compat-detail__radar">' +
       radarSvg(axes, [
-        { name: 'You', color: 'var(--accent-base)', values: vals(c.mine) },
+        { name: t('You'), color: 'var(--accent-base)', values: vals(c.mine) },
         { name: f.name, color: 'var(--data-2)', values: vals(c.theirs) }
       ]) +
-      '<div class="legend"><div><em style="background:var(--accent-base)"></em><span class="t-body-s c-secondary">You</span></div>' +
+      '<div class="legend"><div><em style="background:var(--accent-base)"></em><span class="t-body-s c-secondary">' + t('You') + '</span></div>' +
       '<div><em style="background:var(--data-2)"></em><span class="t-body-s c-secondary">' + esc(f.name) + '</span></div></div>' +
     '</div>' : '') +
-    (c.sharedArtists.length ? '<div class="stack stack--sm"><span class="t-overline c-tertiary">You both love</span>' +
+    (c.sharedArtists.length ? '<div class="stack stack--sm"><span class="t-overline c-tertiary">' + t('You both love') + '</span>' +
       '<div class="achips">' + c.sharedArtists.slice(0, 8).map(function (a) { return artistChip(a); }).join('') + '</div></div>' : '') +
-    (c.sharedTracks.length ? '<div class="stack stack--sm"><span class="t-overline c-tertiary">Same songs on repeat</span>' +
+    (c.sharedTracks.length ? '<div class="stack stack--sm"><span class="t-overline c-tertiary">' + t('Same songs on repeat') + '</span>' +
       '<div class="achips">' + c.sharedTracks.slice(0, 4).map(function (t) {
         const href = spotifyTrackUrl(t.id);
         const inner = '<span class="achip">' + art(artSeedFor(t.id), 'art--sm', t.image) + '<span class="achip__meta"><span class="t-label-s truncate">' + esc(t.title) + '</span><span class="t-caption c-tertiary truncate">' + esc(t.artist) + '</span></span></span>';
         return href ? '<a href="' + href + '" target="_blank" rel="noopener">' + inner + '</a>' : inner;
       }).join('') + '</div></div>' : '') +
-    (c.newToYou.length ? '<div class="stack stack--sm"><span class="t-overline c-tertiary">From ' + first + '\'s top 50, new to you</span>' +
+    (c.newToYou.length ? '<div class="stack stack--sm"><span class="t-overline c-tertiary">' + t('From {name}\'s top 50, new to you', { name: first }) + '</span>' +
       '<div class="achips">' + c.newToYou.map(function (a) { return artistChip(a, a.genres[0] || null); }).join('') + '</div></div>' : '') +
     (f.username ? '<div class="rowflex" style="gap:8px;flex-wrap:wrap">' + compareButton(f.username, true) +
-      (showProfileLink ? '<a class="btn btn--ghost btn--sm" href="#/u/' + esc(f.username) + '">' + icon('user', 15) + 'View ' + first + '\'s profile</a>' : '') +
+      (showProfileLink ? '<a class="btn btn--ghost btn--sm" href="#/u/' + esc(f.username) + '">' + icon('user', 15) + t('View {name}\'s profile', { name: first }) + '</a>' : '') +
     '</div>' : '') +
-    '<p class="t-caption c-tertiary">How it\'s scored: 45% genre similarity, 40% shared artists, 15% shared tracks, from each person\'s top 50 over ~6 months. Shared counts rise on a curve, so a few matches already register.</p>' +
+    '<p class="t-caption c-tertiary">' + t('How it\'s scored: 45% genre similarity, 40% shared artists, 15% shared tracks, from each person\'s top 50 over ~6 months. Shared counts rise on a curve, so a few matches already register.') + '</p>' +
   '</div>';
 }
 
 function dnaCompatPanel() {
   let body;
   const mine = mySnapshot();
-  if (!DATA.friends.length) body = ghostEmpty(findFriendsButton(false), 'Add friends to see how your tastes line up.');
+  if (!DATA.friends.length) body = ghostEmpty(findFriendsButton(false), t('Add friends to see how your tastes line up.'));
   else if (!mine) body = dnaLoading();
   else {
     const rows = DATA.friends.map(function (f) {
@@ -317,7 +318,7 @@ function dnaCompatPanel() {
     body = rows.map(function (r) {
       const open = UI.compatOpen === r.f.id && r.c;
       const sub = r.c ? r.c.label + ' · ' + plural(r.c.artists.n, 'shared artist')
-        : r.has ? 'Not enough listening data yet' : 'No DNA yet. It appears once they open vortex with Spotify connected';
+        : r.has ? t('Not enough listening data yet') : t('No DNA yet. It appears once they open vortex with Spotify connected');
       return '<div class="compat-item' + (open ? ' compat-item--open' : '') + '">' +
         '<button class="compat-row" ' + (r.c ? 'data-compat-open="' + esc(r.f.id) + '" aria-expanded="' + !!open + '"' : 'disabled') + '>' +
           avatarEl(r.f.initials, '32', null, r.f.avatarUrl) +
@@ -329,7 +330,7 @@ function dnaCompatPanel() {
       '</div>';
     }).join('');
   }
-  return '<section class="panel section" id="dnaCompat">' + sectionHead('Compatibility', DATA.friends.length ? 'with your friends' : null) +
+  return '<section class="panel section" id="dnaCompat">' + sectionHead(t('Compatibility'), DATA.friends.length ? t('with your friends') : null) +
     '<div class="section__body">' + body + '</div></section>';
 }
 
@@ -338,25 +339,25 @@ function dnaCirclePanel() {
   const haveTastes = DATA.friends.some(function (f) { return DATA.tastes[f.id]; });
   if (!DATA.friends.length || !haveTastes) {
     body = ghostEmpty(null, DATA.friends.length
-      ? 'Once your friends open vortex with Spotify connected, artists from their top lists that you don\'t listen to show up here.'
-      : 'Add friends and this fills with artists from their top lists that you don\'t listen to yet.');
+      ? t('Once your friends open vortex with Spotify connected, artists from their top lists that you don\'t listen to show up here.')
+      : t('Add friends and this fills with artists from their top lists that you don\'t listen to yet.'));
   } else if (!libData('topArtists', 'medium_term')) {
     body = dnaLoading();
   } else {
     const recs = circleRecommendations();
     body = recs.length ? recs.map(function (r) {
       const names = r.friends.map(function (f) { return f.name.split(/\s+/)[0]; });
-      const who = names.length === 1 ? names[0] + '\'s' : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + '\'s';
+      const who = names.length === 1 ? names[0] : t('{names} and {last}', { names: names.slice(0, -1).join(', '), last: names[names.length - 1] });
       const inner = art(artSeedFor(r.artist.id), 'art--round', r.artist.image) +
         '<span class="row__meta"><span class="t-body-m-med truncate">' + esc(r.artist.name) + '</span>' +
-        '<span class="t-body-s c-tertiary truncate">In ' + esc(who) + ' top 50' + (r.artist.genres[0] ? ' · ' + esc(r.artist.genres[0]) : '') + '</span></span>' +
-        (r.friends.length > 1 ? '<span class="badge badge--accent">' + r.friends.length + ' friends</span>' : '');
+        '<span class="t-body-s c-tertiary truncate">' + t('In {who}\'s top 50', { who: esc(who) }) + (r.artist.genres[0] ? ' · ' + esc(r.artist.genres[0]) : '') + '</span></span>' +
+        (r.friends.length > 1 ? '<span class="badge badge--accent">' + tn(r.friends.length, '{n} friend', '{n} friends') + '</span>' : '');
       return DNA_ID.test(r.artist.id)
         ? '<a class="row" href="https://open.spotify.com/artist/' + r.artist.id + '" target="_blank" rel="noopener">' + inner + '</a>'
         : '<div class="row">' + inner + '</div>';
-    }).join('') : ghostEmpty(null, 'You already listen to every artist in your friends\' top lists.');
+    }).join('') : ghostEmpty(null, t('You already listen to every artist in your friends\' top lists.'));
   }
-  return '<section class="panel section" id="dnaCircle">' + sectionHead('Heard in your circle', 'not in your top lists') +
+  return '<section class="panel section" id="dnaCircle">' + sectionHead(t('Heard in your circle'), t('not in your top lists')) +
     '<div class="section__body">' + body + '</div></section>';
 }
 
@@ -377,8 +378,8 @@ function friendGenrePanel(theirs, name) {
   const g = genreShares(theirs.artists);
   if (g.list.length < 3) {
     return ghostEmpty(null, g.tagged
-      ? 'Spotify lists fewer than 3 genres for ' + name + '\'s top artists.'
-      : name + '\'s top artists have no genre listed on Spotify.');
+      ? t('Spotify lists fewer than 3 genres for {name}\'s top artists.', { name: name })
+      : t('{name}\'s top artists have no genre listed on Spotify.', { name: name }));
   }
   const axes = g.list.slice(0, 6).map(function (x) { return x.name; });
   const values = {};
@@ -402,17 +403,17 @@ function trackChip(t) {
 
 function friendCompatPanel(person, theirs) {
   if (!spotify.auth.isConnected()) {
-    return ghostEmpty('<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + 'Connect Spotify</button>',
-      'Connect Spotify to see how your tastes compare.');
+    return ghostEmpty('<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + t('Connect Spotify') + '</button>',
+      t('Connect Spotify to see how your tastes compare.'));
   }
   const mine = mySnapshot();
   if (!mine) {
     return libFailed('topArtists', 'medium_term') || libFailed('topTracks', 'medium_term')
-      ? ghostEmpty(null, 'Could not reach Spotify. Try again in a moment.')
+      ? ghostEmpty(null, t('Could not reach Spotify. Try again in a moment.'))
       : dnaLoading();
   }
   const c = compatibility(mine, theirs);
-  if (!c) return ghostEmpty(null, 'Not enough listening data yet to compare.');
+  if (!c) return ghostEmpty(null, t('Not enough listening data yet to compare.'));
   return '<div class="stack stack--sm">' +
     '<div class="compat">' + ringEl(c.score) +
       '<div class="stack" style="gap:2px"><span class="t-body-m-med">' + esc(c.label) + '</span>' +
@@ -434,46 +435,46 @@ function friendDnaSection(profile, relation) {
   const first = profile.name.split(/\s+/)[0];
   if (relation.state !== 'friends') {
     const action = relation.state === 'incoming'
-      ? '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(relation.friendshipId) + '">Accept request</button>'
+      ? '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(relation.friendshipId) + '">' + t('Accept request') + '</button>'
       : relation.state === 'outgoing' ? null
-      : '<button class="btn btn--primary btn--sm" data-friend-add="' + esc(profile.id) + '">' + icon('plus', 15) + 'Add friend</button>';
+      : '<button class="btn btn--primary btn--sm" data-friend-add="' + esc(profile.id) + '">' + icon('plus', 15) + t('Add friend') + '</button>';
     const hint = relation.state === 'outgoing'
-      ? 'Once ' + first + ' accepts, you\'ll be able to compare music DNA.'
-      : 'Add ' + first + ' as a friend to see their top artists, genres, and how your tastes compare.';
-    return ghostPanel('Music DNA', action, hint);
+      ? t('Once {name} accepts, you\'ll be able to compare music DNA.', { name: first })
+      : t('Add {name} as a friend to see their top artists, genres, and how your tastes compare.', { name: first });
+    return ghostPanel(t('Music DNA'), action, hint);
   }
 
   if (tastesStatus === 'idle') {
-    return '<section class="panel section">' + sectionHead('Music DNA') +
-      '<div class="section__body section__body--pad">' + dnaLoading('Loading music DNA…') + '</div></section>';
+    return '<section class="panel section">' + sectionHead(t('Music DNA')) +
+      '<div class="section__body section__body--pad">' + dnaLoading(t('Loading music DNA…')) + '</div></section>';
   }
   if (tastesStatus === 'error') {
-    return ghostPanel('Music DNA', null, 'Could not load ' + first + '\'s music DNA. Try again in a moment.');
+    return ghostPanel(t('Music DNA'), null, t('Could not load {name}\'s music DNA. Try again in a moment.', { name: first }));
   }
   const theirs = DATA.tastes[profile.id];
   if (!theirs) {
-    return ghostPanel('Music DNA', null, first + ' hasn\'t shared their music DNA yet. It appears once they open vortex with Spotify connected.');
+    return ghostPanel(t('Music DNA'), null, t('{name} hasn\'t shared their music DNA yet. It appears once they open vortex with Spotify connected.', { name: first }));
   }
 
   return '<section class="panel dna-card dna-card--friend">' +
       '<div class="dna-card__body">' +
-        '<span class="t-overline c-accent">Music DNA · last 6 months</span>' +
-        '<h2 class="dna-card__title" style="font-size:32px">' + esc(first) + '\'s sound</h2>' +
-        '<p class="t-body-l c-secondary dna-card__tag">Top genres, top artists, and how your taste lines up with theirs.</p>' +
+        '<span class="t-overline c-accent">' + t('Music DNA · last 6 months') + '</span>' +
+        '<h2 class="dna-card__title" style="font-size:32px">' + t('{name}\'s sound', { name: esc(first) }) + '</h2>' +
+        '<p class="t-body-l c-secondary dna-card__tag">' + t('Top genres, top artists, and how your taste lines up with theirs.') + '</p>' +
       '</div>' +
     '</section>' +
     '<div class="cols cols--half">' +
-      '<section class="panel section">' + sectionHead('Genre fingerprint') +
+      '<section class="panel section">' + sectionHead(t('Genre fingerprint')) +
         '<div class="section__body section__body--pad">' + friendGenrePanel(theirs, first) + '</div></section>' +
-      '<section class="panel section">' + sectionHead('Compatibility with you') +
+      '<section class="panel section">' + sectionHead(t('Compatibility with you')) +
         '<div class="section__body section__body--pad">' + friendCompatPanel({ name: profile.name, username: profile.username }, theirs) + '</div></section>' +
     '</div>' +
     '<div class="cols cols--half">' +
-      '<section class="panel section">' + sectionHead('Top artists', 'last 6 months') +
+      '<section class="panel section">' + sectionHead(t('Top artists'), t('last 6 months')) +
         '<div class="section__body section__body--pad">' + (theirs.artists.length
           ? '<div class="achips">' + theirs.artists.slice(0, 12).map(function (a) { return artistChip(a, a.genres[0] || null); }).join('') + '</div>'
           : ghostEmpty()) + '</div></section>' +
-      '<section class="panel section">' + sectionHead('Top tracks', 'last 6 months') +
+      '<section class="panel section">' + sectionHead(t('Top tracks'), t('last 6 months')) +
         '<div class="section__body section__body--pad">' + (theirs.tracks.length
           ? '<div class="achips">' + theirs.tracks.slice(0, 10).map(trackChip).join('') + '</div>'
           : ghostEmpty()) + '</div></section>' +
@@ -482,39 +483,39 @@ function friendDnaSection(profile, relation) {
 
 /* ---- Music: playlists and top tracks --------------------------------------- */
 function playlistTag(p) {
-  if (p.owned) return '<span class="pl-tag pl-tag--own">Yours</span>';
-  if (p.collaborative) return '<span class="pl-tag">Collab</span>';
-  return '<span class="pl-tag pl-tag--muted">Following</span>';
+  if (p.owned) return '<span class="pl-tag pl-tag--own">' + t('Yours') + '</span>';
+  if (p.collaborative) return '<span class="pl-tag">' + t('Collab') + '</span>';
+  return '<span class="pl-tag pl-tag--muted">' + t('Following') + '</span>';
 }
 
 function fmtDuration(ms) {
   const m = Math.round(ms / 60000);
-  return m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : m + 'm';
+  return m >= 60 ? t('{h}h {m}m', { h: Math.floor(m / 60), m: m % 60 }) : t('{m}m', { m: m });
 }
 
 function playlistDetail(p) {
   const entry = UI.playlistItems[p.id];
   const openLink = p.url && /^https:\/\/open\.spotify\.com\//.test(p.url)
-    ? '<a class="btn btn--ghost btn--sm" href="' + esc(p.url) + '" target="_blank" rel="noopener">' + icon('arrowUpRight', 15) + 'Open in Spotify</a>' : '';
+    ? '<a class="btn btn--ghost btn--sm" href="' + esc(p.url) + '" target="_blank" rel="noopener">' + icon('arrowUpRight', 15) + t('Open in Spotify') + '</a>' : '';
   let body;
-  if (!entry || entry.status === 'loading') body = dnaLoading('Reading tracks from Spotify…');
+  if (!entry || entry.status === 'loading') body = dnaLoading(t('Reading tracks from Spotify…'));
   else if (entry.status === 'error') {
     body = ghostEmpty(null, entry.error === 403
-      ? 'Spotify didn\'t let vortex read this playlist\'s tracks. It still opens in Spotify.'
-      : 'Could not reach Spotify. Try again in a moment.');
-  } else if (!entry.data.tracks.length) body = ghostEmpty(null, 'No Spotify tracks in this playlist yet.');
+      ? t('Spotify didn\'t let vortex read this playlist\'s tracks. It still opens in Spotify.')
+      : t('Could not reach Spotify. Try again in a moment.'));
+  } else if (!entry.data.tracks.length) body = ghostEmpty(null, t('No Spotify tracks in this playlist yet.'));
   else {
     const s = playlistStats(entry.data);
-    const fmtDate = function (d) { return d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; };
+    const fmtDate = function (d) { return d ? new Date(d).toLocaleDateString(loc('en-GB'), { day: 'numeric', month: 'short', year: 'numeric' }) : '—'; };
     const maxN = s.topArtists.length ? s.topArtists[0].n : 1;
     body = '<div class="pl-detail__grid">' +
       '<div class="stack">' +
         '<div class="cols cols--thirds pl-stats">' +
-          statTile('Length', fmtDuration(s.duration)) +
-          statTile('Artists', String(s.artists)) +
-          statTile('Last added', fmtDate(s.last)) +
+          statTile(t('Length'), fmtDuration(s.duration)) +
+          statTile(t('Artists'), String(s.artists)) +
+          statTile(t('Last added'), fmtDate(s.last)) +
         '</div>' +
-        '<div class="stack stack--sm"><span class="t-overline c-tertiary">Most featured</span>' +
+        '<div class="stack stack--sm"><span class="t-overline c-tertiary">' + t('Most featured') + '</span>' +
           s.topArtists.map(function (a, i) {
             return '<div class="genre-list__row"><span class="t-body-s ' + (i === 0 ? 'c-primary' : 'c-secondary') + ' truncate">' + esc(a.name) + '</span>' +
               dnaMeter(a.n / maxN, i === 0 ? null : 'dna-meter--muted') + '<span class="t-num c-tertiary">' + a.n + '</span></div>';
@@ -523,43 +524,43 @@ function playlistDetail(p) {
       '</div>' +
       '<div class="stack">' +
         (s.match !== null ? '<div class="compat">' + ringEl(pct(s.match)) +
-          '<div class="stack stack--sm" style="gap:4px"><span class="t-body-m-med">Taste match</span>' +
-          '<span class="t-body-s c-tertiary">' + pct(s.match) + '% of these tracks are by artists in your 6-month top 50.</span></div></div>' : '') +
-        (s.friends.length ? '<div class="stack stack--sm"><span class="t-overline c-tertiary">Friends who\'d get it</span>' +
+          '<div class="stack stack--sm" style="gap:4px"><span class="t-body-m-med">' + t('Taste match') + '</span>' +
+          '<span class="t-body-s c-tertiary">' + t('{pct}% of these tracks are by artists in your 6-month top 50.', { pct: pct(s.match) }) + '</span></div></div>' : '') +
+        (s.friends.length ? '<div class="stack stack--sm"><span class="t-overline c-tertiary">' + t('Friends who\'d get it') + '</span>' +
           s.friends.map(function (x) {
             return '<div class="rowflex">' + avatarEl(x.friend.initials, '24', null, x.friend.avatarUrl) +
-              '<span class="t-body-s c-secondary">' + esc(x.friend.name) + ' has ' + plural(x.n, 'of these artists', 'of these artists') + ' in their top 50</span></div>';
+              '<span class="t-body-s c-secondary">' + t('{name} has {n} of these artists in their top 50', { name: esc(x.friend.name), n: x.n }) + '</span></div>';
           }).join('') + '</div>' : '') +
       '</div>' +
     '</div>' +
-    '<p class="t-caption c-tertiary">' + (s.analyzed < s.total ? 'Based on the first ' + s.analyzed + ' of ' + s.total + ' tracks. ' : '') +
-      'Spotify no longer shares mood or energy data with new apps, so this sticks to what the tracks actually are.</p>';
+    '<p class="t-caption c-tertiary">' + (s.analyzed < s.total ? t('Based on the first {n} of {total} tracks.', { n: s.analyzed, total: s.total }) + ' ' : '') +
+      t('Spotify no longer shares mood or energy data with new apps, so this sticks to what the tracks actually are.') + '</p>';
   }
   return '<div class="pl-detail" id="musPlaylistDetail">' +
     '<div class="pl-detail__head">' + art(artSeedFor(p.id), 'art--lg', p.image) +
       '<span class="post__meta"><span class="t-title-s truncate">' + esc(p.name) + '</span>' +
-      '<span class="t-body-s c-tertiary">' + countLabel(p.count, 'track') + ' · ' + (p.owned ? 'your playlist' : 'collaborative') + '</span></span>' +
-      openLink + '<button class="iconbtn" data-playlist-close aria-label="Close playlist details">' + icon('close', 16) + '</button>' +
+      '<span class="t-body-s c-tertiary">' + countLabel(p.count, 'track') + ' · ' + (p.owned ? t('your playlist') : t('collaborative')) + '</span></span>' +
+      openLink + '<button class="iconbtn" data-playlist-close aria-label="' + t('Close playlist details') + '">' + icon('close', 16) + '</button>' +
     '</div>' + body +
   '</div>';
 }
 
 function topTracksSaveBar(range, tracks) {
   const saved = UI.savedPlaylist[range];
-  const label = 'your top ' + tracks.length + ' tracks · ' + RANGE_LABEL[range].toLowerCase();
+  const label = t('your top {n} tracks · {range}', { n: tracks.length, range: t(RANGE_LABEL[range]).toLowerCase() });
   let control;
   if (saved && saved.status === 'ok') {
     control = saved.url && /^https:\/\/open\.spotify\.com\//.test(saved.url)
-      ? '<a class="btn btn--secondary btn--sm" href="' + esc(saved.url) + '" target="_blank" rel="noopener">' + icon('check', 15) + 'Saved · open it</a>'
-      : '<span class="badge badge--positive"><span>' + icon('check', 13) + '</span>Saved to Spotify</span>';
+      ? '<a class="btn btn--secondary btn--sm" href="' + esc(saved.url) + '" target="_blank" rel="noopener">' + icon('check', 15) + t('Saved · open it') + '</a>'
+      : '<span class="badge badge--positive"><span>' + icon('check', 13) + '</span>' + t('Saved to Spotify') + '</span>';
   } else if (saved && saved.status === 'saving') {
-    control = '<button class="btn btn--secondary btn--sm" disabled>Saving…</button>';
+    control = '<button class="btn btn--secondary btn--sm" disabled>' + t('Saving…') + '</button>';
   } else if (!spotify.auth.hasScope('playlist-modify-private')) {
-    control = '<button class="btn btn--secondary btn--sm" data-action="spotify-connect" data-tip="Spotify asks once for permission to create playlists">' + icon('spotify', 15) + 'Allow saving playlists</button>';
+    control = '<button class="btn btn--secondary btn--sm" data-action="spotify-connect" data-tip="' + t('Spotify asks once for permission to create playlists') + '">' + icon('spotify', 15) + t('Allow saving playlists') + '</button>';
   } else {
-    control = '<button class="btn btn--secondary btn--sm" data-action="save-top-playlist">' + icon('plus', 15) + 'Save as playlist</button>';
+    control = '<button class="btn btn--secondary btn--sm" data-action="save-top-playlist">' + icon('plus', 15) + t('Save as playlist') + '</button>';
   }
-  return '<div class="save-bar"><span class="t-body-s c-tertiary">Turn ' + esc(label) + ' into a private Spotify playlist.</span>' + control + '</div>';
+  return '<div class="save-bar"><span class="t-body-s c-tertiary">' + t('Turn {label} into a private Spotify playlist.', { label: esc(label) }) + '</span>' + control + '</div>';
 }
 
 LIBRARY_PANELS.push(
@@ -634,11 +635,11 @@ async function renderDnaImage() {
   ctx.fillText('vortex', P, P + 34);
   ctx.fillStyle = signal;
   ctx.font = '500 26px "Geist Mono", monospace';
-  ctx.fillText('MUSIC DNA · LAST 6 MONTHS', P, P + 92);
+  ctx.fillText(t('MUSIC DNA · LAST 6 MONTHS'), P, P + 92);
   ctx.textAlign = 'right';
   ctx.fillStyle = 'rgba(242,241,238,.40)';
   ctx.font = '400 24px Geist, sans-serif';
-  ctx.fillText('Data from Spotify', W - P, P + 30);
+  ctx.fillText(t('Data from Spotify'), W - P, P + 30);
   ctx.textAlign = 'left';
 
   // Fanned covers
@@ -662,10 +663,10 @@ async function renderDnaImage() {
   let y = 790;
   ctx.fillStyle = '#F2F1EE';
   ctx.font = '600 92px Geist, sans-serif';
-  wrapText(ctx, arche ? 'The ' + arche.badge.name : 'Still warming up', W - 2 * P).forEach(function (l) { ctx.fillText(l, P, y); y += 100; });
+  wrapText(ctx, arche ? t('The {name}', { name: arche.badge.name }) : t('Still warming up'), W - 2 * P).forEach(function (l) { ctx.fillText(l, P, y); y += 100; });
   ctx.fillStyle = 'rgba(242,241,238,.64)';
   ctx.font = '400 36px Geist, sans-serif';
-  wrapText(ctx, arche ? arche.badge.tagline : 'Listening data is still coming in.', W - 2 * P).slice(0, 2).forEach(function (l) { ctx.fillText(l, P, y); y += 48; });
+  wrapText(ctx, arche ? arche.badge.tagline : t('Listening data is still coming in.'), W - 2 * P).slice(0, 2).forEach(function (l) { ctx.fillText(l, P, y); y += 48; });
 
   // Genre chips
   y += 30;
@@ -686,7 +687,7 @@ async function renderDnaImage() {
   const fy = H - P - 60;
   ctx.fillStyle = 'rgba(242,241,238,.40)';
   ctx.font = '500 24px "Geist Mono", monospace';
-  ctx.fillText('LEVEL', P, fy - 70);
+  ctx.fillText(t('LEVEL'), P, fy - 70);
   ctx.fillStyle = '#F2F1EE';
   ctx.font = '600 64px "Geist Mono", monospace';
   ctx.fillText(String(stars), P, fy - 4);
@@ -695,7 +696,7 @@ async function renderDnaImage() {
   roundRect(ctx, bx, fy - 34, Math.max(14, bw * stars / max), 14, 7); ctx.fillStyle = signal; ctx.fill();
   ctx.fillStyle = 'rgba(242,241,238,.40)';
   ctx.font = '400 24px Geist, sans-serif';
-  ctx.fillText(stars + ' of ' + max + ' badge stars', bx, fy + 8);
+  ctx.fillText(t('{stars} of {max} badge stars', { stars: stars, max: max }), bx, fy + 8);
   ctx.fillStyle = 'rgba(242,241,238,.64)';
   ctx.font = '500 28px Geist, sans-serif';
   const who = DATA.me.name + '  ' + DATA.me.username;

@@ -27,6 +27,9 @@ body.doc { overflow-x: hidden; overflow-y: auto; font-size: 16px; line-height: 2
   border-radius: var(--radius-sm);
 }
 .doc-bar__brand img { display: block; }
+.doc-bar__actions { display: flex; align-items: center; gap: 6px; }
+
+.doc-note { margin-top: 56px; font-size: 14px; line-height: 22px; color: var(--text-tertiary); }
 
 /* ---- hero -------------------------------------------------------------------- */
 .doc-hero { padding: 64px 0 44px; max-width: 760px; }

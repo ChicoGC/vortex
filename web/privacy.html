@@ -6,6 +6,7 @@
 <title>Privacy Policy · vortex</title>
 <meta name="description" content="What vortex keeps about you, who can see it, and how to have it deleted.">
 <meta name="color-scheme" content="dark light">
+<link rel="alternate" hreflang="pt-BR" href="/privacidade">
 <script>
   /* Same theme and accent as the app, so following the link doesn't flash a different look. */
   (function () {
@@ -39,7 +40,10 @@
     <img src="assets/logo-64.png" width="26" height="26" alt="">
     <span>vortex</span>
   </a>
-  <a class="btn btn--secondary btn--sm" href="/">Open vortex</a>
+  <div class="doc-bar__actions">
+    <a class="btn btn--ghost btn--sm" href="/privacidade" hreflang="pt-BR" lang="pt-BR" data-lang-switch="pt">Português</a>
+    <a class="btn btn--secondary btn--sm" href="/">Open vortex</a>
+  </div>
 </header>
 
 <main class="doc-main">
@@ -254,8 +258,12 @@
 
 <script>
   /* Contents start folded on phones, where they'd push the policy below the fold.
-     Then mark the section being read. */
+     Then mark the section being read. Switching language here switches the app's too. */
   (function () {
+    document.querySelectorAll('[data-lang-switch]').forEach(function (a) {
+      a.addEventListener('click', function () { try { localStorage.setItem('vortex.lang', a.dataset.langSwitch); } catch (e) {} });
+    });
+
     var box = document.querySelector('.toc__box');
     var narrow = window.matchMedia('(max-width: 900px)');
     if (narrow.matches) box.open = false;

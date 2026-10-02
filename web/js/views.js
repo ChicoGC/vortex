@@ -48,8 +48,8 @@ function sectionHead(title, meta, tools) {
     '</div>';
 }
 function tabsEl(name, items, active) {
-  return '<div class="tabs" role="tablist" data-tabs="' + name + '">' + items.map(function (t) {
-    return '<button class="tab" role="tab" data-tab="' + esc(t) + '" aria-selected="' + (t === active) + '">' + esc(t) + '</button>';
+  return '<div class="tabs" role="tablist" data-tabs="' + name + '">' + items.map(function (item) {
+    return '<button class="tab" role="tab" data-tab="' + esc(item) + '" aria-selected="' + (item === active) + '">' + esc(t(item)) + '</button>';
   }).join('') + '</div>';
 }
 function iconBtn(name, tip, cls, size) {
@@ -65,7 +65,7 @@ function postRow(p, showUser) {
     '<span class="row__meta">' +
       '<span class="t-body-m-med truncate">' + esc(p.track) + '</span>' +
       '<span class="t-body-s c-tertiary truncate">' + esc(p.artist) +
-        (showUser ? ' · shared by ' + esc(p.mine ? 'you' : p.user) : '') + '</span>' +
+        (showUser ? ' · ' + (p.mine ? t('shared by you') : t('shared by {name}', { name: esc(p.user) })) : '') + '</span>' +
     '</span>' +
     '<span class="t-meta c-tertiary">' + esc(p.time) + '</span>' +
   '</a>';
@@ -98,9 +98,9 @@ function listeningSub(l) {
   if (!l) return null;
   const track = esc(l.row.title) + ' · ' + esc(l.row.artist);
   return l.live
-    ? '<span class="friend__sub listening-live"><span class="eq eq--sm" aria-label="Listening now"><i></i><i></i><i></i></span>' +
+    ? '<span class="friend__sub listening-live"><span class="eq eq--sm" aria-label="' + t('Listening now') + '"><i></i><i></i><i></i></span>' +
         '<span class="t-body-s c-secondary truncate">' + track + '</span></span>'
-    : '<span class="t-body-s c-tertiary truncate">Played ' + track + ' · ' + esc(l.ago) + '</span>';
+    : '<span class="t-body-s c-tertiary truncate">' + t('Played {track} · {ago}', { track: track, ago: esc(l.ago) }) + '</span>';
 }
 
 /* Friends ordered live first, then most recently heard, then everyone else. */
@@ -159,7 +159,7 @@ function commentEl(c, hasLine, extraClass) {
       '<span class="comment__who"><span class="t-label-m truncate">' + esc(c.user) + '</span>' +
       '<span class="t-meta c-tertiary">' + esc(c.time) + '</span></span>' +
       '<p class="t-body-s c-secondary">' + commentText(c.text) + '</p>' +
-      '<button type="button" class="comment__reply" data-reply-to="' + esc(c.id) + '">Reply</button>' +
+      '<button type="button" class="comment__reply" data-reply-to="' + esc(c.id) + '">' + t('Reply') + '</button>' +
     '</div>' +
   '</div>';
 }
@@ -169,18 +169,18 @@ function replyForm(postId, threadId) {
   return '<form class="reply-node reply-form" data-comment-form="' + esc(postId) + '" data-parent-id="' + esc(threadId) + '" novalidate>' +
     avatarEl(DATA.me.initials, '24', null, DATA.me.avatarUrl) +
     '<span class="field field--sm">' +
-      '<input type="text" name="content" placeholder="Reply to ' + esc(r.name) + '…" maxlength="500" autocomplete="off" ' +
-        'aria-label="Reply to ' + esc(r.name) + '" value="' + esc(r.prefix) + '">' +
+      '<input type="text" name="content" placeholder="' + t('Reply to {name}…', { name: esc(r.name) }) + '" maxlength="500" autocomplete="off" ' +
+        'aria-label="' + t('Reply to {name}', { name: esc(r.name) }) + '" value="' + esc(r.prefix) + '">' +
     '</span>' +
-    '<button type="button" class="btn btn--ghost btn--sm" data-cancel-reply>Cancel</button>' +
-    '<button type="submit" class="btn btn--primary btn--sm">Reply</button>' +
+    '<button type="button" class="btn btn--ghost btn--sm" data-cancel-reply>' + t('Cancel') + '</button>' +
+    '<button type="submit" class="btn btn--primary btn--sm">' + t('Reply') + '</button>' +
   '</form>';
 }
 
 function repliesToggle(threadId, count, open, inside) {
   return '<button type="button" class="' + cx('comment__toggle', inside && 'reply-node', open && 'comment__toggle--open') + '" ' +
     'data-toggle-replies="' + esc(threadId) + '" aria-expanded="' + open + '">' +
-    icon('chevronDown', 14) + (open ? 'Hide replies' : (count === 1 ? '1 reply' : count + ' replies')) +
+    icon('chevronDown', 14) + (open ? t('Hide replies') : tn(count, '{n} reply', '{n} replies')) +
   '</button>';
 }
 
@@ -207,14 +207,14 @@ function commentsBlock(p) {
     ? top.map(function (c) {
         return commentThread(p, c, p.comments.filter(function (r) { return r.parentId === c.id; }));
       }).join('')
-    : '<p class="t-body-s c-tertiary">No comments yet. Say something.</p>';
+    : '<p class="t-body-s c-tertiary">' + t('No comments yet. Say something.') + '</p>';
   return '<div class="post__comments">' +
     '<div class="post__comment-list">' + list + '</div>' +
     '<form class="post__comment-form" data-comment-form="' + esc(p.id) + '" novalidate>' +
       '<span class="field field--sm">' +
-        '<input type="text" name="content" placeholder="Write a comment…" maxlength="500" autocomplete="off" aria-label="Write a comment">' +
+        '<input type="text" name="content" placeholder="' + t('Write a comment…') + '" maxlength="500" autocomplete="off" aria-label="' + t('Write a comment') + '">' +
       '</span>' +
-      '<button type="submit" class="btn btn--primary btn--sm">Send</button>' +
+      '<button type="submit" class="btn btn--primary btn--sm">' + t('Send') + '</button>' +
     '</form>' +
   '</div>';
 }
@@ -234,10 +234,10 @@ function postCard(p) {
         : '<div class="post__author">' + who + '</div>') +
       '<span class="spacer"></span>' +
       '<span class="iconbtn" data-tip="' + esc(PLATFORM_LABEL[p.platform]) + '">' + icon(p.platform, 16) + '</span>' +
-      shareLinkButton('#/p/' + p.id, 'Copy link to post') +
+      shareLinkButton('#/p/' + p.id, t('Copy link to post')) +
       (p.mine
-        ? '<button class="iconbtn" data-delete-post="' + esc(p.id) + '" data-tip="Delete post" aria-label="Delete post">' + icon('trash', 16) + '</button>'
-        : p.username ? safetyTrigger({ id: p.userId, name: p.user, username: p.username }, p.id, 'More options for this post') : '') +
+        ? '<button class="iconbtn" data-delete-post="' + esc(p.id) + '" data-tip="' + t('Delete post') + '" aria-label="' + t('Delete post') + '">' + icon('trash', 16) + '</button>'
+        : p.username ? safetyTrigger({ id: p.userId, name: p.user, username: p.username }, p.id, t('More options for this post')) : '') +
     '</div>' +
     (p.note ? '<p class="post__note t-body-s c-secondary">' + esc(p.note) + '</p>' : '') +
     '<div class="post__track">' +
@@ -248,19 +248,19 @@ function postCard(p) {
       '</span>' +
       (p.trackId && /^[A-Za-z0-9]{22}$/.test(p.trackId)
         ? '<a class="post__play" href="https://open.spotify.com/track/' + p.trackId + '" target="_blank" rel="noopener" ' +
-            'data-tip="Play on Spotify" aria-label="Play ' + esc(p.track) + ' on Spotify">' + icon('play', 15) + '</a>'
+            'data-tip="' + t('Play on Spotify') + '" aria-label="' + t('Play {track} on Spotify', { track: esc(p.track) }) + '">' + icon('play', 15) + '</a>'
         : '') +
     '</div>' +
     '<hr class="hr">' +
     '<div class="post__foot">' +
-      '<button class="pill" data-react="flame" aria-label="Flame" aria-pressed="' + p.reacted.flame + '">' +
+      '<button class="pill" data-react="flame" aria-label="' + t('Flame') + '" aria-pressed="' + p.reacted.flame + '">' +
         icon('flame', 14) + '<b>' + p.reactions.flame + '</b></button>' +
-      '<button class="pill" data-react="heart" aria-label="Heart" aria-pressed="' + p.reacted.heart + '">' +
+      '<button class="pill" data-react="heart" aria-label="' + t('Heart') + '" aria-pressed="' + p.reacted.heart + '">' +
         icon('heart', 14) + '<b>' + p.reactions.heart + '</b></button>' +
-      '<button class="pill" data-comment aria-label="Comments" aria-expanded="' + open + '">' +
+      '<button class="pill" data-comment aria-label="' + t('Comments') + '" aria-expanded="' + open + '">' +
         icon('comment', 14) + '<b>' + p.comments.length + '</b></button>' +
       '<span class="spacer"></span>' +
-      '<span class="t-meta c-tertiary">' + total + (total === 1 ? ' reaction' : ' reactions') + '</span>' +
+      '<span class="t-meta c-tertiary">' + tn(total, '{n} reaction', '{n} reactions') + '</span>' +
     '</div>' +
     (open ? commentsBlock(p) : '') +
   '</article>';
@@ -274,7 +274,7 @@ function statTile(label, value) {
 }
 
 function countLabel(n, noun) {
-  return n + ' ' + noun + (n === 1 ? '' : 's');
+  return tn(n, '{n} ' + noun, '{n} ' + noun + 's');
 }
 
 /* Dome, wavy hem, and two oval eyes cut out (evenodd) so the panel shows through. */
@@ -291,7 +291,7 @@ function ghostEmpty(action, hint) {
       '<svg viewBox="0 0 100 110" width="60" height="66"><path fill-rule="evenodd" d="' + GHOST_PATH + '"/></svg>' +
       '<span class="ghost__shadow"></span>' +
     '</div>' +
-    '<p class="t-body-m c-secondary">' + (hint ? esc(hint) : 'It\'s still a little quiet in here.. maybe you could check later?') + '</p>' +
+    '<p class="t-body-m c-secondary">' + (hint ? esc(hint) : t('It\'s still a little quiet in here.. maybe you could check later?')) + '</p>' +
     (action ? '<div class="ghost-empty__actions">' + action + '</div>' : '') +
   '</div>';
 }
@@ -306,7 +306,7 @@ function skeletonRows(n, label) {
       '<span class="skel skel--line" style="width:' + w[0] + '%"></span>' +
       '<span class="skel skel--line skel--sub" style="width:' + w[1] + '%"></span></span></div>';
   }
-  return '<div class="skel-list" role="status"><span class="sr-only">' + esc(label || 'Loading…') + '</span>' +
+  return '<div class="skel-list" role="status"><span class="sr-only">' + esc(label || t('Loading…')) + '</span>' +
     '<div aria-hidden="true">' + rows + '</div></div>';
 }
 
@@ -322,7 +322,7 @@ function skeletonPosts(n) {
         '<span class="skel skel--line skel--sub" style="width:' + (36 + i * 5) + '%"></span></span></div>' +
     '</div>';
   }
-  return '<div class="stack" role="status"><span class="sr-only">Loading posts…</span><div class="stack" aria-hidden="true">' + cards + '</div></div>';
+  return '<div class="stack" role="status"><span class="sr-only">' + t('Loading posts…') + '</span><div class="stack" aria-hidden="true">' + cards + '</div></div>';
 }
 
 /* Something failed to load: say what, and offer the retry. */
@@ -330,7 +330,7 @@ function retryPanel(text, action) {
   return '<section class="panel section"><div class="empty">' +
     '<span class="empty__well">' + icon('repeat', 20) + '</span>' +
     '<p class="t-body-m c-secondary">' + esc(text) + '</p>' +
-    '<button class="btn btn--secondary btn--sm" data-action="' + esc(action) + '">Try again</button>' +
+    '<button class="btn btn--secondary btn--sm" data-action="' + esc(action) + '">' + t('Try again') + '</button>' +
   '</div></section>';
 }
 
@@ -343,11 +343,11 @@ function ghostPanel(title, action, hint) {
 }
 
 function sharePostButton(primary) {
-  return '<button class="btn ' + (primary ? 'btn--primary' : 'btn--secondary') + ' btn--sm" data-action="new-post">' + icon('plus', 15) + 'Share a track</button>';
+  return '<button class="btn ' + (primary ? 'btn--primary' : 'btn--secondary') + ' btn--sm" data-action="new-post">' + icon('plus', 15) + t('Share a track') + '</button>';
 }
 
 function findFriendsButton(primary) {
-  return '<button class="btn ' + (primary ? 'btn--primary' : 'btn--secondary') + ' btn--sm" data-nav="friends">' + icon('plus', 15) + 'Find friends</button>';
+  return '<button class="btn ' + (primary ? 'btn--primary' : 'btn--secondary') + ' btn--sm" data-nav="friends">' + icon('plus', 15) + t('Find friends') + '</button>';
 }
 
 function pageHead(eyebrow, title, actions) {
@@ -378,14 +378,14 @@ function heroPanel() {
     return '<section class="panel hero">' +
       '<div class="art art--xl hero__placeholder" aria-hidden="true">' + icon('spotify', 40) + '</div>' +
       '<div class="hero__body">' +
-        '<span class="t-overline c-tertiary">Now playing</span>' +
-        '<h2 class="t-display-m hero__title truncate">' + (connected ? 'Nothing playing' : 'Spotify not connected') + '</h2>' +
+        '<span class="t-overline c-tertiary">' + t('Now playing') + '</span>' +
+        '<h2 class="t-display-m hero__title truncate">' + (connected ? t('Nothing playing') : t('Spotify not connected')) + '</h2>' +
         '<p class="t-body-l c-secondary">' + (connected
-          ? 'Play something on Spotify and it shows up here.'
-          : 'Connect your Spotify account to show what you are listening to.') + '</p>' +
+          ? t('Play something on Spotify and it shows up here.')
+          : t('Connect your Spotify account to show what you are listening to.')) + '</p>' +
         '<div class="hero__controls">' + (connected
-          ? '<span class="badge badge--positive"><span>' + icon('check', 13) + '</span>Spotify connected</span>'
-          : '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + 'Connect Spotify</button>') +
+          ? '<span class="badge badge--positive"><span>' + icon('check', 13) + '</span>' + t('Spotify connected') + '</span>'
+          : '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + t('Connect Spotify') + '</button>') +
         '</div>' +
       '</div>' +
     '</section>';
@@ -395,7 +395,7 @@ function heroPanel() {
   return '<section class="panel hero">' +
     art(np.art, 'art--xl', np.image) +
     '<div class="hero__body">' +
-      '<span class="t-overline c-accent">' + (np.playing ? 'Now playing' : 'Paused') + '</span>' +
+      '<span class="t-overline c-accent">' + (np.playing ? t('Now playing') : t('Paused')) + '</span>' +
       '<h2 class="t-display-m hero__title truncate">' + esc(np.title) + '</h2>' +
       '<p class="t-body-l c-secondary truncate">' + esc(np.artist) + (np.album ? ' · ' + esc(np.album) : '') + '</p>' +
       '<div class="hero__progress">' +
@@ -407,8 +407,8 @@ function heroPanel() {
         '<span class="t-meta c-tertiary">' + mmss(np.duration) + '</span>' +
       '</div>' +
       '<div class="hero__controls">' +
-        '<button class="btn btn--secondary btn--sm" data-action="share-now-playing">' + icon('broadcast', 15) + 'Share this track</button>' +
-        (np.url && /^https:\/\//.test(np.url) ? '<a class="btn btn--ghost btn--sm" href="' + esc(np.url) + '" target="_blank" rel="noopener">' + icon('arrowUpRight', 15) + 'Open in Spotify</a>' : '') +
+        '<button class="btn btn--secondary btn--sm" data-action="share-now-playing">' + icon('broadcast', 15) + t('Share this track') + '</button>' +
+        (np.url && /^https:\/\//.test(np.url) ? '<a class="btn btn--ghost btn--sm" href="' + esc(np.url) + '" target="_blank" rel="noopener">' + icon('arrowUpRight', 15) + t('Open in Spotify') + '</a>' : '') +
         '<span class="spacer"></span>' +
         '<span class="badge"><span>' + icon('headphones', 13) + '</span>' + esc(PLATFORM_LABEL[np.platform]) + '</span>' +
       '</div>' +
@@ -418,35 +418,35 @@ function heroPanel() {
 
 function greeting() {
   const h = new Date().getHours();
-  const part = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  const part = h < 5 ? t('Good night') : h < 12 ? t('Good morning') : h < 18 ? t('Good afternoon') : t('Good evening');
   const first = (DATA.me.name || '').trim().split(/\s+/)[0];
-  return first ? part + ', ' + esc(first) : part;
+  return first ? t('{greeting}, {name}', { greeting: part, name: esc(first) }) : part;
 }
 
 function statsRows() {
   const s = DATA.me.stats;
   const rows = [
-    ['Tracks shared', s ? s.posts : null],
-    ['Friends', DATA.friends.length],
-    ['Reactions received', s ? s.reactions : null],
-    ['Comments received', s ? s.comments : null]
+    [t('Tracks shared'), s ? s.posts : null],
+    [t('Friends'), DATA.friends.length],
+    [t('Reactions received'), s ? s.reactions : null],
+    [t('Comments received'), s ? s.comments : null]
   ];
   return rows.map(function (r) {
     return '<div class="rowflex">' +
       '<span class="t-body-s c-secondary">' + r[0] + '</span><span class="spacer"></span>' +
-      '<span class="t-num">' + (r[1] == null ? '—' : r[1].toLocaleString('en-US')) + '</span>' +
+      '<span class="t-num">' + (r[1] == null ? '—' : r[1].toLocaleString(loc('en-US'))) + '</span>' +
     '</div>';
   }).join('');
 }
 
 function homeFriendsPanel() {
   if (!DATA.friends.length) {
-    return '<div id="homeFriendsPanel">' + ghostPanel('Friends', findFriendsButton(false)) + '</div>';
+    return '<div id="homeFriendsPanel">' + ghostPanel(t('Friends'), findFriendsButton(false)) + '</div>';
   }
   const live = DATA.friends.filter(function (f) { const l = listeningFor(f.id); return l && l.live; }).length;
   return '<section class="panel section" id="homeFriendsPanel">' +
-    sectionHead('Friends', live ? live + ' listening now' : countLabel(DATA.friends.length, 'friend'),
-      '<button class="btn btn--ghost btn--sm" data-nav="friends">See all</button>') +
+    sectionHead(t('Friends'), live ? t('{n} listening now', { n: live }) : tn(DATA.friends.length, '{n} friend', '{n} friends'),
+      '<button class="btn btn--ghost btn--sm" data-nav="friends">' + t('See all') + '</button>') +
     '<div class="section__body">' + friendsByListening().slice(0, 5).map(function (f) {
       const l = listeningFor(f.id);
       return personRow(f, null, listeningSub(l), l && l.live ? 'listening' : null);
@@ -457,25 +457,25 @@ function homeFriendsPanel() {
 VIEWS.home = function () {
   const latest = DATA.feed.length
     ? '<section class="panel section">' +
-        sectionHead('Latest from your circle', null, '<button class="btn btn--ghost btn--sm" data-nav="feed">Open feed</button>') +
+        sectionHead(t('Latest from your circle'), null, '<button class="btn btn--ghost btn--sm" data-nav="feed">' + t('Open feed') + '</button>') +
         '<div class="section__body">' + DATA.feed.slice(0, 6).map(function (p) { return postRow(p, true); }).join('') + '</div>' +
       '</section>'
     : UI.feedStatus === 'loading'
-      ? '<section class="panel section">' + sectionHead('Latest from your circle') + '<div class="section__body">' + skeletonRows(4, 'Loading posts…') + '</div></section>'
+      ? '<section class="panel section">' + sectionHead(t('Latest from your circle')) + '<div class="section__body">' + skeletonRows(4, t('Loading posts…')) + '</div></section>'
       : UI.feedStatus === 'error'
-        ? retryPanel('Could not load the latest posts. Check your connection.', 'feed-retry')
-        : ghostPanel('Latest from your circle', sharePostButton(true) + findFriendsButton(false));
+        ? retryPanel(t('Could not load the latest posts. Check your connection.'), 'feed-retry')
+        : ghostPanel(t('Latest from your circle'), sharePostButton(true) + findFriendsButton(false));
 
   const friendsPanel = homeFriendsPanel();
 
   const statsPanel =
     '<section class="panel section">' +
-      sectionHead('Your vortex') +
+      sectionHead(t('Your vortex')) +
       '<div class="section__body section__body--pad stack stack--sm">' + statsRows() + '</div>' +
     '</section>';
 
   return wrap(
-    pageHead(new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }), greeting(),
+    pageHead(new Date().toLocaleDateString(loc('en-GB'), { weekday: 'long', day: 'numeric', month: 'long' }), greeting(),
       sharePostButton(true)),
     heroPanel() + homeRecapPanel() +
     '<div class="cols cols--main-rail">' +
@@ -487,10 +487,10 @@ VIEWS.home = function () {
 
 function feedEmpty() {
   if (UI.feedStatus === 'loading') return skeletonPosts(3);
-  if (UI.feedStatus === 'error') return retryPanel('Could not load the feed. Check your connection.', 'feed-retry');
+  if (UI.feedStatus === 'error') return retryPanel(t('Could not load the feed. Check your connection.'), 'feed-retry');
   if (UI.feedScope === 'Friends' && !DATA.friends.length) {
     return ghostPanel(null, findFriendsButton(true) + sharePostButton(false),
-      'Your feed shows you and your friends. Add friends, or switch to Everyone.');
+      t('Your feed shows you and your friends. Add friends, or switch to Everyone.'));
   }
   return ghostPanel(null, sharePostButton(false));
 }
@@ -510,13 +510,13 @@ function feedInsights() {
     const artists = Object.keys(byArtist).map(function (k) { return byArtist[k]; })
       .sort(function (a, b) { return b.n - a.n; }).slice(0, 5);
     panels.push('<section class="panel section">' +
-      sectionHead('Most shared artists', UI.feedScope === 'Friends' ? 'you & friends' : 'everyone') +
+      sectionHead(t('Most shared artists'), UI.feedScope === 'Friends' ? t('you & friends') : t('everyone')) +
       '<div class="section__body">' + artists.map(function (a, i) {
         return '<div class="row" style="cursor:default">' +
           '<span class="row__index">' + (i + 1) + '</span>' +
           art(a.art, 'art--round', a.image) +
           '<span class="row__meta"><span class="t-body-m-med truncate">' + esc(a.name) + '</span>' +
-          '<span class="t-body-s c-tertiary">' + countLabel(a.n, 'share') + '</span></span>' +
+          '<span class="t-body-s c-tertiary">' + tn(a.n, '{n} share', '{n} shares') + '</span></span>' +
         '</div>';
       }).join('') + '</div>' +
     '</section>');
@@ -533,12 +533,12 @@ function feedInsights() {
     .sort(function (a, b) { return b.n - a.n; }).slice(0, 5);
   if (sharers.length >= 2) {
     panels.push('<section class="panel section">' +
-      sectionHead('Top sharers', 'last 7 days') +
+      sectionHead(t('Top sharers'), t('last 7 days')) +
       '<div class="section__body">' + sharers.map(function (u, i) {
         const row = '<span class="row__index">' + (i + 1) + '</span>' +
           avatarEl(u.initials, '32', null, u.avatarUrl) +
           '<span class="row__meta"><span class="' + (u.mine ? 't-body-m-med c-accent' : 't-body-m-med') + ' truncate">' +
-            esc(u.name) + (u.mine ? ' (you)' : '') + '</span></span>' +
+            (u.mine ? t('{name} (you)', { name: esc(u.name) }) : esc(u.name)) + '</span></span>' +
           '<span class="t-num c-secondary">' + u.n + '</span>';
         return !u.mine && u.username
           ? '<a class="row" href="#/u/' + esc(u.username) + '">' + row + '</a>'
@@ -547,12 +547,12 @@ function feedInsights() {
     '</section>');
   }
 
-  return panels.length ? panels.join('') : ghostPanel('Insights');
+  return panels.length ? panels.join('') : ghostPanel(t('Insights'));
 }
 
 VIEWS.feed = function () {
   return wrap(
-    pageHead('Live from your circle', 'Feed',
+    pageHead(t('Live from your circle'), t('Feed'),
       tabsEl('feed', ['Friends', 'Everyone'], UI.feedScope) + sharePostButton(true)),
     '<div class="cols cols--feed">' +
       '<div class="stack">' + (DATA.feed.length ? DATA.feed.map(postCard).join('') : feedEmpty()) + '</div>' +
@@ -566,18 +566,18 @@ VIEWS.feed = function () {
 function friendSearchControls(p) {
   const rel = relationshipWith(p.id);
   const fid = esc(rel.friendshipId || '');
-  if (rel.state === 'friends') return '<span class="badge badge--positive"><span>' + icon('check', 13) + '</span>Friends</span>';
-  if (rel.state === 'incoming') return '<button class="btn btn--primary btn--sm" data-friend-accept="' + fid + '">Accept</button>';
-  if (rel.state === 'outgoing') return '<button class="btn btn--secondary btn--sm" data-friend-cancel="' + fid + '" data-tip="Cancel request">Requested</button>';
-  return '<button class="btn btn--primary btn--sm" data-friend-add="' + esc(p.id) + '">' + icon('plus', 14) + 'Add</button>';
+  if (rel.state === 'friends') return '<span class="badge badge--positive"><span>' + icon('check', 13) + '</span>' + t('Friends') + '</span>';
+  if (rel.state === 'incoming') return '<button class="btn btn--primary btn--sm" data-friend-accept="' + fid + '">' + t('Accept') + '</button>';
+  if (rel.state === 'outgoing') return '<button class="btn btn--secondary btn--sm" data-friend-cancel="' + fid + '" data-tip="' + t('Cancel request') + '">' + t('Requested') + '</button>';
+  return '<button class="btn btn--primary btn--sm" data-friend-add="' + esc(p.id) + '">' + icon('plus', 14) + t('Add') + '</button>';
 }
 
 function friendSearchResults() {
   const s = UI.friendSearch;
-  if (s.q.replace(/^@/, '').trim().length < 2) return '<p class="t-body-s c-tertiary friends__hint">Type at least 2 letters of a name or @username.</p>';
-  if (s.loading && !s.results) return '<p class="t-body-s c-tertiary friends__hint">Searching…</p>';
-  if (s.error) return '<p class="t-body-s c-tertiary friends__hint">Search failed. Check your connection and try again.</p>';
-  if (!s.results || !s.results.length) return '<p class="t-body-s c-tertiary friends__hint">Nobody found for “' + esc(s.q.trim()) + '”.</p>';
+  if (s.q.replace(/^@/, '').trim().length < 2) return '<p class="t-body-s c-tertiary friends__hint">' + t('Type at least 2 letters of a name or @username.') + '</p>';
+  if (s.loading && !s.results) return '<p class="t-body-s c-tertiary friends__hint">' + t('Searching…') + '</p>';
+  if (s.error) return '<p class="t-body-s c-tertiary friends__hint">' + t('Search failed. Check your connection and try again.') + '</p>';
+  if (!s.results || !s.results.length) return '<p class="t-body-s c-tertiary friends__hint">' + t('Nobody found for “{query}”.', { query: esc(s.q.trim()) }) + '</p>';
   return s.results.map(function (p) { return personRow(p, friendSearchControls(p)); }).join('');
 }
 
@@ -585,7 +585,7 @@ function friendsListeningPanel() {
   if (!DATA.friends.length) return '<div id="friendsListeningPanel" hidden></div>';
   const live = friendsByListening().filter(function (f) { const l = listeningFor(f.id); return l && l.live; });
   return '<section class="panel section" id="friendsListeningPanel">' +
-    sectionHead('Listening now', live.length ? countLabel(live.length, 'friend') : 'live') +
+    sectionHead(t('Listening now'), live.length ? tn(live.length, '{n} friend', '{n} friends') : t('live')) +
     '<div class="section__body">' + (live.length
       ? live.map(function (f) {
           const r = listeningFor(f.id).row;
@@ -598,52 +598,52 @@ function friendsListeningPanel() {
               listeningSub(listeningFor(f.id)) +
               (r.album ? '<span class="t-caption c-tertiary truncate">' + esc(r.album) + '</span>' : '') +
             '</span>' +
-            (href ? '<a href="' + href + '" target="_blank" rel="noopener" data-tip="Open in Spotify" aria-label="Open ' + esc(r.title) + ' in Spotify">' + cover + '</a>' : cover) +
+            (href ? '<a href="' + href + '" target="_blank" rel="noopener" data-tip="' + t('Open in Spotify') + '" aria-label="' + t('Open {title} in Spotify', { title: esc(r.title) }) + '">' + cover + '</a>' : cover) +
           '</div>';
         }).join('')
-      : '<p class="t-body-s c-tertiary friends__hint">None of your friends are playing anything right now. It updates live.</p>') +
+      : '<p class="t-body-s c-tertiary friends__hint">' + t('None of your friends are playing anything right now. It updates live.') + '</p>') +
     '</div>' +
   '</section>';
 }
 
 function friendsListPanel() {
   return '<section class="panel section" id="friendsListPanel">' +
-    sectionHead('Your friends', countLabel(DATA.friends.length, 'friend')) +
+    sectionHead(t('Your friends'), tn(DATA.friends.length, '{n} friend', '{n} friends')) +
     '<div class="section__body">' + (DATA.friends.length
       ? friendsByListening().map(function (f) {
           const l = listeningFor(f.id);
           return personRow(f,
-            '<a class="iconbtn" href="#/compare/' + esc(f.username) + '" data-tip="Compare tastes" aria-label="Compare tastes with ' + esc(f.name) + '">' + icon('compare', 16) + '</a>' +
-            '<button class="iconbtn" data-friend-remove="' + esc(f.friendshipId) + '" data-tip="Remove friend" aria-label="Remove ' + esc(f.name) + '">' + icon('close', 16) + '</button>',
+            '<a class="iconbtn" href="#/compare/' + esc(f.username) + '" data-tip="' + t('Compare tastes') + '" aria-label="' + t('Compare tastes with {name}', { name: esc(f.name) }) + '">' + icon('compare', 16) + '</a>' +
+            '<button class="iconbtn" data-friend-remove="' + esc(f.friendshipId) + '" data-tip="' + t('Remove friend') + '" aria-label="' + t('Remove {name}', { name: esc(f.name) }) + '">' + icon('close', 16) + '</button>',
             listeningSub(l), l && l.live ? 'listening' : null);
         }).join('')
-      : ghostEmpty(null, 'Search above to add someone. Once they accept, their posts show up in your feed.')) +
+      : ghostEmpty(null, t('Search above to add someone. Once they accept, their posts show up in your feed.'))) +
     '</div>' +
   '</section>';
 }
 
 function friendRequestsPanel() {
   return '<section class="panel section" id="friendRequestsPanel">' +
-    sectionHead('Requests', String(DATA.incoming.length)) +
+    sectionHead(t('Requests'), String(DATA.incoming.length)) +
     '<div class="section__body">' + (DATA.incoming.length
       ? DATA.incoming.map(function (r) {
           return personRow(r,
-            '<button class="iconbtn" data-friend-accept="' + esc(r.friendshipId) + '" data-tip="Accept" aria-label="Accept ' + esc(r.name) + '">' + icon('check', 16) + '</button>' +
-            '<button class="iconbtn" data-friend-decline="' + esc(r.friendshipId) + '" data-tip="Decline" aria-label="Decline ' + esc(r.name) + '">' + icon('close', 16) + '</button>');
+            '<button class="iconbtn" data-friend-accept="' + esc(r.friendshipId) + '" data-tip="' + t('Accept') + '" aria-label="' + t('Accept {name}', { name: esc(r.name) }) + '">' + icon('check', 16) + '</button>' +
+            '<button class="iconbtn" data-friend-decline="' + esc(r.friendshipId) + '" data-tip="' + t('Decline') + '" aria-label="' + t('Decline {name}', { name: esc(r.name) }) + '">' + icon('close', 16) + '</button>');
         }).join('')
-      : '<p class="t-body-s c-tertiary friends__hint">No pending requests.</p>') +
+      : '<p class="t-body-s c-tertiary friends__hint">' + t('No pending requests.') + '</p>') +
     '</div>' +
   '</section>';
 }
 
 function friendSentPanel() {
   return '<section class="panel section" id="friendSentPanel">' +
-    sectionHead('Sent', String(DATA.outgoing.length)) +
+    sectionHead(t('Sent'), String(DATA.outgoing.length)) +
     '<div class="section__body">' + (DATA.outgoing.length
       ? DATA.outgoing.map(function (r) {
-          return personRow(r, '<button class="btn btn--ghost btn--sm" data-friend-cancel="' + esc(r.friendshipId) + '">Cancel</button>');
+          return personRow(r, '<button class="btn btn--ghost btn--sm" data-friend-cancel="' + esc(r.friendshipId) + '">' + t('Cancel') + '</button>');
         }).join('')
-      : '<p class="t-body-s c-tertiary friends__hint">Requests you send wait here until accepted.</p>') +
+      : '<p class="t-body-s c-tertiary friends__hint">' + t('Requests you send wait here until accepted.') + '</p>') +
     '</div>' +
   '</section>';
 }
@@ -656,20 +656,20 @@ function myProfileHash() {
 function inviteRow() {
   return '<div class="invite">' +
     '<span class="invite__meta">' +
-      '<span class="t-body-m-med">Invite with your link</span>' +
+      '<span class="t-body-m-med">' + t('Invite with your link') + '</span>' +
       '<span class="t-body-s c-tertiary truncate">' + esc(location.host + '/' + myProfileHash()) + '</span>' +
     '</span>' +
-    '<button class="btn btn--secondary btn--sm" data-share-link="' + esc(myProfileHash()) + '">' + icon('link', 15) + 'Copy link</button>' +
+    '<button class="btn btn--secondary btn--sm" data-share-link="' + esc(myProfileHash()) + '">' + icon('link', 15) + t('Copy link') + '</button>' +
   '</div>';
 }
 
 VIEWS.friends = function () {
   const searchPanel =
     '<section class="panel section">' +
-      sectionHead('Add friends') +
+      sectionHead(t('Add friends')) +
       '<div class="section__body section__body--pad stack stack--sm">' +
         '<label class="field">' + icon('search', 16) +
-          '<input type="search" id="friendSearch" placeholder="Search by name or @username" aria-label="Search people" autocomplete="off" maxlength="40" value="' + esc(UI.friendSearch.q) + '">' +
+          '<input type="search" id="friendSearch" placeholder="' + t('Search by name or @username') + '" aria-label="' + t('Search people') + '" autocomplete="off" maxlength="40" value="' + esc(UI.friendSearch.q) + '">' +
         '</label>' +
         '<div id="friendResults">' + friendSearchResults() + '</div>' +
         inviteRow() +
@@ -677,7 +677,7 @@ VIEWS.friends = function () {
     '</section>';
 
   return wrap(
-    pageHead('Your circle', 'Friends'),
+    pageHead(t('Your circle'), t('Friends')),
     '<div class="cols cols--feed">' +
       '<div class="stack">' + friendsListeningPanel() + searchPanel + friendsListPanel() + '</div>' +
       '<div class="stack">' + friendRequestsPanel() + friendSentPanel() + '</div>' +
@@ -689,24 +689,24 @@ VIEWS.friends = function () {
 function spotifyGate() {
   if (!spotify.auth.isConnected()) {
     return ghostPanel(null,
-      '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + 'Connect Spotify</button>',
-      'Connect Spotify to see your listening here.');
+      '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + t('Connect Spotify') + '</button>',
+      t('Connect Spotify to see your listening here.'));
   }
   if (spotify.auth.missingScopes().length) {
     return ghostPanel(null,
-      '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + 'Reconnect Spotify</button>',
-      'This page needs a few more Spotify permissions (recent plays, top artists and playlists). Reconnect once to allow them.');
+      '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + icon('spotify', 15) + t('Reconnect Spotify') + '</button>',
+      t('This page needs a few more Spotify permissions (recent plays, top artists and playlists). Reconnect once to allow them.'));
   }
   return null;
 }
 
 /* Loading / error / empty handling shared by every Spotify panel. */
 function libraryBody(entry, render) {
-  if (!entry || (entry.status === 'loading' && !entry.data)) return skeletonRows(5, 'Loading from Spotify…');
+  if (!entry || (entry.status === 'loading' && !entry.data)) return skeletonRows(5, t('Loading from Spotify…'));
   if (entry.status === 'error' && !entry.data) {
     return ghostEmpty(null, entry.error === 403
-      ? 'Spotify refused this request. While the app is in development, only accounts on its tester list can use it.'
-      : 'Could not reach Spotify. Try again in a moment.');
+      ? t('Spotify refused this request. While the app is in development, only accounts on its tester list can use it.')
+      : t('Could not reach Spotify. Try again in a moment.'));
   }
   if (!entry.data.length) return ghostEmpty();
   return render(entry.data);
@@ -738,27 +738,27 @@ function rangeTabs(group, range) {
 }
 
 function activitySummaryPanel() {
-  return libraryPanel('actSummary', 'Your last plays', null, null, UI.spotifyLib.recent, function (plays) {
+  return libraryPanel('actSummary', t('Your last plays'), null, null, UI.spotifyLib.recent, function (plays) {
     const minutes = Math.round(plays.reduce(function (s, t) { return s + (t.durationMs || 0); }, 0) / 60000);
     const counts = {};
     plays.forEach(function (t) { counts[t.artist] = (counts[t.artist] || 0) + 1; });
     const artists = Object.keys(counts);
     const top = artists.sort(function (a, b) { return counts[b] - counts[a]; })[0];
-    const since = new Date(plays[plays.length - 1].playedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const since = new Date(plays[plays.length - 1].playedAt).toLocaleDateString(loc('en-GB'), { day: 'numeric', month: 'short' });
     return '<div class="section__body--pad stack stack--sm">' +
       '<div class="cols cols--thirds">' +
-        statTile('Minutes', minutes.toLocaleString('en-US')) +
-        statTile('Artists', String(artists.length)) +
-        statTile('Most played', top) +
+        statTile(t('Minutes'), minutes.toLocaleString(loc('en-US'))) +
+        statTile(t('Artists'), String(artists.length)) +
+        statTile(t('Most played'), top) +
       '</div>' +
-      '<p class="t-caption c-tertiary">From your last ' + plays.length + ' plays on Spotify, since ' + esc(since) + '.</p>' +
+      '<p class="t-caption c-tertiary">' + t('From your last {n} plays on Spotify, since {date}.', { n: plays.length, date: esc(since) }) + '</p>' +
     '</div>';
   });
 }
 
 function activityArtistsPanel() {
   const range = UI.activityRange;
-  return libraryPanel('actArtists', 'Top artists', null, rangeTabs('activity-range', range), UI.spotifyLib.topArtists[range], function (artists) {
+  return libraryPanel('actArtists', t('Top artists'), null, rangeTabs('activity-range', range), UI.spotifyLib.topArtists[range], function (artists) {
     return artists.slice(0, 10).map(function (a, i) {
       const inner = rankIndex(i) + art(artSeedFor(a.id), 'art--round', a.image) +
         '<span class="row__meta"><span class="t-body-m-med truncate">' + esc(a.name) + '</span>' +
@@ -786,10 +786,10 @@ function activityGenresPanel() {
   const sorted = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
   const top = sorted.slice(0, 4).map(function (g, i) { return { name: g, n: counts[g], color: colors[i] }; });
   const rest = total - top.reduce(function (s, g) { return s + g.n; }, 0);
-  if (rest > 0) top.push({ name: 'Other', n: rest, color: 'var(--text-tertiary)' });
+  if (rest > 0) top.push({ name: t('Other'), n: rest, color: 'var(--text-tertiary)' });
   top.forEach(function (g) { g.pct = Math.round((g.n / total) * 100); });
   return '<section class="panel section" id="actGenres">' +
-    sectionHead('Genre mix', 'top artists · ' + RANGE_LABEL[UI.activityRange].toLowerCase()) +
+    sectionHead(t('Genre mix'), t('top artists · {range}', { range: t(RANGE_LABEL[UI.activityRange]).toLowerCase() })) +
     '<div class="section__body section__body--pad stack">' +
       '<div class="distro">' + top.map(function (g) {
         return '<i style="width:' + g.pct + '%;background:' + g.color + '" data-tip="' + esc(g.name) + ' ' + g.pct + '%"></i>';
@@ -807,13 +807,13 @@ function dayLabel(date) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const d = new Date(date); d.setHours(0, 0, 0, 0);
   const diff = Math.round((today - d) / 864e5);
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Yesterday';
-  return new Date(date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+  if (diff === 0) return t('Today');
+  if (diff === 1) return t('Yesterday');
+  return new Date(date).toLocaleDateString(loc('en-GB'), { weekday: 'long', day: 'numeric', month: 'short' });
 }
 
 function activityHistoryPanel() {
-  return libraryPanel('actHistory', 'History', 'last 50 plays', null, UI.spotifyLib.recent, function (plays) {
+  return libraryPanel('actHistory', t('History'), t('last 50 plays'), null, UI.spotifyLib.recent, function (plays) {
     const days = [];
     plays.forEach(function (t) {
       const label = dayLabel(t.playedAt);
@@ -822,10 +822,10 @@ function activityHistoryPanel() {
       day.items.push(t);
     });
     return '<div class="section__body--pad"><div class="timeline">' + days.map(function (d, i) {
-      return '<div class="timeline__day" data-today="' + (i === 0 && d.label === 'Today') + '">' +
+      return '<div class="timeline__day" data-today="' + (i === 0 && d.label === t('Today')) + '">' +
         '<div class="timeline__label t-overline c-tertiary">' + esc(d.label) + '</div>' +
         d.items.map(function (t) {
-          const time = new Date(t.playedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+          const time = new Date(t.playedAt).toLocaleTimeString(loc('en-GB'), { hour: '2-digit', minute: '2-digit' });
           return trackRow(t, '<span class="t-meta c-tertiary" style="width:38px;flex:none">' + time + '</span>');
         }).join('') +
       '</div>';
@@ -834,7 +834,7 @@ function activityHistoryPanel() {
 }
 
 function musicRecentPanel() {
-  return libraryPanel('musRecent', 'Recently played', null, null, UI.spotifyLib.recent, function (plays) {
+  return libraryPanel('musRecent', t('Recently played'), null, null, UI.spotifyLib.recent, function (plays) {
     return plays.slice(0, 20).map(function (t) {
       return trackRow(t, null, '<span class="t-meta c-tertiary">' + esc(formatTimeAgo(t.playedAt)) + '</span>');
     }).join('');
@@ -843,7 +843,7 @@ function musicRecentPanel() {
 
 function musicTopPanel() {
   const range = UI.musicRange;
-  return libraryPanel('musTop', 'Your top tracks', null, rangeTabs('music-range', range), UI.spotifyLib.topTracks[range], function (tracks) {
+  return libraryPanel('musTop', t('Your top tracks'), null, rangeTabs('music-range', range), UI.spotifyLib.topTracks[range], function (tracks) {
     return tracks.slice(0, 20).map(function (t, i) { return trackRow(t, rankIndex(i)); }).join('') +
       topTracksSaveBar(range, tracks);
   });
@@ -857,7 +857,7 @@ function musicPlaylistsPanel() {
   const open = list && list.filter(function (p) { return p.id === UI.playlistOpen; })[0];
   const own = list ? list.filter(function (p) { return p.readable; }).length : 0;
   return '<section class="panel section" id="musPlaylists">' +
-    sectionHead('Playlists', list ? list.length + (own ? ' · ' + own + ' yours to explore' : '') : null) +
+    sectionHead(t('Playlists'), list ? (own ? t('{count} · {own} yours to explore', { count: list.length, own: own }) : String(list.length)) : null) +
     (list && list.length
       ? '<div class="section__body section__body--pad stack">' + (open ? playlistDetail(open) : '') +
         '<div class="tilegrid">' + list.map(function (p) {
@@ -865,13 +865,13 @@ function musicPlaylistsPanel() {
             '<div class="tile__art">' + art(artSeedFor(p.id), 'art--tile', p.image) + playlistTag(p) + '</div>' +
             '<div class="tile__meta">' +
               '<span class="t-body-m-med truncate">' + esc(p.name) + '</span>' +
-              '<span class="t-body-s c-tertiary truncate">' + countLabel(p.count, 'track') + (p.owned ? '' : p.owner ? ' · ' + esc(p.owner) : '') + '</span>' +
+              '<span class="t-body-s c-tertiary truncate">' + tn(p.count, '{n} track', '{n} tracks') + (p.owned ? '' : p.owner ? ' · ' + esc(p.owner) : '') + '</span>' +
             '</div>';
           if (p.readable) {
             return '<button class="panel tile" data-playlist-open="' + esc(p.id) + '" aria-pressed="' + (p.id === UI.playlistOpen) + '">' + inner + '</button>';
           }
           return p.url && /^https:\/\/open\.spotify\.com\//.test(p.url)
-            ? '<a class="panel tile" href="' + esc(p.url) + '" target="_blank" rel="noopener" data-tip="Opens in Spotify">' + inner + '</a>'
+            ? '<a class="panel tile" href="' + esc(p.url) + '" target="_blank" rel="noopener" data-tip="' + t('Opens in Spotify') + '">' + inner + '</a>'
             : '<article class="panel tile">' + inner + '</article>';
         }).join('') + '</div></div>'
       : '<div class="section__body">' + libraryBody(entry, function () { return ''; }) + '</div>') +
@@ -891,7 +891,7 @@ const LIBRARY_PANELS = [
 
 VIEWS.activity = function () {
   const gate = spotifyGate();
-  return wrap(pageHead('How you listened', 'Activity'), gate ||
+  return wrap(pageHead(t('How you listened'), t('Activity')), gate ||
     activitySummaryPanel() +
     '<div class="cols cols--half">' +
       activityArtistsPanel() +
@@ -901,7 +901,7 @@ VIEWS.activity = function () {
 
 VIEWS.music = function () {
   const gate = spotifyGate();
-  return wrap(pageHead('Your library', 'Music'), gate ||
+  return wrap(pageHead(t('Your library'), t('Music')), gate ||
     '<div class="cols cols--half">' + musicRecentPanel() + musicTopPanel() + '</div>' +
     musicPlaylistsPanel());
 };
@@ -914,43 +914,43 @@ VIEWS.profile = function () {
       '<div class="rowflex" style="gap:18px;align-items:flex-start;flex-wrap:wrap">' +
         '<div class="avatar-edit">' +
           avatarEl(me.initials, '72', null, me.avatarUrl) +
-          '<label class="avatar-edit__btn" data-tip="Change photo" aria-label="Change profile photo">' +
+          '<label class="avatar-edit__btn" data-tip="' + t('Change photo') + '" aria-label="' + t('Change profile photo') + '">' +
             icon('camera', 14) +
             '<input type="file" id="avatarFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>' +
           '</label>' +
         '</div>' +
         '<div class="stack stack--sm" style="flex:1;min-width:180px;gap:6px">' +
           '<h2 class="t-title-l">' + esc(me.name) + '</h2>' +
-          '<span class="t-meta c-tertiary">' + esc(me.username) + (me.joined ? ' · joined ' + esc(me.joined) : '') + '</span>' +
+          '<span class="t-meta c-tertiary">' + esc(me.username) + (me.joined ? ' · ' + t('joined {date}', { date: esc(me.joined) }) : '') + '</span>' +
           (me.bio
             ? '<p class="t-body-m c-secondary" style="max-width:52ch;margin-top:4px">' + esc(me.bio) + '</p>'
-            : '<button class="profile__addbio t-body-s" data-action="profile-edit" data-focus="editBio">' + icon('plus', 13) + 'Add a bio</button>') +
+            : '<button class="profile__addbio t-body-s" data-action="profile-edit" data-focus="editBio">' + icon('plus', 13) + t('Add a bio') + '</button>') +
         '</div>' +
         '<div class="rowflex" style="gap:8px;flex:none">' +
-          shareLinkButton(myProfileHash(), 'Copy profile link') +
-          '<button class="btn btn--secondary btn--sm" data-action="profile-edit">Edit profile</button>' +
+          shareLinkButton(myProfileHash(), t('Copy profile link')) +
+          '<button class="btn btn--secondary btn--sm" data-action="profile-edit">' + t('Edit profile') + '</button>' +
         '</div>' +
       '</div>' +
       '<div style="margin-top:18px">' + (me.pin ? pinCard(me.pin, true) : pinInvite()) + '</div>' +
       '<hr class="hr" style="margin:18px 0 16px">' +
       '<div class="cols cols--thirds">' +
-        statTile('Tracks shared', s ? String(s.posts) : '—') +
-        statTile('Friends', String(DATA.friends.length)) +
-        statTile('Reactions received', s ? String(s.reactions) : '—') +
+        statTile(t('Tracks shared'), s ? String(s.posts) : '—') +
+        statTile(t('Friends'), String(DATA.friends.length)) +
+        statTile(t('Reactions received'), s ? String(s.reactions) : '—') +
       '</div>' +
     '</section>';
 
   const shares = me.recentPosts.length
-    ? '<section class="panel section">' + sectionHead('Your recent shares') +
+    ? '<section class="panel section">' + sectionHead(t('Your recent shares')) +
         '<div class="section__body">' + me.recentPosts.map(function (p) { return postRow(p, false); }).join('') + '</div>' +
       '</section>'
-    : ghostPanel('Your recent shares', sharePostButton(false));
+    : ghostPanel(t('Your recent shares'), sharePostButton(false));
 
-  return wrap(pageHead('Your profile', 'Profile'), header + dnaSection() + shares);
+  return wrap(pageHead(t('Your profile'), t('Profile')), header + dnaSection() + shares);
 };
 
 function friendProfileLoading() {
-  return '<section class="panel section__body--pad" style="padding:22px" role="status"><span class="sr-only">Loading profile…</span>' +
+  return '<section class="panel section__body--pad" style="padding:22px" role="status"><span class="sr-only">' + t('Loading profile…') + '</span>' +
     '<div class="skel-row" aria-hidden="true"><span class="skel skel--avatar-xl"></span><span class="skel-row__lines">' +
       '<span class="skel skel--title" style="width:40%"></span><span class="skel skel--line skel--sub" style="width:26%"></span></span></div>' +
   '</section>';
@@ -959,35 +959,35 @@ function friendProfileLoading() {
 function friendProfileHeader(profile, stats, relation) {
   const controls = relation.state === 'friends'
     ? compareButton(profile.username, true) +
-      '<span class="badge badge--positive">' + icon('check', 13) + 'Friends</span>' +
-      '<button class="iconbtn" data-friend-remove="' + esc(relation.friendshipId) + '" data-tip="Remove friend" aria-label="Remove friend">' + icon('close', 16) + '</button>'
+      '<span class="badge badge--positive">' + icon('check', 13) + t('Friends') + '</span>' +
+      '<button class="iconbtn" data-friend-remove="' + esc(relation.friendshipId) + '" data-tip="' + t('Remove friend') + '" aria-label="' + t('Remove friend') + '">' + icon('close', 16) + '</button>'
     : relation.state === 'incoming'
-      ? '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(relation.friendshipId) + '">Accept</button>' +
-        '<button class="btn btn--ghost btn--sm" data-friend-decline="' + esc(relation.friendshipId) + '">Decline</button>'
+      ? '<button class="btn btn--primary btn--sm" data-friend-accept="' + esc(relation.friendshipId) + '">' + t('Accept') + '</button>' +
+        '<button class="btn btn--ghost btn--sm" data-friend-decline="' + esc(relation.friendshipId) + '">' + t('Decline') + '</button>'
       : relation.state === 'outgoing'
-        ? '<button class="btn btn--secondary btn--sm" data-friend-cancel="' + esc(relation.friendshipId) + '">Requested</button>'
-        : '<button class="btn btn--primary btn--sm" data-friend-add="' + esc(profile.id) + '">' + icon('plus', 14) + 'Add friend</button>';
+        ? '<button class="btn btn--secondary btn--sm" data-friend-cancel="' + esc(relation.friendshipId) + '">' + t('Requested') + '</button>'
+        : '<button class="btn btn--primary btn--sm" data-friend-add="' + esc(profile.id) + '">' + icon('plus', 14) + t('Add friend') + '</button>';
 
   const joinedDate = new Date(profile.created_at);
-  const joined = joinedDate.toLocaleString('en-US', { month: 'long' }) + ' ' + joinedDate.getFullYear();
+  const joined = t('{month} {year}', { month: joinedDate.toLocaleString(loc('en-US'), { month: 'long' }), year: joinedDate.getFullYear() });
 
   return '<section class="panel section__body--pad" style="padding:22px">' +
     '<div class="rowflex" style="gap:18px;align-items:flex-start;flex-wrap:wrap">' +
       avatarEl(initialsFrom(profile.name), '72', null, profile.avatar_url) +
       '<div class="stack stack--sm" style="flex:1;min-width:180px;gap:6px">' +
         '<h2 class="t-title-l">' + esc(profile.name) + '</h2>' +
-        '<span class="t-meta c-tertiary">@' + esc(profile.username) + ' · joined ' + esc(joined) + '</span>' +
+        '<span class="t-meta c-tertiary">@' + esc(profile.username) + ' · ' + t('joined {date}', { date: esc(joined) }) + '</span>' +
         (profile.bio ? '<p class="t-body-m c-secondary" style="max-width:52ch;margin-top:4px">' + esc(profile.bio) + '</p>' : '') +
       '</div>' +
-      '<div class="rowflex" style="gap:8px;flex:none;flex-wrap:wrap">' + shareLinkButton('#/u/' + profile.username, 'Copy profile link') + controls +
-        safetyTrigger({ id: profile.id, name: profile.name, username: profile.username }, null, 'More options for ' + profile.name) + '</div>' +
+      '<div class="rowflex" style="gap:8px;flex:none;flex-wrap:wrap">' + shareLinkButton('#/u/' + profile.username, t('Copy profile link')) + controls +
+        safetyTrigger({ id: profile.id, name: profile.name, username: profile.username }, null, t('More options for {name}', { name: profile.name })) + '</div>' +
     '</div>' +
     (pinFromRow(profile) ? '<div style="margin-top:18px">' + pinCard(pinFromRow(profile), false) + '</div>' : '') +
     '<hr class="hr" style="margin:18px 0 16px">' +
     '<div class="cols cols--thirds">' +
-      statTile('Tracks shared', stats ? String(stats.posts) : '—') +
-      statTile('Reactions received', stats ? String(stats.reactions) : '—') +
-      statTile('Comments received', stats ? String(stats.comments) : '—') +
+      statTile(t('Tracks shared'), stats ? String(stats.posts) : '—') +
+      statTile(t('Reactions received'), stats ? String(stats.reactions) : '—') +
+      statTile(t('Comments received'), stats ? String(stats.comments) : '—') +
     '</div>' +
   '</section>';
 }
@@ -998,10 +998,10 @@ function blockedPanel(person) {
   return '<section class="panel blocked">' +
     avatarEl(initialsFrom(person.name), '56', null, person.avatar_url || person.avatarUrl) +
     '<div class="blocked__meta">' +
-      '<span class="t-title-s">You blocked ' + esc(first) + '</span>' +
-      '<span class="t-body-s c-secondary">Their posts and comments are hidden from you, and @' + esc(person.username) + ' can’t add you or interact with your posts.</span>' +
+      '<span class="t-title-s">' + t('You blocked {name}', { name: esc(first) }) + '</span>' +
+      '<span class="t-body-s c-secondary">' + t('Their posts and comments are hidden from you, and @{username} can’t add you or interact with your posts.', { username: esc(person.username) }) + '</span>' +
     '</div>' +
-    '<button class="btn btn--secondary btn--sm" data-safety-unblock="' + esc(person.id) + '">Unblock</button>' +
+    '<button class="btn btn--secondary btn--sm" data-safety-unblock="' + esc(person.id) + '">' + t('Unblock') + '</button>' +
   '</section>';
 }
 
@@ -1009,32 +1009,32 @@ VIEWS.friendProfile = function () {
   const username = friendProfileUsername();
   const state = UI.friendProfile;
   if (!state || state.username !== username || state.status === 'loading') {
-    return wrap(pageHead('Profile', 'Loading…'), friendProfileLoading());
+    return wrap(pageHead(t('Profile'), t('Loading…')), friendProfileLoading());
   }
   if (state.status === 'notfound') {
-    return wrap(pageHead('Profile', 'Not found'), ghostPanel(null, findFriendsButton(true), 'No vortex profile found for “' + username + '”.'));
+    return wrap(pageHead(t('Profile'), t('Not found')), ghostPanel(null, findFriendsButton(true), t('No vortex profile found for “{username}”.', { username: username })));
   }
   if (state.status === 'error') {
-    return wrap(pageHead('Profile', 'Profile'), ghostPanel(null, null, 'Could not load this profile. Try again in a moment.'));
+    return wrap(pageHead(t('Profile'), t('Profile')), ghostPanel(null, null, t('Could not load this profile. Try again in a moment.')));
   }
 
   const profile = state.profile;
-  if (isBlocked(profile.id)) return wrap(pageHead('Profile', esc(profile.name)), blockedPanel(profile));
+  if (isBlocked(profile.id)) return wrap(pageHead(t('Profile'), esc(profile.name)), blockedPanel(profile));
   const relation = relationshipWith(profile.id);
   const first = profile.name.split(/\s+/)[0];
   const shares = state.posts.length
-    ? '<section class="panel section">' + sectionHead(first + '’s recent shares') +
+    ? '<section class="panel section">' + sectionHead(t('{name}’s recent shares', { name: first })) +
         '<div class="section__body">' + state.posts.map(function (p) { return postRow(p, false); }).join('') + '</div>' +
       '</section>'
-    : ghostPanel(first + '’s recent shares', null, 'Nothing shared yet.');
+    : ghostPanel(t('{name}’s recent shares', { name: first }), null, t('Nothing shared yet.'));
 
-  return wrap(pageHead('Profile', esc(profile.name)),
+  return wrap(pageHead(t('Profile'), esc(profile.name)),
     friendProfileHeader(profile, state.stats, relation) + friendDnaSectionAuto() + shares);
 };
 
 VIEWS.experimental = function () {
   return wrap(
-    pageHead('Work in progress', 'Experimental <span class="badge badge--beta" style="vertical-align:5px;margin-left:8px">Beta</span>'),
+    pageHead(t('Work in progress'), t('Experimental') + ' <span class="badge badge--beta" style="vertical-align:5px;margin-left:8px">' + t('Beta') + '</span>'),
     ghostPanel()
   );
 };
@@ -1051,58 +1051,71 @@ VIEWS.settings = function () {
   }
 
   const account =
-    '<section class="panel section">' + sectionHead('Account', null, '<button class="btn btn--ghost btn--sm" data-action="profile-edit">Edit</button>') +
+    '<section class="panel section">' + sectionHead(t('Account'), null, '<button class="btn btn--ghost btn--sm" data-action="profile-edit">' + t('Edit') + '</button>') +
       '<div class="section__body section__body--flush">' +
-        row('user', 'Display name', DATA.me.name) +
-        row('globe', 'Username', DATA.me.username) +
-        row('mail', 'Email', DATA.me.email || '') +
-        row('lock', 'Password', 'Pick a new one without logging out.', '<a class="btn btn--secondary btn--sm" href="#/reset">Change</a>') +
+        row('user', t('Display name'), DATA.me.name) +
+        row('globe', t('Username'), DATA.me.username) +
+        row('mail', t('Email'), DATA.me.email || '') +
+        row('lock', t('Password'), t('Pick a new one without logging out.'), '<a class="btn btn--secondary btn--sm" href="#/reset">' + t('Change') + '</a>') +
       '</div>' +
     '</section>';
 
   const blocked = DATA.blocked.length
-    ? '<section class="panel section">' + sectionHead('Blocked accounts', String(DATA.blocked.length)) +
+    ? '<section class="panel section">' + sectionHead(t('Blocked accounts'), String(DATA.blocked.length)) +
         '<div class="section__body">' + DATA.blocked.map(function (b) {
-          return personRow(b, '<button class="btn btn--secondary btn--sm" data-safety-unblock="' + esc(b.id) + '">Unblock</button>');
+          return personRow(b, '<button class="btn btn--secondary btn--sm" data-safety-unblock="' + esc(b.id) + '">' + t('Unblock') + '</button>');
         }).join('') + '</div>' +
       '</section>'
     : '';
 
   const services =
-    '<section class="panel section">' + sectionHead('Connected services') +
+    '<section class="panel section">' + sectionHead(t('Connected services')) +
       '<div class="section__body section__body--flush">' +
         (spotify.auth.isConnected()
-          ? row('spotify', 'Spotify', 'Connected · shows what you are playing', '<button class="btn btn--secondary btn--sm" data-action="spotify-disconnect">Disconnect</button>')
-          : row('spotify', 'Spotify', 'Not connected', '<button class="btn btn--primary btn--sm" data-action="spotify-connect">Connect</button>')) +
+          ? row('spotify', 'Spotify', t('Connected · shows what you are playing'), '<button class="btn btn--secondary btn--sm" data-action="spotify-disconnect">' + t('Disconnect') + '</button>')
+          : row('spotify', 'Spotify', t('Not connected'), '<button class="btn btn--primary btn--sm" data-action="spotify-connect">' + t('Connect') + '</button>')) +
       '</div>' +
     '</section>';
 
   const privacy =
-    '<section class="panel section">' + sectionHead('Privacy') +
+    '<section class="panel section">' + sectionHead(t('Privacy')) +
       '<div class="section__body section__body--flush">' +
-        row('broadcast', 'Share what I\'m listening to',
-          'Friends see your current Spotify track live while vortex is open. Spotify private sessions are never shared.',
-          '<button class="toggle" data-toggle="share-listening" role="switch" aria-checked="' + !!DATA.me.shareListening + '" aria-label="Share what I am listening to"></button>') +
-        row('sparkle', 'Share my music DNA',
-          'Friends can compare tastes with you: your top 50 artists and tracks from the last ~6 months. Turning it off deletes the copy vortex keeps.',
-          '<button class="toggle" data-toggle="share-taste" role="switch" aria-checked="' + !!DATA.me.shareTaste + '" aria-label="Share my music DNA"></button>') +
-        row('lock', 'Privacy policy', 'What vortex keeps, who can see it, and how to delete your account.',
-          '<a class="btn btn--secondary btn--sm" href="' + PRIVACY_URL + '" target="_blank" rel="noopener">Read</a>') +
+        row('broadcast', t('Share what I\'m listening to'),
+          t('Friends see your current Spotify track live while vortex is open. Spotify private sessions are never shared.'),
+          '<button class="toggle" data-toggle="share-listening" role="switch" aria-checked="' + !!DATA.me.shareListening + '" aria-label="' + t('Share what I am listening to') + '"></button>') +
+        row('sparkle', t('Share my music DNA'),
+          t('Friends can compare tastes with you: your top 50 artists and tracks from the last ~6 months. Turning it off deletes the copy vortex keeps.'),
+          '<button class="toggle" data-toggle="share-taste" role="switch" aria-checked="' + !!DATA.me.shareTaste + '" aria-label="' + t('Share my music DNA') + '"></button>') +
+        row('lock', t('Privacy policy'), t('What vortex keeps, who can see it, and how to delete your account.'),
+          '<a class="btn btn--secondary btn--sm" href="' + PRIVACY_URL + '" target="_blank" rel="noopener">' + t('Read') + '</a>') +
+      '</div>' +
+    '</section>';
+
+  // Each language is named in itself, so it's findable whichever one is showing.
+  const language =
+    '<section class="panel section">' + sectionHead(t('Language')) +
+      '<div class="section__body section__body--flush">' +
+        row('globe', t('App language'), t('Choose the language vortex uses on this device.'),
+          '<div class="tabs" role="radiogroup" aria-label="' + esc(t('Language')) + '">' +
+            Object.keys(LANGS).map(function (k) {
+              return '<button class="tab" role="radio" lang="' + (k === 'pt' ? 'pt-BR' : 'en') + '" data-lang-pick="' + k + '" aria-checked="' + (k === LANG) + '">' + LANGS[k] + '</button>';
+            }).join('') +
+          '</div>') +
       '</div>' +
     '</section>';
 
   const session =
-    '<section class="panel section">' + sectionHead('Session') +
+    '<section class="panel section">' + sectionHead(t('Session')) +
       '<div class="section__body section__body--flush">' +
-        row('logout', 'Log out', 'Sign out on this device only.', '<button class="btn btn--secondary btn--sm" data-action="logout">Log out</button>') +
+        row('logout', t('Log out'), t('Sign out on this device only.'), '<button class="btn btn--secondary btn--sm" data-action="logout">' + t('Log out') + '</button>') +
       '</div>' +
     '</section>';
 
   return wrap(
-    pageHead('Preferences', 'Settings'),
+    pageHead(t('Preferences'), t('Settings')),
     '<div class="cols cols--half">' +
       '<div class="stack">' + account + privacy + blocked + '</div>' +
-      '<div class="stack">' + services + session + '</div>' +
+      '<div class="stack">' + services + language + session + '</div>' +
     '</div>'
   );
 };

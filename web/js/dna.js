@@ -21,7 +21,7 @@ function libFailed(key, range) {
 }
 function pct(x) { return Math.round(x * 100); }
 function roman(n) { return ['', 'I', 'II', 'III'][n] || ''; }
-function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
+function plural(n, one, many) { return tn(n, '{n} ' + one, '{n} ' + (many || one + 's')); }
 
 /* ---- snapshots ------------------------------------------------------------ */
 /* What gets published for friends: ~6-month top 50 artists and tracks. */
@@ -104,46 +104,46 @@ function idSet(list, n) {
    failed, or { value, detail }. Thresholds are the tiers I / II / III. */
 const BADGES = [
   {
-    id: 'genre-hopper', name: 'Genre Hopper', icon: 'shuffle', tiers: [8, 16, 28],
-    tagline: 'No single scene holds you for long.',
+    id: 'genre-hopper', name: t('Genre Hopper'), icon: 'shuffle', tiers: [8, 16, 28],
+    tagline: t('No single scene holds you for long.'),
     unit: function (v) { return plural(v, 'genre'); },
     compute: function () {
       const a = libData('topArtists', 'medium_term');
       if (!a) return libFailed('topArtists', 'medium_term') ? null : undefined;
       const n = genreShares(a).list.length;
-      return { value: n, detail: plural(n, 'genre') + ' across your top ' + a.length + ' artists (6 months)' };
+      return { value: n, detail: t('{genres} across your top {count} artists (6 months)', { genres: plural(n, 'genre'), count: a.length }) };
     }
   },
   {
-    id: 'loyalist', name: 'Loyalist', icon: 'heart', tiers: [25, 45, 65],
-    tagline: 'Your favourites from a year ago are still in your top artists this month.',
+    id: 'loyalist', name: t('Loyalist'), icon: 'heart', tiers: [25, 45, 65],
+    tagline: t('Your favourites from a year ago are still in your top artists this month.'),
     unit: function (v) { return v + '%'; },
     compute: function () {
       const long = libData('topArtists', 'long_term'), short = libData('topArtists', 'short_term');
       if (!long || !short) return libFailed('topArtists', 'long_term') || libFailed('topArtists', 'short_term') ? null : undefined;
       const base = long.slice(0, 20);
-      if (!base.length) return { value: 0, detail: 'Not enough listening yet' };
+      if (!base.length) return { value: 0, detail: t('Not enough listening yet') };
       const now = idSet(short);
       const kept = countIn(base, function (a) { return now[a.id]; });
       const v = pct(kept / base.length);
-      return { value: v, detail: kept + ' of your ~1-year top ' + base.length + ' artists are still in your last 4 weeks' };
+      return { value: v, detail: t('{kept} of your ~1-year top {count} artists are still in your last 4 weeks', { kept: kept, count: base.length }) };
     }
   },
   {
-    id: 'explorer', name: 'Explorer', icon: 'compass', tiers: [5, 12, 20],
-    tagline: 'Your last month is full of artists that weren\'t in your year\'s top 50.',
+    id: 'explorer', name: t('Explorer'), icon: 'compass', tiers: [5, 12, 20],
+    tagline: t('Your last month is full of artists that weren\'t in your year\'s top 50.'),
     unit: function (v) { return plural(v, 'new artist'); },
     compute: function () {
       const long = libData('topArtists', 'long_term'), short = libData('topArtists', 'short_term');
       if (!long || !short) return libFailed('topArtists', 'long_term') || libFailed('topArtists', 'short_term') ? null : undefined;
       const year = idSet(long);
       const n = countIn(short, function (a) { return !year[a.id]; });
-      return { value: n, detail: n + ' artists in your 4-week top ' + short.length + ' aren\'t in your ~1-year top ' + long.length };
+      return { value: n, detail: t('{n} artists in your 4-week top {short} aren\'t in your ~1-year top {long}', { n: n, short: short.length, long: long.length }) };
     }
   },
   {
-    id: 'on-repeat', name: 'On Repeat', icon: 'repeat', tiers: [3, 5, 8],
-    tagline: 'When a song hits, you play it until it doesn\'t.',
+    id: 'on-repeat', name: t('On Repeat'), icon: 'repeat', tiers: [3, 5, 8],
+    tagline: t('When a song hits, you play it until it doesn\'t.'),
     unit: function (v) { return plural(v, 'play'); },
     compute: function () {
       const r = libData('recent');
@@ -155,35 +155,35 @@ const BADGES = [
         if (!best || counts[t.id] > counts[best.id]) best = t;
       });
       const n = best ? counts[best.id] : 0;
-      return { value: n, detail: best ? '“' + best.title + '” played ' + plural(n, 'time') + ' in your last ' + r.length + ' plays' : 'No recent plays' };
+      return { value: n, detail: best ? t('“{title}” played {times} in your last {count} plays', { title: best.title, times: plural(n, 'time'), count: r.length }) : t('No recent plays') };
     }
   },
   {
-    id: 'night-owl', name: 'Night Owl', icon: 'moon', tiers: [5, 15, 30],
-    tagline: 'A big share of your listening happens after midnight.',
+    id: 'night-owl', name: t('Night Owl'), icon: 'moon', tiers: [5, 15, 30],
+    tagline: t('A big share of your listening happens after midnight.'),
     unit: function (v) { return plural(v, 'late play'); },
     compute: function () {
       const r = libData('recent');
       if (!r) return libFailed('recent') ? null : undefined;
       const n = countIn(r, function (t) { return new Date(t.playedAt).getHours() < 5; });
-      return { value: n, detail: n + ' of your last ' + r.length + ' plays were between midnight and 5 am' };
+      return { value: n, detail: t('{n} of your last {count} plays were between midnight and 5 am', { n: n, count: r.length }) };
     }
   },
   {
-    id: 'early-bird', name: 'Early Bird', icon: 'sun', tiers: [5, 15, 30],
-    tagline: 'You start the day with music.',
+    id: 'early-bird', name: t('Early Bird'), icon: 'sun', tiers: [5, 15, 30],
+    tagline: t('You start the day with music.'),
     unit: function (v) { return plural(v, 'morning play'); },
     compute: function () {
       const r = libData('recent');
       if (!r) return libFailed('recent') ? null : undefined;
       const n = countIn(r, function (t) { const h = new Date(t.playedAt).getHours(); return h >= 5 && h < 9; });
-      return { value: n, detail: n + ' of your last ' + r.length + ' plays were between 5 and 9 am' };
+      return { value: n, detail: t('{n} of your last {count} plays were between 5 and 9 am', { n: n, count: r.length }) };
     }
   },
   {
-    id: 'album-purist', name: 'Album Purist', icon: 'layers', tiers: [4, 7, 10],
-    tagline: 'You play records front to back, not just the singles.',
-    unit: function (v) { return plural(v, 'track') + ' in a row'; },
+    id: 'album-purist', name: t('Album Purist'), icon: 'layers', tiers: [4, 7, 10],
+    tagline: t('You play records front to back, not just the singles.'),
+    unit: function (v) { return tn(v, '{n} track in a row', '{n} tracks in a row'); },
     compute: function () {
       const r = libData('recent');
       if (!r) return libFailed('recent') ? null : undefined;
@@ -194,50 +194,50 @@ const BADGES = [
         album = key;
         if (run > best) { best = run; bestAlbum = t.album; }
       });
-      return { value: best, detail: best > 1 ? best + ' tracks in a row from “' + bestAlbum + '”' : 'No album runs in your last plays' };
+      return { value: best, detail: best > 1 ? t('{n} tracks in a row from “{album}”', { n: best, album: bestAlbum }) : t('No album runs in your last plays') };
     }
   },
   {
-    id: 'superfan', name: 'Superfan', icon: 'crown', tiers: [10, 20, 35],
-    tagline: 'One artist takes up a big slice of your top tracks.',
+    id: 'superfan', name: t('Superfan'), icon: 'crown', tiers: [10, 20, 35],
+    tagline: t('One artist takes up a big slice of your top tracks.'),
     unit: function (v) { return v + '%'; },
     compute: function () {
       const a = libData('topArtists', 'medium_term'), t = libData('topTracks', 'medium_term');
       if (!a || !t) return libFailed('topArtists', 'medium_term') || libFailed('topTracks', 'medium_term') ? null : undefined;
-      if (!a.length || !t.length) return { value: 0, detail: 'Not enough listening yet' };
+      if (!a.length || !t.length) return { value: 0, detail: window.t('Not enough listening yet') };
       const top = a[0];
       const n = countIn(t, function (x) { return (x.artistIds || []).indexOf(top.id) > -1; });
       const v = pct(n / t.length);
-      return { value: v, detail: top.name + ' is on ' + n + ' of your top ' + t.length + ' tracks (6 months)' };
+      return { value: v, detail: window.t('{artist} is on {n} of your top {count} tracks (6 months)', { artist: top.name, n: n, count: t.length }) };
     }
   },
   {
-    id: 'curator', name: 'Curator', icon: 'disc', tiers: [3, 10, 25],
-    tagline: 'You build playlists, not just play them.',
+    id: 'curator', name: t('Curator'), icon: 'disc', tiers: [3, 10, 25],
+    tagline: t('You build playlists, not just play them.'),
     unit: function (v) { return plural(v, 'playlist'); },
     compute: function () {
       const p = libData('playlists');
       if (!p) return libFailed('playlists') ? null : undefined;
       const n = countIn(p, function (x) { return x.owned; });
-      return { value: n, detail: 'You own ' + plural(n, 'playlist') + (p.length >= 50 ? ' (first 50 checked)' : '') };
+      return { value: n, detail: t(p.length >= 50 ? 'You own {playlists} (first 50 checked)' : 'You own {playlists}', { playlists: plural(n, 'playlist') }) };
     }
   },
   {
-    id: 'tastemaker', name: 'Tastemaker', icon: 'broadcast', tiers: [1, 10, 30], social: true,
-    tagline: 'You put tracks in front of your friends.',
+    id: 'tastemaker', name: t('Tastemaker'), icon: 'broadcast', tiers: [1, 10, 30], social: true,
+    tagline: t('You put tracks in front of your friends.'),
     unit: function (v) { return plural(v, 'share'); },
     compute: function () {
       const s = DATA.me.stats;
       if (!s) return undefined;
-      return { value: s.posts, detail: plural(s.posts, 'track') + ' shared on vortex' };
+      return { value: s.posts, detail: tn(s.posts, '{n} track shared on vortex', '{n} tracks shared on vortex') };
     }
   },
   {
-    id: 'connector', name: 'Connector', icon: 'users', tiers: [1, 5, 15], social: true,
-    tagline: 'Your circle keeps growing.',
+    id: 'connector', name: t('Connector'), icon: 'users', tiers: [1, 5, 15], social: true,
+    tagline: t('Your circle keeps growing.'),
     unit: function (v) { return plural(v, 'friend'); },
     compute: function () {
-      return { value: DATA.friends.length, detail: plural(DATA.friends.length, 'friend') + ' on vortex' };
+      return { value: DATA.friends.length, detail: tn(DATA.friends.length, '{n} friend on vortex', '{n} friends on vortex') };
     }
   }
 ];
@@ -317,7 +317,7 @@ function cosine(a, b) {
   return na && nb ? dot / Math.sqrt(na * nb) : null;
 }
 
-const COMPAT_TIERS = [[75, 'Musical twins'], [50, 'Strong overlap'], [25, 'Common ground'], [0, 'Different worlds']];
+const COMPAT_TIERS = [[75, t('Musical twins')], [50, t('Strong overlap')], [25, t('Common ground')], [0, t('Different worlds')]];
 
 /* Score out of 100 from each person's ~6-month top 50: 45% genre similarity,
    40% shared artists, 15% shared tracks. Shared counts go through a square

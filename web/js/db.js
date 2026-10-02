@@ -342,7 +342,7 @@ const db = {
     async remove(postId) {
       const { data, error } = await supabaseClient.from('posts').delete().eq('id', postId).select('id');
       if (error) throw error;
-      if (!data || !data.length) throw new Error('Post not found, or you are not allowed to delete it.');
+      if (!data || !data.length) throw new Error(t('Post not found, or you are not allowed to delete it.'));
     }
   },
 

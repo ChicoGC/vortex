@@ -2,6 +2,7 @@
   "outputDirectory": "web",
   "rewrites": [
     { "source": "/callback", "destination": "/index.html" },
-    { "source": "/privacy", "destination": "/privacy.html" }
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/privacidade", "destination": "/privacidade.html" }
   ]
 }

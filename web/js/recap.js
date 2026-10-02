@@ -11,7 +11,7 @@ const RECAP_DAYS = 28;
 function recapSince() { return new Date(Date.now() - RECAP_DAYS * 864e5); }
 
 function recapRange() {
-  const f = function (d) { return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
+  const f = function (d) { return d.toLocaleDateString(loc('en-GB'), { day: 'numeric', month: 'short' }); };
   return f(recapSince()) + ' – ' + f(new Date());
 }
 
@@ -44,36 +44,36 @@ function recapData() {
 /* Three numbers for the card; each falls back to another real one. */
 function recapStats(d) {
   const out = [];
-  out.push(d.fresh ? { n: d.fresh.length, label: d.fresh.length === 1 ? 'new artist' : 'new artists' } : { n: null, label: 'new artists' });
-  out.push(d.stats ? { n: d.stats.posts, label: d.stats.posts === 1 ? 'track shared' : 'tracks shared' } : { n: null, label: 'tracks shared' });
-  if (d.best) out.push({ n: d.best.score, label: 'match with ' + d.best.friend.name.split(/\s+/)[0] });
-  else out.push(d.stats ? { n: d.stats.reactions, label: d.stats.reactions === 1 ? 'reaction' : 'reactions' } : { n: null, label: 'reactions' });
+  out.push(d.fresh ? { n: d.fresh.length, label: d.fresh.length === 1 ? t('new artist') : t('new artists') } : { n: null, label: t('new artists') });
+  out.push(d.stats ? { n: d.stats.posts, label: d.stats.posts === 1 ? t('track shared') : t('tracks shared') } : { n: null, label: t('tracks shared') });
+  if (d.best) out.push({ n: d.best.score, label: t('match with {name}', { name: d.best.friend.name.split(/\s+/)[0] }) });
+  else out.push(d.stats ? { n: d.stats.reactions, label: d.stats.reactions === 1 ? t('reaction') : t('reactions') } : { n: null, label: t('reactions') });
   return out;
 }
 
 function recapPoster(d) {
-  const first = (DATA.me.name || '').split(/\s+/)[0] || 'Your';
+  const first = (DATA.me.name || '').split(/\s+/)[0];
   const song = d.tracks[0];
   const more = d.tracks.slice(1);
-  return '<article class="poster" aria-label="Recap card, ' + esc(recapRange()) + '">' +
+  return '<article class="poster" aria-label="' + t('Recap card, {range}', { range: esc(recapRange()) }) + '">' +
     '<div class="poster__top">' +
       '<span class="poster__brand"><img src="assets/logo-64.png" alt="">Vortex</span>' +
       '<span class="poster__range">' + esc(recapRange()) + '</span>' +
     '</div>' +
-    '<p class="poster__who">' + esc(first) + '’s last 4 weeks</p>' +
-    '<p class="poster__kicker poster__kicker--song">Most played song</p>' +
+    '<p class="poster__who">' + (first ? t('{name}’s last 4 weeks', { name: esc(first) }) : t('Your’s last 4 weeks')) + '</p>' +
+    '<p class="poster__kicker poster__kicker--song">' + t('Most played song') + '</p>' +
     '<div class="poster__song">' +
       '<span class="poster__cover" style="' + artImageStyle(song.image || song.thumb) + '"></span>' +
       '<span class="poster__songmeta"><b>' + esc(song.title) + '</b><span>' + esc(song.artist) + '</span>' +
         (song.album ? '<em>' + esc(song.album) + '</em>' : '') + '</span>' +
     '</div>' +
-    '<p class="poster__kicker poster__kicker--artists">Top artists</p>' +
+    '<p class="poster__kicker poster__kicker--artists">' + t('Top artists') + '</p>' +
     '<ol class="poster__artists">' + d.artists.map(function (a, i) {
       return '<li><span class="poster__face" style="' + artImageStyle(a.image) + '">' +
         (a.image ? '' : '<span>' + esc(initialsFrom(a.name)) + '</span>') + '<i>' + (i + 1) + '</i></span>' +
         '<b>' + esc(a.name) + '</b></li>';
     }).join('') + '</ol>' +
-    (more.length ? '<p class="poster__kicker poster__kicker--more">Also on repeat</p>' +
+    (more.length ? '<p class="poster__kicker poster__kicker--more">' + t('Also on repeat') + '</p>' +
       '<ol class="poster__more">' + more.map(function (t) {
         return '<li><span class="poster__mini" style="' + artImageStyle(t.thumb) + '"></span>' +
           '<span class="poster__moremeta"><b>' + esc(t.title) + '</b><em>' + esc(t.artist) + '</em></span></li>';
@@ -87,12 +87,12 @@ function recapPoster(d) {
 
 function recapShareBlock() {
   const canShare = !!(navigator.share && navigator.canShare);
-  return '<section class="panel section">' + sectionHead('Share it') +
+  return '<section class="panel section">' + sectionHead(t('Share it')) +
     '<div class="section__body section__body--pad stack stack--sm">' +
-      '<p class="t-body-s c-secondary">Sized for stories (1080 × 1920). It only uses your Spotify top lists and your vortex activity.</p>' +
+      '<p class="t-body-s c-secondary">' + t('Sized for stories (1080 × 1920). It only uses your Spotify top lists and your vortex activity.') + '</p>' +
       '<div class="rowflex" style="gap:8px;flex-wrap:wrap">' +
-        (canShare ? '<button class="btn btn--primary btn--sm" data-action="recap-share">' + icon('arrowUpRight', 15) + 'Share</button>' : '') +
-        '<button class="btn ' + (canShare ? 'btn--secondary' : 'btn--primary') + ' btn--sm" data-action="recap-save">' + icon('download', 15) + 'Save image</button>' +
+        (canShare ? '<button class="btn btn--primary btn--sm" data-action="recap-share">' + icon('arrowUpRight', 15) + t('Share') + '</button>' : '') +
+        '<button class="btn ' + (canShare ? 'btn--secondary' : 'btn--primary') + ' btn--sm" data-action="recap-save">' + icon('download', 15) + t('Save image') + '</button>' +
       '</div>' +
     '</div>' +
   '</section>';
@@ -102,21 +102,21 @@ function recapBody() {
   const d = recapData();
   if (!d) {
     const failed = libFailed('topArtists', 'short_term') || libFailed('topTracks', 'short_term');
-    return failed ? ghostPanel(null, null, 'Could not reach Spotify. Try again in a moment.')
-      : '<section class="panel section"><div class="section__body section__body--pad">' + dnaLoading('Putting your last 4 weeks together…') + '</div></section>';
+    return failed ? ghostPanel(null, null, t('Could not reach Spotify. Try again in a moment.'))
+      : '<section class="panel section"><div class="section__body section__body--pad">' + dnaLoading(t('Putting your last 4 weeks together…')) + '</div></section>';
   }
   if (!d.top || !d.tracks.length) {
-    return ghostPanel(null, null, 'Spotify doesn\'t have enough listening from the last 4 weeks yet. Play a few more songs and come back.');
+    return ghostPanel(null, null, t('Spotify doesn\'t have enough listening from the last 4 weeks yet. Play a few more songs and come back.'));
   }
   return '<div class="recap">' +
     '<div class="recap__poster">' + recapPoster(d) + '</div>' +
     '<div class="stack recap__side">' +
       recapShareBlock() +
-      (d.genres.length ? '<section class="panel section">' + sectionHead('Top genres', 'last 4 weeks') +
+      (d.genres.length ? '<section class="panel section">' + sectionHead(t('Top genres'), t('last 4 weeks')) +
         '<div class="section__body section__body--pad"><div class="dna-chips">' + d.genres.map(function (g, i) {
           return '<span class="dna-chip' + (i === 0 ? ' dna-chip--lead' : '') + '">' + esc(g.name) + '</span>';
         }).join('') + '</div></div></section>' : '') +
-      (d.fresh && d.fresh.length ? '<section class="panel section">' + sectionHead('New arrivals', 'not in your ~1-year top 50') +
+      (d.fresh && d.fresh.length ? '<section class="panel section">' + sectionHead(t('New arrivals'), t('not in your ~1-year top 50')) +
         '<div class="section__body section__body--pad"><div class="achips">' +
           d.fresh.slice(0, 10).map(function (a) { return artistChip(a, a.genres[0] || null); }).join('') +
         '</div></div></section>' : '') +
@@ -129,7 +129,7 @@ function recapBodyAuto() {
 }
 
 VIEWS.recap = function () {
-  return wrap(pageHead('Your last 4 weeks', 'Recap'), spotifyGate() || recapBodyAuto());
+  return wrap(pageHead(t('Your last 4 weeks'), t('Recap')), spotifyGate() || recapBodyAuto());
 };
 
 /* Home: a link into the recap, with your current number one when it's loaded. */
@@ -140,10 +140,10 @@ function homeRecapPanel() {
   return '<a class="panel recap-teaser" href="#/recap" id="homeRecap">' +
     '<span class="recap-teaser__disc" aria-hidden="true"><span style="' + (top ? artImageStyle(top.image) : '') + '"></span></span>' +
     '<span class="recap-teaser__meta">' +
-      '<span class="t-title-s">Your last 4 weeks, in one card</span>' +
-      '<span class="t-body-s c-secondary">' + (top ? esc(top.name) + ' led the way. ' : '') + 'Save it or share it to your stories.</span>' +
+      '<span class="t-title-s">' + t('Your last 4 weeks, in one card') + '</span>' +
+      '<span class="t-body-s c-secondary">' + (top ? t('{name} led the way.', { name: esc(top.name) }) + ' ' : '') + t('Save it or share it to your stories.') + '</span>' +
     '</span>' +
-    '<span class="btn btn--secondary btn--sm">See your recap</span>' +
+    '<span class="btn btn--secondary btn--sm">' + t('See your recap') + '</span>' +
   '</a>';
 }
 
@@ -227,10 +227,11 @@ async function renderRecapImage() {
   ctx.fillText(recapRange(), W - P, 124);
   ctx.textAlign = 'left';
   ctx.fillStyle = INK; ctx.font = '500 64px Geist, sans-serif';
-  ctx.fillText(fitText(ctx, ((DATA.me.name || '').split(/\s+/)[0] || 'Your') + '’s last 4 weeks', inner), P, 262);
+  const firstName = (DATA.me.name || '').split(/\s+/)[0];
+  ctx.fillText(fitText(ctx, firstName ? t('{name}’s last 4 weeks', { name: firstName }) : t('Your’s last 4 weeks'), inner), P, 262);
 
   // Most played song: the cover carries the card.
-  kicker('Most played song', 366);
+  kicker(t('Most played song'), 366);
   const cs = 360, cy = 398;
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 48; ctx.shadowOffsetY = 18;
@@ -252,7 +253,7 @@ async function renderRecapImage() {
   }
 
   // Top artists: three portraits, ranked.
-  kicker('Top artists', 858);
+  kicker(t('Top artists'), 858);
   const colW = inner / 3, fr = 112, fy = 890 + fr;
   d.artists.forEach(function (a, i) {
     const cx = P + colW * i + colW / 2;
@@ -275,7 +276,7 @@ async function renderRecapImage() {
 
   // Also on repeat: the rest of the top four.
   if (more.length) {
-    kicker('Also on repeat', 1290);
+    kicker(t('Also on repeat'), 1290);
     more.forEach(function (t, i) {
       const ry = 1318 + i * 100;
       ctx.save(); roundedPath(ctx, P, ry, 76, 76, 14); ctx.clip();

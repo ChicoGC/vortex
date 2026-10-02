@@ -5,22 +5,22 @@
    ========================================================================== */
 
 const ACCENTS = [
-  { id: 'ember',   name: 'Ember',   dark: '#FF5C35', light: '#E8431D' },
-  { id: 'magenta', name: 'Magenta', dark: '#EE55AE', light: '#C22A82' },
-  { id: 'violet',  name: 'Violet',  dark: '#9077FF', light: '#6548E8' },
-  { id: 'azure',   name: 'Azure',   dark: '#4192FF', light: '#1C6BDD' },
-  { id: 'mono',    name: 'Mono',    dark: '#F2F1EE', light: '#15151A' }
+  { id: 'ember',   name: t('Ember'),   dark: '#FF5C35', light: '#E8431D' },
+  { id: 'magenta', name: t('Magenta'), dark: '#EE55AE', light: '#C22A82' },
+  { id: 'violet',  name: t('Violet'),  dark: '#9077FF', light: '#6548E8' },
+  { id: 'azure',   name: t('Azure'),   dark: '#4192FF', light: '#1C6BDD' },
+  { id: 'mono',    name: t('Mono'),    dark: '#F2F1EE', light: '#15151A' }
 ];
 const DENSITIES = [
-  { id: 'comfortable', name: 'Comfortable', hint: 'Room to breathe' },
-  { id: 'compact',     name: 'Compact',     hint: 'More on screen' },
-  { id: 'condensed',   name: 'Condensed',   hint: 'As much as fits' }
+  { id: 'comfortable', name: t('Comfortable'), hint: t('Room to breathe') },
+  { id: 'compact',     name: t('Compact'),     hint: t('More on screen') },
+  { id: 'condensed',   name: t('Condensed'),   hint: t('As much as fits') }
 ];
 const MOTIONS = [
-  { id: 'system',  name: 'Device' },
-  { id: 'full',    name: 'Full' },
-  { id: 'reduced', name: 'Reduced' },
-  { id: 'off',     name: 'Off' }
+  { id: 'system',  name: t('Device') },
+  { id: 'full',    name: t('Full') },
+  { id: 'reduced', name: t('Reduced') },
+  { id: 'off',     name: t('Off') }
 ];
 const LOOK_DEFAULTS = { accent: 'ember', glass: 50, blur: 28, density: 'comfortable', motion: 'system' };
 const NAV_LOCKED = ['customization', 'settings'];
@@ -77,20 +77,20 @@ function motionAllowed() {
 }
 
 function glassWord(v) {
-  return v <= 15 ? 'Clear' : v <= 40 ? 'Light' : v <= 60 ? 'Balanced' : v <= 85 ? 'Dense' : 'Frosted';
+  return v <= 15 ? t('Clear') : v <= 40 ? tx('glass', 'Light') : v <= 60 ? t('Balanced') : v <= 85 ? t('Dense') : t('Frosted');
 }
 
-function blurWord(v) { return v === 0 ? 'Off' : v + ' px'; }
+function blurWord(v) { return v === 0 ? t('Off') : v + ' px'; }
 
 function motionHint(id) {
   if (id === 'system') {
     const less = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    return 'Follows your device, which currently asks for ' + (less ? 'less motion.' : 'full motion.');
+    return less ? t('Follows your device, which currently asks for less motion.') : t('Follows your device, which currently asks for full motion.');
   }
   return {
-    full: 'Every animation plays, even if your device asks for less.',
-    reduced: 'Looping decoration stops: drifting lights, spinning records, equalisers. Things still move when you click them.',
-    off: 'No animations or transitions anywhere.'
+    full: t('Every animation plays, even if your device asks for less.'),
+    reduced: t('Looping decoration stops: drifting lights, spinning records, equalisers. Things still move when you click them.'),
+    off: t('No animations or transitions anywhere.')
   }[id];
 }
 
@@ -203,14 +203,14 @@ function navEditItem(n, group, i, count, hidden) {
     '<span class="navedit__grip" aria-hidden="true">' + icon('grip', 16) + '</span>' +
     '<span class="navedit__icon">' + icon(n.icon, 17) + '</span>' +
     '<span class="navedit__name t-body-m-med truncate">' + esc(n.label) + '</span>' +
-    (hidden ? '<span class="badge">Hidden</span>' : '') +
+    (hidden ? '<span class="badge">' + t('Hidden') + '</span>' : '') +
     '<span class="navedit__tools">' +
-      '<button class="iconbtn" data-nav-move="up" data-key="' + n.id + '" aria-label="Move ' + esc(n.label) + ' up"' + (i === 0 ? ' disabled' : '') + '>' + icon('chevronUp', 15) + '</button>' +
-      '<button class="iconbtn" data-nav-move="down" data-key="' + n.id + '" aria-label="Move ' + esc(n.label) + ' down"' + (i === count - 1 ? ' disabled' : '') + '>' + icon('chevronDown', 15) + '</button>' +
+      '<button class="iconbtn" data-nav-move="up" data-key="' + n.id + '" aria-label="' + t('Move {name} up', { name: esc(n.label) }) + '"' + (i === 0 ? ' disabled' : '') + '>' + icon('chevronUp', 15) + '</button>' +
+      '<button class="iconbtn" data-nav-move="down" data-key="' + n.id + '" aria-label="' + t('Move {name} down', { name: esc(n.label) }) + '"' + (i === count - 1 ? ' disabled' : '') + '>' + icon('chevronDown', 15) + '</button>' +
       (locked
-        ? '<span class="iconbtn navedit__lock" data-tip="Always shown" aria-label="' + esc(n.label) + ' is always shown">' + icon('lock', 14) + '</span>'
-        : '<button class="iconbtn" data-nav-hide="' + n.id + '" aria-pressed="' + !!hidden + '" data-tip="' + (hidden ? 'Show in sidebar' : 'Hide from sidebar') + '" aria-label="' +
-            (hidden ? 'Show ' : 'Hide ') + esc(n.label) + '">' + icon(hidden ? 'eyeOff' : 'eye', 15) + '</button>') +
+        ? '<span class="iconbtn navedit__lock" data-tip="' + t('Always shown') + '" aria-label="' + t('{name} is always shown', { name: esc(n.label) }) + '">' + icon('lock', 14) + '</span>'
+        : '<button class="iconbtn" data-nav-hide="' + n.id + '" aria-pressed="' + !!hidden + '" data-tip="' + (hidden ? t('Show in sidebar') : t('Hide from sidebar')) + '" aria-label="' +
+            (hidden ? t('Show {name}', { name: esc(n.label) }) : t('Hide {name}', { name: esc(n.label) })) + '">' + icon(hidden ? 'eyeOff' : 'eye', 15) + '</button>') +
     '</span>' +
   '</li>';
 }
@@ -221,7 +221,7 @@ function navEditor() {
   NAV.forEach(function (n) { if (n.id) byId[n.id] = n; });
   const groups = l.groups.map(function (g) {
     return '<div class="navedit__group">' +
-      '<span class="navedit__label t-label-s c-tertiary">' + esc(g.name) + '</span>' +
+      '<span class="navedit__label t-label-s c-tertiary">' + esc(t(g.name)) + '</span>' +
       '<ul class="navedit__list">' + g.ids.map(function (id, i) { return navEditItem(byId[id], g.name, i, g.ids.length, l.hidden[id]); }).join('') + '</ul>' +
     '</div>';
   }).join('');
@@ -233,7 +233,7 @@ function navEditor() {
   const full = l.pins.length >= MAX_NAV_PINS;
   const pins =
     '<div class="navedit__group">' +
-      '<span class="navedit__label t-label-s c-tertiary">Pinned friends · ' + pinned.length + ' of ' + MAX_NAV_PINS + '</span>' +
+      '<span class="navedit__label t-label-s c-tertiary">' + t('Pinned friends · {count} of {max}', { count: pinned.length, max: MAX_NAV_PINS }) + '</span>' +
       (pinned.length
         ? '<ul class="navedit__list">' + pinned.map(function (f, i) {
             return '<li class="navedit__item" draggable="true" data-dnd-key="' + esc(f.username) + '" data-dnd-group="pins" data-flip="pin:' + esc(f.username) + '">' +
@@ -241,19 +241,19 @@ function navEditor() {
               avatarEl(f.initials, '24', null, f.avatarUrl) +
               '<span class="navedit__name t-body-m-med truncate">' + esc(f.name) + '</span>' +
               '<span class="navedit__tools">' +
-                '<button class="iconbtn" data-nav-move="up" data-key="' + esc(f.username) + '" data-group="pins" aria-label="Move ' + esc(f.name) + ' up"' + (i === 0 ? ' disabled' : '') + '>' + icon('chevronUp', 15) + '</button>' +
-                '<button class="iconbtn" data-nav-move="down" data-key="' + esc(f.username) + '" data-group="pins" aria-label="Move ' + esc(f.name) + ' down"' + (i === pinned.length - 1 ? ' disabled' : '') + '>' + icon('chevronDown', 15) + '</button>' +
-                '<button class="iconbtn" data-navpin="' + esc(f.username) + '" data-tip="Unpin" aria-label="Unpin ' + esc(f.name) + '">' + icon('close', 15) + '</button>' +
+                '<button class="iconbtn" data-nav-move="up" data-key="' + esc(f.username) + '" data-group="pins" aria-label="' + t('Move {name} up', { name: esc(f.name) }) + '"' + (i === 0 ? ' disabled' : '') + '>' + icon('chevronUp', 15) + '</button>' +
+                '<button class="iconbtn" data-nav-move="down" data-key="' + esc(f.username) + '" data-group="pins" aria-label="' + t('Move {name} down', { name: esc(f.name) }) + '"' + (i === pinned.length - 1 ? ' disabled' : '') + '>' + icon('chevronDown', 15) + '</button>' +
+                '<button class="iconbtn" data-navpin="' + esc(f.username) + '" data-tip="' + t('Unpin') + '" aria-label="' + t('Unpin {name}', { name: esc(f.name) }) + '">' + icon('close', 15) + '</button>' +
               '</span>' +
             '</li>';
           }).join('') + '</ul>'
         : '<p class="t-body-s c-tertiary navedit__empty">' + (DATA.friends.length
-            ? 'Pin the friends you check on most. They get their own spot in the sidebar.'
-            : 'Once you have friends, you can pin them here for one-click access.') + '</p>') +
+            ? t('Pin the friends you check on most. They get their own spot in the sidebar.')
+            : t('Once you have friends, you can pin them here for one-click access.')) + '</p>') +
       (free.length
         ? '<div class="navedit__add">' + free.map(function (f) {
             return '<button class="navpick" data-navpin="' + esc(f.username) + '" data-flip="pin:' + esc(f.username) + '"' + (full ? ' disabled' : '') +
-              ' aria-label="Pin ' + esc(f.name) + ' to the sidebar">' +
+              ' aria-label="' + t('Pin {name} to the sidebar', { name: esc(f.name) }) + '">' +
               avatarEl(f.initials, '24', null, f.avatarUrl) + '<span class="t-label-m truncate">' + esc(f.name.split(/\s+/)[0]) + '</span>' + icon('plus', 13) +
             '</button>';
           }).join('') + '</div>'
@@ -263,7 +263,7 @@ function navEditor() {
   return '<div class="navedit" id="navEditor">' +
     '<div class="navedit__col">' + groups + '</div>' +
     '<div class="navedit__col">' + pins +
-      '<p class="t-caption c-tertiary">Drag rows by the handle, or use the arrows. On phones the bottom bar stays as it is.</p>' +
+      '<p class="t-caption c-tertiary">' + t('Drag rows by the handle, or use the arrows. On phones the bottom bar stays as it is.') + '</p>' +
     '</div>' +
   '</div>';
 }
@@ -312,13 +312,13 @@ VIEWS.customization = function () {
   const glass = lookPref('glass'), blur = lookPref('blur');
 
   const themePanel =
-    '<section class="panel section">' + sectionHead('Theme') +
+    '<section class="panel section">' + sectionHead(t('Theme')) +
       '<div class="section__body section__body--pad"><div class="themegrid">' +
         ['dark', 'light'].map(function (k) {
           return '<button class="themecard" data-theme-pick="' + k + '">' + themePreview(k) +
             '<div class="themecard__foot"><div class="stack" style="gap:2px">' +
-              '<span class="t-body-m-med">' + (k === 'dark' ? 'Dark' : 'Light') + '</span>' +
-              '<span class="t-caption c-tertiary">' + (k === 'dark' ? 'Warm graphite' : 'Warm paper') + '</span></div>' +
+              '<span class="t-body-m-med">' + (k === 'dark' ? t('Dark') : t('Light')) + '</span>' +
+              '<span class="t-caption c-tertiary">' + (k === 'dark' ? t('Warm graphite') : t('Warm paper')) + '</span></div>' +
               '<span class="themecard__check">' + icon('check', 13) + '</span>' +
             '</div></button>';
         }).join('') +
@@ -326,33 +326,33 @@ VIEWS.customization = function () {
     '</section>';
 
   const accentPanel =
-    '<section class="panel section">' + sectionHead('Accent colour') +
+    '<section class="panel section">' + sectionHead(t('Accent colour')) +
       '<div class="section__body section__body--pad stack stack--sm">' +
-        '<div class="swatches" role="radiogroup" aria-label="Accent colour">' + ACCENTS.map(function (a) {
+        '<div class="swatches" role="radiogroup" aria-label="' + t('Accent colour') + '">' + ACCENTS.map(function (a) {
           return '<button class="swatch" role="radio" data-accent-pick="' + a.id + '" aria-checked="' + (a.id === accent) + '" style="--sw-d:' + a.dark + ';--sw-l:' + a.light + '">' +
             '<span class="swatch__disc" aria-hidden="true"></span><span class="t-label-m">' + a.name + '</span></button>';
         }).join('') + '</div>' +
-        '<p class="t-body-s c-tertiary">Buttons, highlights, the backdrop glow, your recap card and saved images all follow it.</p>' +
+        '<p class="t-body-s c-tertiary">' + t('Buttons, highlights, the backdrop glow, your recap card and saved images all follow it.') + '</p>' +
       '</div>' +
     '</section>';
 
   const surfacePanel =
-    '<section class="panel section">' + sectionHead('Glass and blur') +
+    '<section class="panel section">' + sectionHead(t('Glass and blur')) +
       '<div class="section__body section__body--pad stack">' +
-        '<div class="lens" aria-hidden="true"><i></i><i></i><i></i><div class="lens__glass"><span class="t-label-m">Glass</span></div></div>' +
-        rangeControl('glass', 'Glass intensity', 0, 100, glass, glassWord(glass), ['See-through', 'Solid']) +
-        rangeControl('blur', 'Background blur', 0, 40, blur, blurWord(blur), ['Off, fastest', 'Soft']) +
+        '<div class="lens" aria-hidden="true"><i></i><i></i><i></i><div class="lens__glass"><span class="t-label-m">' + t('Glass') + '</span></div></div>' +
+        rangeControl('glass', t('Glass intensity'), 0, 100, glass, glassWord(glass), [t('See-through'), t('Solid')]) +
+        rangeControl('blur', t('Background blur'), 0, 40, blur, blurWord(blur), [t('Off, fastest'), t('Soft')]) +
       '</div>' +
       '<div class="section__body section__body--flush">' +
-        settingRow('sparkle', 'Ambient backdrop', 'The soft drifting lights behind the glass.',
-          '<button class="toggle" data-toggle="ambient" aria-checked="true" role="switch" aria-label="Ambient backdrop"></button>') +
+        settingRow('sparkle', t('Ambient backdrop'), t('The soft drifting lights behind the glass.'),
+          '<button class="toggle" data-toggle="ambient" aria-checked="true" role="switch" aria-label="' + t('Ambient backdrop') + '"></button>') +
       '</div>' +
     '</section>';
 
   const densityPanel =
-    '<section class="panel section">' + sectionHead('Interface density') +
+    '<section class="panel section">' + sectionHead(t('Interface density')) +
       '<div class="section__body section__body--pad">' +
-        '<div class="choices" role="radiogroup" aria-label="Interface density">' + DENSITIES.map(function (d) {
+        '<div class="choices" role="radiogroup" aria-label="' + t('Interface density') + '">' + DENSITIES.map(function (d) {
           return '<button class="choice" role="radio" data-density-pick="' + d.id + '" aria-checked="' + (d.id === density) + '">' +
             '<span class="choice__pv choice__pv--' + d.id + '" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' +
             '<span class="t-body-m-med">' + d.name + '</span><span class="t-caption c-tertiary">' + d.hint + '</span></button>';
@@ -361,10 +361,10 @@ VIEWS.customization = function () {
     '</section>';
 
   const motionPanel =
-    '<section class="panel section">' + sectionHead('Animations') +
+    '<section class="panel section">' + sectionHead(t('Animations')) +
       '<div class="section__body section__body--pad stack stack--sm">' +
         '<div class="motionrow">' +
-          '<div class="tabs" role="radiogroup" aria-label="Animations">' + MOTIONS.map(function (m) {
+          '<div class="tabs" role="radiogroup" aria-label="' + t('Animations') + '">' + MOTIONS.map(function (m) {
             return '<button class="tab" role="radio" data-motion-pick="' + m.id + '" aria-checked="' + (m.id === motion) + '">' + m.name + '</button>';
           }).join('') + '</div>' +
           '<span class="motionrow__demo" aria-hidden="true"><span class="eq"><i></i><i></i><i></i></span>' +
@@ -376,37 +376,37 @@ VIEWS.customization = function () {
 
   const soundVariant = soundPref('variant');
   const soundPanel =
-    '<section class="panel section">' + sectionHead('Sound effects') +
+    '<section class="panel section">' + sectionHead(t('Sound effects')) +
       '<div class="section__body section__body--flush">' +
-        settingRow('bell', 'Sound effects', 'Soft tones for taps, switches, alerts and new notifications.',
-          '<button class="toggle" data-toggle="sounds" aria-checked="' + soundPref('sounds') + '" role="switch" aria-label="Sound effects"></button>') +
+        settingRow('bell', t('Sound effects'), t('Soft tones for taps, switches, alerts and new notifications.'),
+          '<button class="toggle" data-toggle="sounds" aria-checked="' + soundPref('sounds') + '" role="switch" aria-label="' + t('Sound effects') + '"></button>') +
       '</div>' +
       '<div class="section__body section__body--pad stack stack--sm">' +
-        '<div class="soundpicks" role="radiogroup" aria-label="Sound pitch">' + SOUND_VARIANTS.map(function (v) {
+        '<div class="soundpicks" role="radiogroup" aria-label="' + t('Sound pitch') + '">' + SOUND_VARIANTS.map(function (v) {
           return '<div class="soundcard">' +
             '<button class="soundcard__pick" role="radio" data-sound-pick="' + v.id + '" aria-checked="' + (v.id === soundVariant) + '">' +
               soundWave(v.cycles) +
-              '<span class="t-body-m-med">' + v.name + '</span><span class="t-caption c-tertiary">' + v.hint + '</span>' +
+              '<span class="t-body-m-med">' + t(v.name) + '</span><span class="t-caption c-tertiary">' + t(v.hint) + '</span>' +
             '</button>' +
-            '<button class="iconbtn soundcard__play" data-sound-test="' + v.id + '" data-tip="Preview" aria-label="Preview ' + v.name + '">' + icon('play', 13) + '</button>' +
+            '<button class="iconbtn soundcard__play" data-sound-test="' + v.id + '" data-tip="' + t('Preview') + '" aria-label="' + t('Preview {name}', { name: t(v.name) }) + '">' + icon('play', 13) + '</button>' +
           '</div>';
         }).join('') + '</div>' +
-        '<p class="t-body-s c-tertiary">Picking a voice plays it. Previews play even when effects are off.</p>' +
+        '<p class="t-body-s c-tertiary">' + t('Picking a voice plays it. Previews play even when effects are off.') + '</p>' +
       '</div>' +
     '</section>';
 
   const sidebarPanel =
-    '<section class="panel section">' + sectionHead('Sidebar') +
+    '<section class="panel section">' + sectionHead(t('Sidebar')) +
       '<div class="section__body section__body--flush">' +
-        settingRow('bars', 'Compact sidebar', 'Icons only. The chevron at the top of the sidebar does the same.',
-          '<button class="toggle" data-toggle="rail" aria-checked="false" role="switch" aria-label="Compact sidebar"></button>') +
+        settingRow('bars', t('Compact sidebar'), t('Icons only. The chevron at the top of the sidebar does the same.'),
+          '<button class="toggle" data-toggle="rail" aria-checked="false" role="switch" aria-label="' + t('Compact sidebar') + '"></button>') +
       '</div>' +
       '<div class="section__body section__body--pad">' + navEditor() + '</div>' +
     '</section>';
 
   return wrap(
-    pageHead('Make it yours', 'Customization',
-      '<button class="btn btn--ghost btn--sm" data-action="look-reset">' + icon('repeat', 15) + 'Reset to defaults</button>'),
+    pageHead(t('Make it yours'), t('Customization'),
+      '<button class="btn btn--ghost btn--sm" data-action="look-reset">' + icon('repeat', 15) + t('Reset to defaults') + '</button>'),
     themePanel +
     '<div class="cols cols--half">' +
       '<div class="stack">' + accentPanel + surfacePanel + '</div>' +
