@@ -601,7 +601,9 @@ function renderBottomNav() {
   return '<nav>' + MOBILE_NAV.map(function (id) {
     const n = NAV.filter(function (x) { return x.id === id; })[0];
     return '<a href="#/' + n.id + '" data-view-link="' + n.id + '">' + icon(n.icon, 20) + n.label + '</a>';
-  }).join('') + '</nav>';
+  }).join('') + '</nav>' +
+  // Phones only, on the views whose header button it replaces (see views.css).
+  '<button class="fab" data-action="new-post" aria-label="' + t('Share a track') + '">' + icon('plus', 22) + '</button>';
 }
 
 function renderMobileBar() {
@@ -610,7 +612,78 @@ function renderMobileBar() {
     '<a class="iconbtn iconbtn--lg mbell" href="#/notifications" data-view-link="notifications" aria-label="' + t('Notifications') + '">' + icon('bell', 18) +
       (DATA.notifications.unread ? '<b class="mbell__dot"></b>' : '') + '</a>' +
     '<button class="iconbtn iconbtn--lg" id="openCmdkMobile" aria-label="' + t('Search') + '">' + icon('search', 18) + '</button>' +
-    '<button class="iconbtn iconbtn--lg" data-nav="settings" aria-label="' + t('Settings') + '">' + icon('sliders', 18) + '</button>';
+    '<button class="mbar-me" data-action="open-menu" aria-haspopup="dialog" aria-label="' + t('Menu') + '">' +
+      avatarEl(DATA.me.initials, '32', null, DATA.me.avatarUrl) + '</button>';
+}
+
+/* The pages the tab bar has no room for, as a sheet opened from your avatar on phones. */
+function openMobileMenu() {
+  const layout = navLayout();
+  const byId = {};
+  NAV.forEach(function (n) { if (n.id) byId[n.id] = n; });
+  const skip = MOBILE_NAV.concat('notifications');
+  const items = [];
+  layout.groups.forEach(function (g) {
+    g.ids.forEach(function (id) {
+      if (skip.indexOf(id) < 0 && !layout.hidden[id]) items.push(byId[id]);
+    });
+  });
+  const o = document.getElementById('overlay');
+  o.hidden = false;
+  o.innerHTML =
+    '<div class="scrim" data-scrim>' +
+      '<div class="modal msheet" role="dialog" aria-modal="true" aria-label="' + t('Menu') + '">' +
+        '<a class="msheet__me" href="#/profile" data-sheet-link>' +
+          avatarEl(DATA.me.initials, null, null, DATA.me.avatarUrl) +
+          '<span class="msheet__who">' +
+            '<span class="t-title-s truncate">' + esc(DATA.me.name) + '</span>' +
+            '<span class="t-body-s c-tertiary truncate">' + esc(DATA.me.username) + '</span>' +
+          '</span>' +
+          '<span class="t-label-s c-secondary">' + t('View profile') + '</span>' +
+        '</a>' +
+        '<nav class="msheet__grid">' + items.map(function (n) {
+          return '<a class="msheet__item" href="#/' + n.id + '" data-view-link="' + n.id + '" data-sheet-link>' +
+            '<span class="msheet__well">' + icon(n.icon, 20) + '</span>' +
+            '<span class="t-label-m">' + n.label + '</span>' +
+            (n.dot ? '<span class="nav__dot" aria-label="' + t('In development') + '"></span>' : '') +
+          '</a>';
+        }).join('') + '</nav>' +
+        '<button type="button" class="msheet__out" data-action="logout">' + icon('logout', 17) + t('Log out') + '</button>' +
+      '</div>' +
+    '</div>';
+  markCurrentNav();
+}
+
+/* Phones: drag a sheet down by its top edge to close it. */
+function enableSheetDrag() {
+  const MQ = window.matchMedia('(max-width: 560px)');
+  let drag = null;
+  document.getElementById('overlay').addEventListener('touchstart', function (e) {
+    const sheet = e.target.closest('.modal');
+    if (!MQ.matches || !sheet || sheet.classList.contains('cmdk') || e.touches.length > 1) return;
+    const top = sheet.getBoundingClientRect().top;
+    // Only from the top strip (handle and header), so scrolling and typing inside stay untouched.
+    if (e.touches[0].clientY - top > 64 || e.target.closest('input, textarea, select')) return;
+    drag = { sheet: sheet, y: e.touches[0].clientY, dy: 0 };
+    sheet.style.transition = 'none';
+  }, { passive: true });
+  document.getElementById('overlay').addEventListener('touchmove', function (e) {
+    if (!drag) return;
+    drag.dy = Math.max(0, e.touches[0].clientY - drag.y);
+    drag.sheet.style.transform = 'translateY(' + drag.dy + 'px)';
+  }, { passive: true });
+  function end() {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    d.sheet.style.transition = '';
+    if (d.dy > Math.min(120, d.sheet.offsetHeight / 4)) {
+      d.sheet.style.transform = 'translateY(100%)';
+      setTimeout(closeOverlay, 180);
+    } else d.sheet.style.transform = '';
+  }
+  document.getElementById('overlay').addEventListener('touchend', end);
+  document.getElementById('overlay').addEventListener('touchcancel', end);
 }
 
 function notifCountEl() {
@@ -674,6 +747,7 @@ function currentRoute() {
 
 function setView(name) {
   app.view = name;
+  document.body.dataset.view = name;
   document.getElementById('viewRoot').innerHTML = VIEWS[name]();
   markCurrentNav();
   const authed = BARE_VIEWS.indexOf(name) === -1;
@@ -711,6 +785,7 @@ function markCurrentNav() {
 
 function repaintSidebar() {
   document.getElementById('sidebar').innerHTML = renderSidebar();
+  document.getElementById('mobilebar').innerHTML = renderMobileBar();
   markCurrentNav();
   applyRail();
 }
@@ -2628,6 +2703,10 @@ document.addEventListener('click', function (e) {
   if (tappable && !tappable.closest('[data-toggle], [data-sound-pick], [data-sound-test], [role="switch"]') &&
       !(tappable.tagName === 'A' && (tappable.getAttribute('href') || '').indexOf('#/') === 0)) sounds.tap();
 
+  // A link inside a sheet navigates as usual; the sheet shouldn't stay over the new page.
+  if (t.closest('[data-sheet-link]')) closeOverlay();
+  if (t.closest('[data-action="open-menu"]')) { openMobileMenu(); return; }
+
   const closeBtn = t.closest('[data-close]');
   const scrim = t.closest('[data-scrim]');
   if (closeBtn || (scrim && t === scrim)) { closeOverlay(); return; }
@@ -3040,6 +3119,8 @@ window.addEventListener('pageshow', function (e) {
 });
 
 window.addEventListener('hashchange', function () {
+  // Back on a phone closes whatever was open instead of leaving it over the next page.
+  if (!document.getElementById('overlay').hidden) closeOverlay();
   const name = currentRoute();
   if (name === 'reset' && app.view !== 'reset') resetReturn = app.view === 'settings' ? '#/settings' : '#/home';
   if (name !== app.view) sounds.navigate();
@@ -3064,6 +3145,7 @@ window.addEventListener('hashchange', function () {
   document.getElementById('mobilebar').innerHTML = renderMobileBar();
   applyRail();
   RAIL_NARROW.addEventListener('change', applyRail);
+  enableSheetDrag();
   setAmbient(STORE.get('ambient', '1') === '1');
 
   // Set by handleGoogle just before leaving the page; read once so a later reload isn't mistaken for a return.

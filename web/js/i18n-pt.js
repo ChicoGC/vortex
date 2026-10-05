@@ -26,6 +26,7 @@ I18N.pt = {
   "Friends shows posts from you and your friends. Add friends, or switch to For you.": "Amigos mostra posts seus e dos seus amigos. Adicione amigos ou mude para Para você.",
   "No public posts yet. Share a track and make it public to start For you.": "Ainda não há posts públicos. Compartilhe uma música como pública para começar o Para você.",
   "public posts": "posts públicos",
+  "Menu": "Menu",
   "Home": "Início",
   "Feed": "Feed",
   "Friends": "Amigos",

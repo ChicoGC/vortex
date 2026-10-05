@@ -17,6 +17,7 @@ body {
   background: var(--bg-canvas);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
   overflow: hidden;
 }
 
@@ -127,6 +128,7 @@ svg { display: block; flex: none; }
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   gap: var(--shell-inset);
   height: 100vh;
+  height: 100dvh;   /* the visible area on phones, not the one behind the browser bars */
   padding: var(--shell-inset);
   transition: grid-template-columns var(--dur-slow) var(--ease-out);
 }
