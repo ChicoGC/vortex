@@ -255,12 +255,40 @@ alter table public.posts drop constraint if exists posts_spotify_track_id_check;
 alter table public.posts add constraint posts_spotify_track_id_check
   check (spotify_track_id is null or spotify_track_id ~ '^[A-Za-z0-9]{22}$');
 
+-- Who can see a post: 'public' (anyone) or 'friends' (the author and their
+-- accepted friends). Older posts stay public.
+alter table public.posts add column if not exists visibility text not null default 'public';
+
+alter table public.posts drop constraint if exists posts_visibility_check;
+alter table public.posts add constraint posts_visibility_check
+  check (visibility in ('public', 'friends'));
+
+create index if not exists posts_public_created_idx
+  on public.posts (created_at desc) where visibility = 'public';
+
 alter table public.posts enable row level security;
 
+-- Whether the caller and `other` are accepted friends. Takes only one id, so
+-- nobody can ask about friendships between two other people.
+create or replace function public.is_friend(other uuid)
+returns boolean
+language sql
+stable
+security definer set search_path = public
+as $$
+  select exists (
+    select 1 from public.friendships f
+    where f.status = 'accepted'
+      and ((f.requester_id = auth.uid() and f.addressee_id = other)
+        or (f.addressee_id = auth.uid() and f.requester_id = other))
+  );
+$$;
+
 drop policy if exists "posts are publicly readable" on public.posts;
-create policy "posts are publicly readable"
+drop policy if exists "posts visible to their audience" on public.posts;
+create policy "posts visible to their audience"
   on public.posts for select
-  using (true);
+  using (visibility = 'public' or auth.uid() = user_id or public.is_friend(user_id));
 
 drop policy if exists "users can create own posts" on public.posts;
 create policy "users can create own posts"
@@ -297,10 +325,12 @@ create table if not exists public.reactions (
 
 alter table public.reactions enable row level security;
 
+-- Readable by whoever can see the post (the posts policy applies inside).
 drop policy if exists "reactions are publicly readable" on public.reactions;
-create policy "reactions are publicly readable"
+drop policy if exists "reactions visible with their post" on public.reactions;
+create policy "reactions visible with their post"
   on public.reactions for select
-  using (true);
+  using (exists (select 1 from public.posts p where p.id = post_id));
 
 drop policy if exists "users can react as themselves" on public.reactions;
 create policy "users can react as themselves"
@@ -325,10 +355,12 @@ create table if not exists public.comments (
 
 alter table public.comments enable row level security;
 
+-- Readable by whoever can see the post (the posts policy applies inside).
 drop policy if exists "comments are publicly readable" on public.comments;
-create policy "comments are publicly readable"
+drop policy if exists "comments visible with their post" on public.comments;
+create policy "comments visible with their post"
   on public.comments for select
-  using (true);
+  using (exists (select 1 from public.posts p where p.id = post_id));
 
 drop policy if exists "users can comment as themselves" on public.comments;
 create policy "users can comment as themselves"
@@ -839,6 +871,7 @@ create policy "users can react as themselves"
   on public.reactions for insert
   with check (
     auth.uid() = user_id
+    and exists (select 1 from public.posts p where p.id = post_id)
     and not public.blocked_with((select p.user_id from public.posts p where p.id = post_id))
   );
 
@@ -847,6 +880,7 @@ create policy "users can comment as themselves"
   on public.comments for insert
   with check (
     auth.uid() = user_id
+    and exists (select 1 from public.posts p where p.id = post_id)
     and not public.blocked_with((select p.user_id from public.posts p where p.id = post_id))
   );
 

@@ -297,14 +297,16 @@ const db = {
   },
 
   posts: {
-    /* userIds limits the feed to those authors (e.g. you + friends); omit for everyone. */
-    async list(limit, userIds) {
+    /* userIds limits the feed to those authors (e.g. you + friends); omit for everyone.
+       publicOnly drops friends-only posts. RLS already hides the ones you can't see. */
+    async list(limit, userIds, publicOnly) {
       let req = supabaseClient
         .from('posts')
         .select(POST_SELECT)
         .order('created_at', { ascending: false })
         .limit(limit || 30);
       if (userIds) req = req.in('user_id', userIds);
+      if (publicOnly) req = req.eq('visibility', 'public');
       const { data, error } = await req;
       if (error) throw error;
       return data;
@@ -316,12 +318,14 @@ const db = {
       return data;
     },
 
-    async create(userId, { trackTitle, artist, album, artSeed, note, albumImageUrl, spotifyTrackId }) {
+    /* visibility: 'public' (anyone) or 'friends' (you and your friends). */
+    async create(userId, { trackTitle, artist, album, artSeed, note, albumImageUrl, spotifyTrackId, visibility }) {
       const { data, error } = await supabaseClient
         .from('posts')
         .insert({
           user_id: userId, track_title: trackTitle, artist, album, art_seed: artSeed || 1, note,
-          album_image_url: albumImageUrl || null, spotify_track_id: spotifyTrackId || null
+          album_image_url: albumImageUrl || null, spotify_track_id: spotifyTrackId || null,
+          visibility: visibility === 'friends' ? 'friends' : 'public'
         })
         .select()
         .single();

@@ -130,7 +130,7 @@ const UI = {
   openComments: {},
   openReplies: {},  // top-level comment id -> replies expanded
   replyTo: {},      // post id -> { threadId, name, prefix } while a reply box is open
-  feedScope: 'Friends',
+  feedScope: 'Friends',  // 'For you' | 'Friends'
   feedStatus: 'idle',  // 'loading' | 'ok' | 'error'
   friendSearch: { q: '', results: null, loading: false, error: false },
   // Spotify data for Activity / Music: { status: 'loading'|'ok'|'error', data, at, error }
@@ -226,6 +226,9 @@ function postCard(p) {
     '<span class="post__who">' +
       '<span class="t-body-m-med truncate">' + esc(p.user) + '</span>' +
       '<span class="t-meta c-tertiary">' + esc(p.time) + '</span>' +
+      (p.visibility === 'friends'
+        ? '<span class="post__audience t-meta" data-tip="' + (p.mine ? t('Only you and your friends can see this') : t('Only {name}’s friends can see this', { name: esc(p.user) })) + '">' + icon('lock', 12) + t('Friends') + '</span>'
+        : '') +
     '</span>';
   return '<article class="panel post" data-post="' + esc(p.id) + '">' +
     '<div class="post__head">' +
@@ -490,7 +493,10 @@ function feedEmpty() {
   if (UI.feedStatus === 'error') return retryPanel(t('Could not load the feed. Check your connection.'), 'feed-retry');
   if (UI.feedScope === 'Friends' && !DATA.friends.length) {
     return ghostPanel(null, findFriendsButton(true) + sharePostButton(false),
-      t('Your feed shows you and your friends. Add friends, or switch to Everyone.'));
+      t('Friends shows posts from you and your friends. Add friends, or switch to For you.'));
+  }
+  if (UI.feedScope === 'For you') {
+    return ghostPanel(null, sharePostButton(false), t('No public posts yet. Share a track and make it public to start For you.'));
   }
   return ghostPanel(null, sharePostButton(false));
 }
@@ -510,7 +516,7 @@ function feedInsights() {
     const artists = Object.keys(byArtist).map(function (k) { return byArtist[k]; })
       .sort(function (a, b) { return b.n - a.n; }).slice(0, 5);
     panels.push('<section class="panel section">' +
-      sectionHead(t('Most shared artists'), UI.feedScope === 'Friends' ? t('you & friends') : t('everyone')) +
+      sectionHead(t('Most shared artists'), UI.feedScope === 'Friends' ? t('you & friends') : t('public posts')) +
       '<div class="section__body">' + artists.map(function (a, i) {
         return '<div class="row" style="cursor:default">' +
           '<span class="row__index">' + (i + 1) + '</span>' +
@@ -553,7 +559,7 @@ function feedInsights() {
 VIEWS.feed = function () {
   return wrap(
     pageHead(t('Live from your circle'), t('Feed'),
-      tabsEl('feed', ['Friends', 'Everyone'], UI.feedScope) + sharePostButton(true)),
+      tabsEl('feed', ['For you', 'Friends'], UI.feedScope) + sharePostButton(true)),
     '<div class="cols cols--feed">' +
       '<div class="stack">' + (DATA.feed.length ? DATA.feed.map(postCard).join('') : feedEmpty()) + '</div>' +
       '<div class="stack">' + friendsPinsPanel() + feedInsights() + '</div>' +

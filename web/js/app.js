@@ -117,6 +117,7 @@ function transformPostData(post, currentUserId) {
     image: post.album_image_url,
     trackId: post.spotify_track_id,
     note: post.note,
+    visibility: post.visibility === 'friends' ? 'friends' : 'public',
     reactions: { flame: count('flame'), heart: count('heart') },
     reacted: { flame: mineOf('flame'), heart: mineOf('heart') },
     comments: comments
@@ -234,8 +235,10 @@ async function loadFeed() {
   if (!DATA.feed.length) UI.feedStatus = 'loading';
   try {
     const me = app.session.user.id;
-    const authors = scope === 'Friends' ? [me].concat(DATA.friends.map(function (f) { return f.id; })) : null;
-    const posts = await db.posts.list(30, authors);
+    // For you: every public post. Friends: you and your friends, friends-only posts included.
+    const posts = scope === 'Friends'
+      ? await db.posts.list(30, [me].concat(DATA.friends.map(function (f) { return f.id; })))
+      : await db.posts.list(30, null, true);
     if (seq !== feedLoadSeq) return;  // a newer load (e.g. the other tab) owns the feed now
     DATA.feed = posts.filter(function (post) { return !isBlocked(post.user_id); }).map(function (post) {
       return transformPostData(post, me);
@@ -1900,6 +1903,31 @@ async function runPostSearch(query) {
   }
 }
 
+/* The audience picked last time is the default for the next post. */
+function lastPostAudience() {
+  try { return localStorage.getItem('vortex.postAudience') === 'friends' ? 'friends' : 'public'; } catch (e) { return 'public'; }
+}
+
+function audiencePicker(selected) {
+  const options = [
+    ['public', 'globe', t('Public'), t('Anyone can see it in For you.')],
+    ['friends', 'lock', t('Friends only'), t('Only you and your friends.')]
+  ];
+  return '<fieldset class="audience">' +
+    '<legend class="t-label-m c-secondary">' + t('Who can see this') + '</legend>' +
+    '<div class="audience__options">' + options.map(function (o) {
+      return '<label class="audience__option">' +
+        '<input class="audience__input" type="radio" name="postAudience" value="' + o[0] + '"' + (o[0] === selected ? ' checked' : '') + '>' +
+        '<span class="audience__well">' + icon(o[1], 16) + '</span>' +
+        '<span class="audience__text">' +
+          '<span class="t-body-m-med">' + o[2] + '</span>' +
+          '<span class="t-body-s c-tertiary">' + o[3] + '</span>' +
+        '</span>' +
+      '</label>';
+    }).join('') + '</div>' +
+  '</fieldset>';
+}
+
 function openPostForm() {
   postTrack = null;
   postSearchResults = [];
@@ -1949,6 +1977,7 @@ function openPostForm() {
             '<span class="field field--area">' + icon('comment', 17) +
               '<textarea id="postNote" placeholder="' + t('What do you think? (optional)') + '" maxlength="500" rows="3"></textarea></span>' +
           '</div>' +
+          audiencePicker(lastPostAudience()) +
         '</form>' +
         '<div class="modal__foot">' +
           '<button type="button" class="btn btn--ghost btn--sm" data-close>' + t('Cancel') + '</button>' +
@@ -2391,6 +2420,8 @@ async function handlePostSubmit(form) {
   const artist = form.querySelector('#postArtist').value.trim();
   const album = form.querySelector('#postAlbum').value.trim();
   const note = form.querySelector('#postNote').value.trim();
+  const picked = form.querySelector('input[name="postAudience"]:checked');
+  const visibility = picked && picked.value === 'friends' ? 'friends' : 'public';
   const errBox = document.getElementById('postError');
   const errText = document.getElementById('postErrorText');
 
@@ -2414,8 +2445,12 @@ async function handlePostSubmit(form) {
       note: note || null,
       artSeed: trackId ? artSeedFor(trackId) : 1 + Math.floor(Math.random() * 6),
       albumImageUrl: image,
-      spotifyTrackId: trackId
+      spotifyTrackId: trackId,
+      visibility: visibility
     });
+    try { localStorage.setItem('vortex.postAudience', visibility); } catch (e) {}
+    // A friends-only post never shows in For you, so land where it can be seen.
+    if (visibility === 'friends' && UI.feedScope !== 'Friends') { UI.feedScope = 'Friends'; DATA.feed = []; }
     closeOverlay();
     await Promise.all([loadFeed(), loadMyActivity()]);
     if (app.view === 'feed') setView('feed');

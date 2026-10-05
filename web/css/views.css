@@ -144,6 +144,31 @@
 .post__author { display: flex; align-items: center; gap: 9px; min-width: 0; color: inherit; text-decoration: none; border-radius: var(--radius-sm); }
 a.post__author:hover .t-body-m-med { text-decoration: underline; }
 .post__who { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.post__audience { display: inline-flex; align-items: center; gap: 3px; flex: none; color: var(--text-tertiary); }
+.post__audience svg { align-self: center; }
+
+/* Share form: who can see the post */
+.audience { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.audience legend { padding: 0; margin-bottom: 7px; }
+.audience__options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.audience__option {
+  position: relative; display: flex; align-items: flex-start; gap: 10px; min-width: 0;
+  padding: 11px 12px; border-radius: var(--radius-md); cursor: pointer;
+  background: var(--glass-panel); border: 1px solid var(--border-subtle);
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.audience__option:hover { border-color: var(--border-strong); }
+.audience__input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.audience__well {
+  display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--glass-raised); color: var(--text-secondary);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--dur-base) var(--ease-spring);
+}
+.audience__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.audience__option:has(.audience__input:checked) { border-color: var(--accent-border); background: var(--accent-soft); }
+.audience__input:checked ~ .audience__well { background: var(--accent-base); color: var(--text-on-accent); transform: scale(1.06); }
+.audience__option:has(.audience__input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+@media (max-width: 420px) { .audience__options { grid-template-columns: 1fr; } }
 .post__track { display: flex; align-items: center; gap: 12px; }
 .post__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .post__play {
