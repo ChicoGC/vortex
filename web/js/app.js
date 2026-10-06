@@ -127,31 +127,54 @@ function transformPostData(post, currentUserId) {
 async function loadCurrentUser() {
   if (!app.session) return;
   try {
-    const profile = await db.profiles.get(app.session.user.id);
-    app.needsUsername = profile.username_confirmed === false;
-    // Before supabase/schema.sql adds the column there's nothing to save an answer to, so don't ask.
-    app.needsConsent = 'privacy_version' in profile && profile.privacy_version !== PRIVACY_VERSION;
-    await Promise.all([loadFriends(), loadMyActivity(), loadBlocks()]);
-
-    DATA.me.name = profile.name;
-    DATA.me.email = app.session.user.email;
-    DATA.me.username = '@' + profile.username;
-    DATA.me.initials = initialsFrom(profile.name);
-    DATA.me.avatarUrl = profile.avatar_url || null;
-    DATA.me.pin = pinFromRow(profile);
-    DATA.me.bio = profile.bio || '';
-    DATA.me.shareListening = profile.share_listening !== false;
-    DATA.me.shareTaste = profile.share_taste !== false;
-
-    const joinedDate = new Date(profile.created_at);
-    const month = joinedDate.toLocaleString(loc('en-US'), { month: 'long' });
-    const year = joinedDate.getFullYear();
-    DATA.me.joined = t('{month} {year}', { month: month, year: year });
-
+    // All at once; only the feed waits, since it needs your friends and who you've blocked.
+    await Promise.all([
+      db.profiles.get(app.session.user.id).then(function (profile) {
+        applyProfile(profile);
+        rememberProfile(profile);
+      }),
+      loadMyActivity(),
+      Promise.all([loadFriends(), loadBlocks()]).then(loadFeed)
+    ]);
     repaintSidebar();
-
-    await loadFeed();
   } catch (e) { console.error('Error loading user:', e); }
+}
+
+function applyProfile(profile) {
+  app.needsUsername = profile.username_confirmed === false;
+  // Before supabase/schema.sql adds the column there's nothing to save an answer to, so don't ask.
+  app.needsConsent = 'privacy_version' in profile && profile.privacy_version !== PRIVACY_VERSION;
+  DATA.me.name = profile.name;
+  DATA.me.email = app.session.user.email;
+  DATA.me.username = '@' + profile.username;
+  DATA.me.initials = initialsFrom(profile.name);
+  DATA.me.avatarUrl = profile.avatar_url || null;
+  DATA.me.pin = pinFromRow(profile);
+  DATA.me.bio = profile.bio || '';
+  DATA.me.shareListening = profile.share_listening !== false;
+  DATA.me.shareTaste = profile.share_taste !== false;
+
+  const joinedDate = new Date(profile.created_at);
+  const month = joinedDate.toLocaleString(loc('en-US'), { month: 'long' });
+  const year = joinedDate.getFullYear();
+  DATA.me.joined = t('{month} {year}', { month: month, year: year });
+}
+
+/* Your profile from the last visit, so the next one can paint before the network answers.
+   Only on this device, only for the signed-in account, and dropped on sign-out. */
+function rememberProfile(profile) {
+  STORE.set('profile', JSON.stringify({ id: app.session.user.id, row: profile }));
+}
+
+function rememberedProfile() {
+  try {
+    const saved = JSON.parse(STORE.get('profile', 'null'));
+    return saved && saved.id === app.session.user.id && saved.row ? saved.row : null;
+  } catch (e) { return null; }
+}
+
+function forgetProfile() {
+  try { localStorage.removeItem('vortex.profile'); } catch (e) { /* private mode */ }
 }
 
 /* Your totals and latest shares, for Home and Profile. Failures leave the
@@ -3121,6 +3144,7 @@ window.addEventListener('pageshow', function (e) {
 window.addEventListener('hashchange', function () {
   // Back on a phone closes whatever was open instead of leaving it over the next page.
   if (!document.getElementById('overlay').hidden) closeOverlay();
+  document.body.classList.remove('quiet-render');
   const name = currentRoute();
   if (name === 'reset' && app.view !== 'reset') resetReturn = app.view === 'settings' ? '#/settings' : '#/home';
   if (name !== app.view) sounds.navigate();
@@ -3156,6 +3180,20 @@ window.addEventListener('hashchange', function () {
   } catch (e) { /* private mode */ }
 
   app.session = await db.auth.getSession();
+  // Paint the page right away from last visit's profile, with the feed loading; the fresh data
+  // fills it in below. A first visit, or one that still owes onboarding, waits for the network.
+  let painted = false;
+  const remembered = app.session && !AUTH_LINK ? rememberedProfile() : null;
+  if (remembered) {
+    applyProfile(remembered);
+    if (!onboardingPending()) {
+      UI.feedStatus = 'loading';
+      repaintSidebar();
+      if (!location.hash) history.replaceState(null, '', location.pathname + location.search + '#/home');
+      setView(currentRoute());
+      painted = true;
+    }
+  }
   if (app.session) await loadCurrentUser();
   // The policy box was ticked on the signup page before leaving for Google.
   if (app.session && app.needsConsent && oauthReturn && oauthReturn.privacy === PRIVACY_VERSION) {
@@ -3175,6 +3213,7 @@ window.addEventListener('hashchange', function () {
       stopSpotifyPolling();
       stopListeningFeed();
       stopNotifications();
+      forgetProfile();
       DATA.friends = []; DATA.incoming = []; DATA.outgoing = []; DATA.feed = []; DATA.blocked = [];
       DATA.me.stats = null; DATA.me.recentPosts = []; DATA.me.pin = null;
       DATA.notifications = { status: 'idle', items: [], unread: 0 };
@@ -3216,8 +3255,16 @@ window.addEventListener('hashchange', function () {
     if (dest === pendingDeepLink) pendingDeepLink = null;
     history.replaceState(null, '', location.pathname + location.search + dest);
   }
-  if (!location.hash) location.hash = app.session ? '#/home' : '#/login';
-  setView(currentRoute());
+  // replaceState, not location.hash: a hashchange would render the page and load its data a second time.
+  if (!location.hash) history.replaceState(null, '', location.pathname + location.search + (app.session ? '#/home' : '#/login'));
+  // Don't redraw under someone already typing in the early page.
+  const typing = painted && document.activeElement && document.activeElement.closest('#viewRoot input, #viewRoot textarea');
+  if (!typing || currentRoute() !== app.view) {
+    // Filling in the early page in place, so it doesn't play its entrance a second time.
+    // Stays until the next navigation: removing it sooner would start the animation anyway.
+    if (painted && currentRoute() === app.view) document.body.classList.add('quiet-render');
+    setView(currentRoute());
+  }
   if (AUTH_LINK && AUTH_LINK.error && app.view === 'login') {
     showAuthMessage(oauthReturn
       ? t('Google sign-in didn’t finish. Try again, or use your email.')
