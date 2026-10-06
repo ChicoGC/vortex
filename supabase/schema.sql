@@ -627,11 +627,16 @@ create policy "users can delete their own avatar"
   on storage.objects for delete
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 
--- Only Supabase's own storage CDN URLs are trusted for a profile photo, so a
--- direct API call can't point avatar_url at an arbitrary (e.g. tracking) image.
+-- Only a photo in the person's own folder of the avatars bucket, as the app
+-- uploads it (<user id>/<name>.<png|jpg|webp|gif>), so a direct API call can't
+-- point avatar_url at an arbitrary (e.g. tracking) image, at someone else's
+-- folder, or out of the bucket with "..". NOT VALID so older rows can't block
+-- this; to also check those, run:
+--   alter table public.profiles validate constraint profiles_avatar_url_check;
 alter table public.profiles drop constraint if exists profiles_avatar_url_check;
 alter table public.profiles add constraint profiles_avatar_url_check
-  check (avatar_url is null or avatar_url ~ '^https://hpblrmnturpihyrhwzih\.supabase\.co/storage/v1/object/public/avatars/[A-Za-z0-9/_.-]+$');
+  check (avatar_url is null or avatar_url ~ ('^https://hpblrmnturpihyrhwzih\.supabase\.co/storage/v1/object/public/avatars/'
+    || id::text || '/[A-Za-z0-9_-]+\.(png|jpg|webp|gif)$')) not valid;
 
 -- ==========================================================================
 -- notifications
@@ -962,3 +967,125 @@ drop trigger if exists reports_snapshot on public.reports;
 create trigger reports_snapshot
   before insert on public.reports
   for each row execute function public.snapshot_reported_post();
+
+-- ==========================================================================
+-- hardening (2026-10-06)
+-- Limits that only held in the app's forms, now held by the database too,
+-- since anyone with the publishable key can call the API directly.
+-- ==========================================================================
+
+-- profiles: only the columns the app edits are writable. id, created_at and
+-- privacy_accepted_at stay as the server set them (no backdating "joined").
+revoke update on public.profiles from anon, authenticated;
+grant update (username, name, bio, avatar_url, username_confirmed, privacy_version,
+              share_listening, share_taste,
+              pin_track_id, pin_title, pin_artist, pin_image, pin_note, pinned_at)
+  on public.profiles to authenticated;
+
+-- Text sizes match the share form and the comment box. NOT VALID: checked on
+-- every new row, without failing on anything already stored.
+alter table public.posts drop constraint if exists posts_text_length_check;
+alter table public.posts add constraint posts_text_length_check check (
+  char_length(track_title) between 1 and 300
+  and char_length(artist) between 1 and 300
+  and (album is null or char_length(album) <= 300)
+  and (note is null or char_length(note) <= 500)
+) not valid;
+
+alter table public.comments drop constraint if exists comments_content_length_check;
+alter table public.comments add constraint comments_content_length_check
+  check (char_length(content) between 1 and 500) not valid;
+
+-- The server stamps created_at. A post dated 2099 would otherwise sit at the
+-- top of everyone's For you forever.
+create or replace function public.stamp_created_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.created_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists reactions_stamp_created on public.reactions;
+create trigger reactions_stamp_created
+  before insert on public.reactions
+  for each row execute function public.stamp_created_at();
+
+drop trigger if exists blocks_stamp_created on public.blocks;
+create trigger blocks_stamp_created
+  before insert on public.blocks
+  for each row execute function public.stamp_created_at();
+
+-- Posts: stamped, and at most 10 per person in any 10 minutes, so nobody can
+-- flood For you. Same shape as the comment rate limit above.
+create index if not exists posts_user_created_idx
+  on public.posts (user_id, created_at desc);
+
+create or replace function public.enforce_post_rate_limit()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  recent int;
+begin
+  new.created_at := now();
+  perform pg_advisory_xact_lock(hashtext('post:' || new.user_id::text));
+  select count(*) into recent
+  from public.posts
+  where user_id = new.user_id
+    and created_at > now() - interval '10 minutes';
+  if recent >= 10 then
+    raise exception 'You are sharing too fast. Wait a few minutes and try again.'
+      using errcode = 'P0001', hint = 'rate_limited';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists posts_rate_limit on public.posts;
+create trigger posts_rate_limit
+  before insert on public.posts
+  for each row execute function public.enforce_post_rate_limit();
+
+-- Friend requests: stamped, and at most 30 sent per person in any hour, so
+-- nobody can mass-request (and mass-notify) every account.
+create index if not exists friendships_requester_created_idx
+  on public.friendships (requester_id, created_at desc);
+
+create or replace function public.enforce_friend_request_rate_limit()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  recent int;
+begin
+  new.created_at := now();
+  perform pg_advisory_xact_lock(hashtext('friend:' || new.requester_id::text));
+  select count(*) into recent
+  from public.friendships
+  where requester_id = new.requester_id
+    and created_at > now() - interval '1 hour';
+  if recent >= 30 then
+    raise exception 'You sent a lot of friend requests. Wait a while and try again.'
+      using errcode = 'P0001', hint = 'rate_limited';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists friendships_rate_limit on public.friendships;
+create trigger friendships_rate_limit
+  before insert on public.friendships
+  for each row execute function public.enforce_friend_request_rate_limit();
+
+-- Avatars: only the image types and size the app accepts (5 MB), enforced by
+-- Storage itself, so the bucket can't host other files.
+update storage.buckets
+set file_size_limit = 5242880,
+    allowed_mime_types = array['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+where id = 'avatars';

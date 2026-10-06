@@ -8,6 +8,12 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), 'web');
 const PORT = Number(process.env.PORT) || 4180;
 
+// The security headers vercel.json sends in production (CSP and friends), so they get tested here
+// too. HSTS is left out: it means nothing over plain http on localhost.
+const vercel = JSON.parse(await readFile(join(ROOT, '..', 'vercel.json'), 'utf8'));
+const SECURITY_HEADERS = Object.fromEntries((vercel.headers || []).flatMap((rule) => rule.headers)
+  .filter((h) => h.key !== 'Strict-Transport-Security').map((h) => [h.key, h.value]));
+
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -22,7 +28,13 @@ const TYPES = {
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  let rel = decodeURIComponent(url.pathname);
+  let rel;
+  try {
+    rel = decodeURIComponent(url.pathname);
+  } catch {
+    res.writeHead(400).end('Bad request');  // a malformed %-escape would otherwise crash the server
+    return;
+  }
   if (rel.endsWith('/')) rel += 'index.html';
   // Mirrors the rewrites in vercel.json: the Spotify OAuth redirect lands on the app, /privacy on the policy.
   if (rel === '/callback') rel = '/index.html';
@@ -38,6 +50,7 @@ createServer(async (req, res) => {
   try {
     const body = await readFile(path);
     res.writeHead(200, {
+      ...SECURITY_HEADERS,
       'content-type': TYPES[extname(path)] || 'application/octet-stream',
       'cache-control': 'no-store'
     }).end(body);

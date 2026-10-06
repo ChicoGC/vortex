@@ -7,9 +7,6 @@
 <meta name="description" content="vortex — see what your friends are listening to, in real time.">
 <meta name="color-scheme" content="dark light">
 
-<!-- The saved theme before the first paint, so a light-mode visit doesn't flash dark. -->
-<script>try { document.documentElement.dataset.theme = localStorage.getItem('vortex.theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); } catch (e) {}</script>
-
 <!-- Handshakes start now instead of when the first request needs them. -->
 <link rel="preconnect" href="https://hpblrmnturpihyrhwzih.supabase.co" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
@@ -17,8 +14,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
 <!-- Fonts don't hold up the first paint: system type shows until Geist arrives (display=swap). -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..500&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..500&display=swap" media="print" data-async-css>
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..500&display=swap"></noscript>
+
+<!-- The saved theme before the first paint (so light mode doesn't flash dark), and the fonts switched on. -->
+<script src="js/early.js"></script>
 
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/base.css">
@@ -29,8 +29,10 @@
 <link rel="apple-touch-icon" href="assets/logo-256.png">
 
 <!-- defer: everything downloads in parallel with the page and runs in this order once it's parsed.
-     Supabase is pinned to an exact version so browsers can cache it for a year. -->
-<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" crossorigin></script>
+     Supabase is pinned to an exact version so browsers can cache it for a year, and integrity makes
+     the browser refuse it if the CDN ever serves anything else. Upgrading means a new hash:
+     curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A -->
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script defer src="js/config.js"></script>
 <script defer src="js/i18n.js"></script>
 <script defer src="js/i18n-pt.js"></script>

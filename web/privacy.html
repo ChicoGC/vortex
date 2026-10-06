@@ -7,17 +7,7 @@
 <meta name="description" content="What vortex keeps about you, who can see it, and how to have it deleted.">
 <meta name="color-scheme" content="dark light">
 <link rel="alternate" hreflang="pt-BR" href="/privacidade">
-<script>
-  /* Same theme and accent as the app, so following the link doesn't flash a different look. */
-  (function () {
-    var root = document.documentElement;
-    function get(k) { try { return localStorage.getItem('vortex.' + k); } catch (e) { return null; } }
-    var light = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches;
-    root.dataset.theme = get('theme') || (light ? 'light' : 'dark');
-    var accent = get('look.accent');
-    if (accent && accent !== 'ember') root.dataset.accent = accent;
-  })();
-</script>
+<script src="js/early.js"></script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -256,32 +246,6 @@
   <a href="/">Back to vortex</a>
 </footer>
 
-<script>
-  /* Contents start folded on phones, where they'd push the policy below the fold.
-     Then mark the section being read. Switching language here switches the app's too. */
-  (function () {
-    document.querySelectorAll('[data-lang-switch]').forEach(function (a) {
-      a.addEventListener('click', function () { try { localStorage.setItem('vortex.lang', a.dataset.langSwitch); } catch (e) {} });
-    });
-
-    var box = document.querySelector('.toc__box');
-    var narrow = window.matchMedia('(max-width: 900px)');
-    if (narrow.matches) box.open = false;
-    box.addEventListener('toggle', function () { if (!narrow.matches) box.open = true; });
-    box.addEventListener('click', function (e) { if (narrow.matches && e.target.closest('.toc__list a')) box.open = false; });
-
-    var links = {};
-    document.querySelectorAll('.toc__list a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
-    if (!('IntersectionObserver' in window)) return;
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (!e.isIntersecting) return;
-        Object.keys(links).forEach(function (id) { links[id].removeAttribute('aria-current'); });
-        if (links[e.target.id]) links[e.target.id].setAttribute('aria-current', 'location');
-      });
-    }, { rootMargin: '-20% 0px -70% 0px' });
-    document.querySelectorAll('.prose section[id]').forEach(function (s) { io.observe(s); });
-  })();
-</script>
+<script src="js/privacy.js"></script>
 </body>
 </html>

@@ -1647,6 +1647,7 @@ const TOASTS = {
   friendCancelled: ['info', t('Request cancelled'), t('You can send it again any time')],
   friendRemoved: ['success', t('Friend removed'), t('Their posts no longer show in your Friends feed')],
   friendFailed: ['error', t('Something went wrong'), t('The list was refreshed. Try again')],
+  friendRateLimited: ['error', t('Slow down'), t('You sent a lot of friend requests. Try again in a while')],
   shareOn: ['success', t('Sharing is on'), t('Friends can see what you are listening to')],
   shareOff: ['info', t('Sharing is off'), t('Friends no longer see what you are listening to')],
   settingFailed: ['error', t('Setting not saved'), t('Check your connection and try again')],
@@ -2272,7 +2273,7 @@ async function friendAction(btn, run, okToast, reloadFeed) {
     btn.disabled = false;
     // Their request may have crossed ours; resync so the buttons show the real state.
     loadFriends().then(refreshFriendsUI).catch(function () {});
-    toast('friendFailed');
+    toast(err && err.hint === 'rate_limited' ? 'friendRateLimited' : 'friendFailed');
   }
 }
 
@@ -2554,7 +2555,9 @@ async function handlePostSubmit(form) {
     if (app.view === 'feed') setView('feed');
     else location.hash = '#/feed';
   } catch (err) {
-    errText.textContent = err.message || t('Could not share this track.');
+    errText.textContent = err && err.hint === 'rate_limited'
+      ? t('You’re sharing too fast. Wait a few minutes and try again.')
+      : err.message || t('Could not share this track.');
     errBox.hidden = false;
     btn.disabled = false; btn.textContent = t('Share');
   }
@@ -3152,6 +3155,28 @@ window.addEventListener('hashchange', function () {
   refreshOnEnter(name);
 });
 
+/* A profile photo that fails to load is removed so the initials under it show.
+   error doesn't bubble, so this listens in the capture phase. */
+document.addEventListener('error', function (e) {
+  const img = e.target;
+  if (img && img.tagName === 'IMG' && img.parentElement && img.parentElement.classList.contains('avatar')) img.remove();
+}, true);
+
+/* Spotify stays connected only for the vortex account that connected it. A different account
+   (another person on this browser, or one swapped in by a crafted sign-in link) starts disconnected,
+   so nobody's listening is published under someone else's account. */
+function guardSpotifyOwner(justConnected) {
+  if (!spotify.auth.isConnected() || !app.session) return;
+  const me = app.session.user.id;
+  const owner = spotify.auth.owner();
+  if (justConnected || (!owner && !AUTH_LINK)) { spotify.auth.setOwner(me); return; }
+  // No owner recorded yet and this load came from a sign-in link: can't tell whose it is, so drop it.
+  if (owner !== me) {
+    spotify.auth.disconnect();
+    if (typeof stopSpotifyPolling === 'function') stopSpotifyPolling();
+  }
+}
+
 /* ---- boot ---------------------------------------------------------------- */
 (async function boot() {
   let spotifyResult = null;
@@ -3180,6 +3205,7 @@ window.addEventListener('hashchange', function () {
   } catch (e) { /* private mode */ }
 
   app.session = await db.auth.getSession();
+  guardSpotifyOwner(spotifyResult && spotifyResult.ok);
   // Paint the page right away from last visit's profile, with the feed loading; the fresh data
   // fills it in below. A first visit, or one that still owes onboarding, waits for the network.
   let painted = false;
@@ -3205,6 +3231,7 @@ window.addEventListener('hashchange', function () {
 
   db.auth.onChange(function (event, session) {
     app.session = session;
+    if (session && event !== 'SIGNED_OUT') guardSpotifyOwner(false);
     if (event === 'SIGNED_OUT') {
       app.needsUsername = false;
       app.needsConsent = false;

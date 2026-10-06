@@ -27,6 +27,8 @@ I18N.pt = {
   "No public posts yet. Share a track and make it public to start For you.": "Ainda não há posts públicos. Compartilhe uma música como pública para começar o Para você.",
   "public posts": "posts públicos",
   "Menu": "Menu",
+  "You’re sharing too fast. Wait a few minutes and try again.": "Você está compartilhando rápido demais. Espere alguns minutos e tente de novo.",
+  "You sent a lot of friend requests. Try again in a while": "Você enviou muitos pedidos de amizade. Tente de novo daqui a pouco",
   "Home": "Início",
   "Feed": "Feed",
   "Friends": "Amigos",

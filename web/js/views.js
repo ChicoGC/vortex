@@ -25,13 +25,13 @@ function art(n, cls, image) {
 }
 /* Only vortex's own Supabase storage bucket is trusted for a profile photo,
    so a crafted value can't point at an arbitrary (e.g. tracking) image. The
-   initials always sit underneath: if the photo 404s, onerror removes the
-   broken <img> and the initials show through instead of a blank circle. */
-const AVATAR_URL = /^https:\/\/hpblrmnturpihyrhwzih\.supabase\.co\/storage\/v1\/object\/public\/avatars\/[A-Za-z0-9/_.-]+$/;
+   initials always sit underneath: if the photo 404s, app.js removes the
+   broken <img> (no inline onerror, which the CSP forbids) and the initials show through. */
+const AVATAR_URL = /^https:\/\/hpblrmnturpihyrhwzih\.supabase\.co\/storage\/v1\/object\/public\/avatars\/[0-9a-f-]{36}\/[A-Za-z0-9_-]+\.(png|jpg|webp|gif)$/;
 function avatarEl(initials, size, status, image) {
   const cls = cx('avatar', size ? 'avatar--' + size : null);
   const photo = typeof image === 'string' && AVATAR_URL.test(image)
-    ? '<img src="' + esc(image) + '" alt="" loading="lazy" onerror="this.remove()">' : '';
+    ? '<img src="' + esc(image) + '" alt="" loading="lazy">' : '';
   return '<div class="' + cls + '"' + (status ? ' data-status="' + status + '"' : '') + '>' + esc(initials) + photo + '</div>';
 }
 function mmss(sec) {

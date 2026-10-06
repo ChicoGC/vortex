@@ -173,9 +173,14 @@ const spotify = {
     },
 
     disconnect: function () {
-      ['access_token', 'refresh_token', 'expires_at', 'scope'].forEach(function (k) { spotifyStore.set(k, null); });
+      ['access_token', 'refresh_token', 'expires_at', 'scope', 'owner'].forEach(function (k) { spotifyStore.set(k, null); });
       spotifyUserId = null;
-    }
+    },
+
+    /* The vortex account this Spotify connection belongs to. Tokens live per browser, so without
+       this a session swapped in from a crafted #access_token link would inherit them. */
+    owner: function () { return spotifyStore.get('owner') || ''; },
+    setOwner: function (userId) { spotifyStore.set('owner', userId); }
   },
 
   /* body (optional) is sent as JSON, which makes it a POST. */
