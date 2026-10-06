@@ -438,6 +438,7 @@ async function handleSignup(form) {
   const pass = form.querySelector('#authPass').value;
   const consent = form.querySelector('#authConsent');
   if (!consent.checked) { consentMissing(consent, t('Accept the privacy policy to create an account.')); return; }
+  if (pass.length < MIN_PASSWORD) { showAuthMessage(t('Use at least {n} characters.', { n: MIN_PASSWORD }), true); return; }
   const btn = document.getElementById('authSignupSubmit');
   btn.disabled = true; btn.textContent = t('Creating account…');
   try {
@@ -447,9 +448,20 @@ async function handleSignup(form) {
       btn.disabled = false; btn.textContent = t('Create account');
     }
   } catch (err) {
-    showAuthMessage(err.message || t('Could not create account'), true);
+    showAuthMessage(weakPasswordText(err) || err.message || t('Could not create account'), true);
     btn.disabled = false; btn.textContent = t('Create account');
   }
+}
+
+/* Matches "Minimum password length" in Supabase Auth; the server enforces it, this just says so sooner. */
+const MIN_PASSWORD = 8;
+
+/* Supabase's password rules (length, and leaked-password protection) fail as weak_password. */
+function weakPasswordText(err) {
+  if (!err || err.code !== 'weak_password') return '';
+  return (err.reasons || []).indexOf('pwned') !== -1
+    ? t('This password showed up in a data leak on another site. Pick a different one.')
+    : t('That password is too easy to guess. Use at least {n} characters, mixing letters and numbers.', { n: MIN_PASSWORD });
 }
 
 /* ---- password reset --------------------------------------------------------- */
@@ -518,21 +530,56 @@ function paintForgotCooldown() {
 async function handleReset(form) {
   const pass = form.querySelector('#authNewPass').value;
   const again = form.querySelector('#authNewPass2').value;
-  if (pass.length < 6) { showAuthMessage(t('Use at least 6 characters.'), true); return; }
+  const codeInput = form.querySelector('#authNonce');
+  const nonce = codeInput ? codeInput.value.trim() : '';
+  if (pass.length < MIN_PASSWORD) { showAuthMessage(t('Use at least {n} characters.', { n: MIN_PASSWORD }), true); return; }
   if (pass !== again) { showAuthMessage(t('The two passwords don’t match.'), true); return; }
+  if (codeInput && !nonce) { showAuthMessage(t('Enter the code from the email.'), true); codeInput.focus(); return; }
   const btn = document.getElementById('authResetSubmit');
+  const label = codeInput ? t('Confirm and save') : t('Save new password');
   btn.disabled = true; btn.textContent = t('Saving…');
   try {
-    await db.auth.setPassword(pass);
+    await db.auth.setPassword(pass, nonce);
     location.hash = resetReturn;
     toast('passwordUpdated');
   } catch (err) {
+    btn.disabled = false; btn.textContent = label;
+    if (err && err.code === 'reauthentication_needed') { askForReauthCode(form); return; }
     console.error('Password update failed:', err);
-    btn.disabled = false; btn.textContent = t('Save new password');
-    showAuthMessage(err && err.code === 'same_password'
-      ? t('That’s your current password. Pick a different one.')
-      : (err && err.message) || t('Could not save the password. Try again.'), true);
+    const code = err && err.code;
+    showAuthMessage(code === 'same_password' ? t('That’s your current password. Pick a different one.')
+      : code === 'reauthentication_not_valid' ? t('That code is wrong or expired. Use the one in the newest email.')
+      : weakPasswordText(err) || (err && err.message) || t('Could not save the password. Try again.'), true);
   }
+}
+
+/* Secure password change is on in Supabase: after a day without signing in, a new password also
+   needs a code sent to the account's email. The field appears below the passwords, which stay filled. */
+async function askForReauthCode(form) {
+  const btn = document.getElementById('authResetSubmit');
+  btn.disabled = true; btn.textContent = t('Sending…');
+  try {
+    await db.auth.sendReauthCode();
+  } catch (err) {
+    console.error('Reauthentication email failed:', err);
+    btn.disabled = false; btn.textContent = t('Save new password');
+    showAuthMessage(err && err.status === 429
+      ? t('Too many emails were sent. Wait a few minutes and try again.')
+      : t('Could not send the email. Try again in a moment.'), true);
+    return;
+  }
+  if (!form.querySelector('#authNonce')) {
+    const field = document.createElement('div');
+    field.className = 'auth__field';
+    field.innerHTML = '<label class="t-label-m c-secondary" for="authNonce">' + t('Code from the email') + '</label>' +
+      '<span class="field">' + icon('mail', 17) +
+        '<input id="authNonce" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required></span>';
+    btn.before(field);
+  }
+  btn.disabled = false; btn.textContent = t('Confirm and save');
+  showAuthMessage(t('To protect your account, we sent a code to {email}. Enter it to save the new password.',
+    { email: (app.session && app.session.user.email) || t('your email') }), false);
+  form.querySelector('#authNonce').focus();
 }
 
 /* ---- sidebar ------------------------------------------------------------ */

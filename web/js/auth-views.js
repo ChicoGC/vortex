@@ -98,7 +98,7 @@ VIEWS.signup = function () {
       '<div class="auth__field">' +
         '<label class="t-label-m c-secondary" for="authPass">' + t('Password') + '</label>' +
         '<span class="field">' + icon('lock', 17) +
-          '<input id="authPass" type="password" placeholder="' + t('At least 6 characters') + '" autocomplete="new-password" minlength="6" required>' +
+          '<input id="authPass" type="password" placeholder="' + t('At least {n} characters', { n: MIN_PASSWORD }) + '" autocomplete="new-password" minlength="' + MIN_PASSWORD + '" required>' +
           '<button type="button" class="iconbtn" data-pass-toggle aria-label="' + t('Show password') + '">' + icon('eye', 17) + '</button>' +
         '</span>' +
       '</div>' +
@@ -197,14 +197,14 @@ VIEWS.reset = function () {
       '<div class="auth__field">' +
         '<label class="t-label-m c-secondary" for="authNewPass">' + t('New password') + '</label>' +
         '<span class="field">' + icon('lock', 17) +
-          '<input id="authNewPass" type="password" placeholder="' + t('At least 6 characters') + '" autocomplete="new-password" minlength="6" required>' +
+          '<input id="authNewPass" type="password" placeholder="' + t('At least {n} characters', { n: MIN_PASSWORD }) + '" autocomplete="new-password" minlength="' + MIN_PASSWORD + '" required>' +
           '<button type="button" class="iconbtn" data-pass-toggle aria-label="' + t('Show password') + '">' + icon('eye', 17) + '</button>' +
         '</span>' +
       '</div>' +
       '<div class="auth__field">' +
         '<label class="t-label-m c-secondary" for="authNewPass2">' + t('Type it again') + '</label>' +
         '<span class="field">' + icon('lock', 17) +
-          '<input id="authNewPass2" type="password" autocomplete="new-password" minlength="6" required></span>' +
+          '<input id="authNewPass2" type="password" autocomplete="new-password" minlength="' + MIN_PASSWORD + '" required></span>' +
       '</div>' +
       '<button type="submit" class="btn btn--primary" id="authResetSubmit" style="width:100%;padding:0 16px">' + t('Save new password') + '</button>' +
       '<button type="button" class="btn btn--ghost btn--sm" data-action="reset-skip" style="align-self:center">' + (resetReturn === '#/settings' ? t('Cancel') : t('Not now')) + '</button>' +

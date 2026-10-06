@@ -53,8 +53,14 @@ const db = {
       if (error) throw error;
     },
 
-    async setPassword(password) {
-      const { error } = await supabaseClient.auth.updateUser({ password });
+    /* nonce: the code from sendReauthCode, needed (secure password change) when the last sign-in is over a day old. */
+    async setPassword(password, nonce) {
+      const { error } = await supabaseClient.auth.updateUser(nonce ? { password, nonce } : { password });
+      if (error) throw error;
+    },
+
+    async sendReauthCode() {
+      const { error } = await supabaseClient.auth.reauthenticate();
       if (error) throw error;
     },
 
