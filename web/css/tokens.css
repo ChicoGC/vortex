@@ -231,9 +231,10 @@
 }
 
 /* ==========================================================================
-   accent choices (Customization). Ember is the default above. Teal and lime
-   are left out on purpose: they already mean "your friend" in comparisons
-   and "success" in states.
+   accent choices (Customization). Ember is the default above. Lime and red
+   are left out on purpose: they already mean "success" and "error" in states.
+   Teal means "your friend" in comparisons; accents near it move the friend
+   to ember (see the end of this list).
    ========================================================================== */
 [data-accent="magenta"] { --accent-signal: #EE55AE; --ambient-1: rgba(238, 85, 174, .13); }
 [data-theme="dark"][data-accent="magenta"] {
@@ -270,6 +271,74 @@
   --accent-soft: rgba(28, 107, 221, .10); --accent-border: rgba(28, 107, 221, .26);
   --text-on-accent: #F2F7FF; --focus-ring: rgba(28, 107, 221, .45); --data-1: #1C6BDD;
 }
+
+[data-accent="gold"] { --accent-signal: #F5C443; --ambient-1: rgba(245, 196, 67, .12); }
+[data-theme="dark"][data-accent="gold"] {
+  --accent-base: #F5C443; --accent-hover: #FFD466; --accent-press: #DDAA2A;
+  --accent-soft: rgba(245, 196, 67, .13); --accent-border: rgba(245, 196, 67, .34);
+  --text-on-accent: #241A00; --focus-ring: rgba(255, 212, 102, .55); --data-1: #F5C443;
+}
+[data-theme="light"][data-accent="gold"] {
+  --accent-base: #9E6A00; --accent-hover: #B27A08; --accent-press: #7F5500;
+  --accent-soft: rgba(158, 106, 0, .10); --accent-border: rgba(158, 106, 0, .28);
+  --text-on-accent: #FFF8EC; --focus-ring: rgba(158, 106, 0, .45); --data-1: #9E6A00;
+}
+
+[data-accent="sand"] { --accent-signal: #E3C49C; --ambient-1: rgba(227, 196, 156, .11); }
+[data-theme="dark"][data-accent="sand"] {
+  --accent-base: #E3C49C; --accent-hover: #EED4B2; --accent-press: #CCAB80;
+  --accent-soft: rgba(227, 196, 156, .12); --accent-border: rgba(227, 196, 156, .32);
+  --text-on-accent: #2A1D0E; --focus-ring: rgba(238, 212, 178, .55); --data-1: #E3C49C;
+}
+[data-theme="light"][data-accent="sand"] {
+  --accent-base: #86663F; --accent-hover: #977650; --accent-press: #6C512F;
+  --accent-soft: rgba(134, 102, 63, .10); --accent-border: rgba(134, 102, 63, .28);
+  --text-on-accent: #FFF8F0; --focus-ring: rgba(134, 102, 63, .45); --data-1: #86663F;
+}
+
+[data-accent="mint"] { --accent-signal: #3DDBB0; --ambient-1: rgba(61, 219, 176, .11); }
+[data-theme="dark"][data-accent="mint"] {
+  --accent-base: #3DDBB0; --accent-hover: #64E6C3; --accent-press: #27C196;
+  --accent-soft: rgba(61, 219, 176, .13); --accent-border: rgba(61, 219, 176, .34);
+  --text-on-accent: #032019; --focus-ring: rgba(100, 230, 195, .55); --data-1: #3DDBB0;
+}
+[data-theme="light"][data-accent="mint"] {
+  --accent-base: #0B8A68; --accent-hover: #109C77; --accent-press: #076F53;
+  --accent-soft: rgba(11, 138, 104, .10); --accent-border: rgba(11, 138, 104, .26);
+  --text-on-accent: #F0FFF9; --focus-ring: rgba(11, 138, 104, .45); --data-1: #0B8A68;
+}
+
+[data-accent="cyan"] { --accent-signal: #2EC5F0; --ambient-1: rgba(46, 197, 240, .12); }
+[data-theme="dark"][data-accent="cyan"] {
+  --accent-base: #2EC5F0; --accent-hover: #5CD3F5; --accent-press: #18ABD6;
+  --accent-soft: rgba(46, 197, 240, .13); --accent-border: rgba(46, 197, 240, .34);
+  --text-on-accent: #031D27; --focus-ring: rgba(92, 211, 245, .55); --data-1: #2EC5F0;
+}
+[data-theme="light"][data-accent="cyan"] {
+  --accent-base: #0879A3; --accent-hover: #0D89B7; --accent-press: #066185;
+  --accent-soft: rgba(8, 121, 163, .10); --accent-border: rgba(8, 121, 163, .26);
+  --text-on-accent: #F0FAFF; --focus-ring: rgba(8, 121, 163, .45); --data-1: #0879A3;
+}
+
+[data-accent="lavender"] { --accent-signal: #B9A3FF; --ambient-1: rgba(185, 163, 255, .14); }
+[data-theme="dark"][data-accent="lavender"] {
+  --accent-base: #B9A3FF; --accent-hover: #CBBAFF; --accent-press: #A189F5;
+  --accent-soft: rgba(185, 163, 255, .14); --accent-border: rgba(185, 163, 255, .36);
+  --text-on-accent: #160D33; --focus-ring: rgba(203, 186, 255, .55); --data-1: #B9A3FF;
+}
+[data-theme="light"][data-accent="lavender"] {
+  --accent-base: #7559D6; --accent-hover: #866BE3; --accent-press: #5E43BD;
+  --accent-soft: rgba(117, 89, 214, .10); --accent-border: rgba(117, 89, 214, .26);
+  --text-on-accent: #F7F4FF; --focus-ring: rgba(117, 89, 214, .45); --data-1: #7559D6;
+}
+
+/* Series that would read as the accent, checked pair by pair (colour-blind
+   simulations included) on the friend comparisons and the genre mix chart:
+   mint and cyan, and dark sand, sit too close to the friend's teal, so the
+   friend turns ember; dark gold matches lime, so the third series does. */
+[data-theme="dark"][data-accent="mint"], [data-theme="dark"][data-accent="cyan"], [data-theme="dark"][data-accent="sand"] { --data-2: var(--ember-500); }
+[data-theme="light"][data-accent="mint"], [data-theme="light"][data-accent="cyan"] { --data-2: var(--ember-600); }
+[data-theme="dark"][data-accent="gold"] { --data-3: var(--ember-500); }
 
 /* Mono: the accent becomes the ink colour itself. */
 [data-accent="mono"] { --accent-signal: #F2F1EE; --ambient-1: rgba(242, 241, 238, .06); }

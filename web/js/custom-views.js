@@ -4,12 +4,18 @@
    the whole app is the preview.
    ========================================================================== */
 
+/* Ordered round the colour wheel, warm to cool, with Mono last. */
 const ACCENTS = [
-  { id: 'ember',   name: t('Ember'),   dark: '#FF5C35', light: '#E8431D' },
-  { id: 'magenta', name: t('Magenta'), dark: '#EE55AE', light: '#C22A82' },
-  { id: 'violet',  name: t('Violet'),  dark: '#9077FF', light: '#6548E8' },
-  { id: 'azure',   name: t('Azure'),   dark: '#4192FF', light: '#1C6BDD' },
-  { id: 'mono',    name: t('Mono'),    dark: '#F2F1EE', light: '#15151A' }
+  { id: 'ember',    name: t('Ember'),    dark: '#FF5C35', light: '#E8431D' },
+  { id: 'gold',     name: t('Gold'),     dark: '#F5C443', light: '#9E6A00' },
+  { id: 'sand',     name: t('Sand'),     dark: '#E3C49C', light: '#86663F' },
+  { id: 'mint',     name: t('Mint'),     dark: '#3DDBB0', light: '#0B8A68' },
+  { id: 'cyan',     name: t('Cyan'),     dark: '#2EC5F0', light: '#0879A3' },
+  { id: 'azure',    name: t('Azure'),    dark: '#4192FF', light: '#1C6BDD' },
+  { id: 'violet',   name: t('Violet'),   dark: '#9077FF', light: '#6548E8' },
+  { id: 'lavender', name: t('Lavender'), dark: '#B9A3FF', light: '#7559D6' },
+  { id: 'magenta',  name: t('Magenta'),  dark: '#EE55AE', light: '#C22A82' },
+  { id: 'mono',     name: t('Mono'),     dark: '#F2F1EE', light: '#15151A' }
 ];
 /* Scenes (every theme past the first two) bring their own moving backdrop, drawn
    by css/scenes.css. Each sits on a base mode, so everything written for dark or
