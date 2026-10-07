@@ -2125,15 +2125,17 @@ function openPostForm() {
               '</div>'
             : '<p class="t-body-s c-tertiary">' + t('Tip: {button} to search songs and add their cover.', { button: '<button type="button" class="btn btn--ghost btn--sm" data-action="spotify-connect" style="display:inline-flex;padding:0 4px">' + t('connect Spotify') + '</button>' }) + '</p>') +
           '<div id="postPicked"></div>' +
-          '<div class="auth__field">' +
-            '<label class="t-label-m c-secondary" for="postTitle">' + t('Track title') + '</label>' +
-            '<span class="field">' + icon('disc', 17) +
-              '<input id="postTitle" type="text" placeholder="' + t('Song name') + '" maxlength="200" required></span>' +
-          '</div>' +
-          '<div class="auth__field">' +
-            '<label class="t-label-m c-secondary" for="postArtist">' + t('Artist') + '</label>' +
-            '<span class="field">' + icon('user', 17) +
-              '<input id="postArtist" type="text" placeholder="' + t('Artist name') + '" maxlength="200" required></span>' +
+          '<div class="post-form__pair">' +
+            '<div class="auth__field">' +
+              '<label class="t-label-m c-secondary" for="postTitle">' + t('Track title') + '</label>' +
+              '<span class="field">' + icon('disc', 17) +
+                '<input id="postTitle" type="text" placeholder="' + t('Song name') + '" maxlength="200" required></span>' +
+            '</div>' +
+            '<div class="auth__field">' +
+              '<label class="t-label-m c-secondary" for="postArtist">' + t('Artist') + '</label>' +
+              '<span class="field">' + icon('user', 17) +
+                '<input id="postArtist" type="text" placeholder="' + t('Artist name') + '" maxlength="200" required></span>' +
+            '</div>' +
           '</div>' +
           '<div class="auth__field">' +
             '<label class="t-label-m c-secondary" for="postAlbum">' + t('Album') + '</label>' +
@@ -2143,7 +2145,7 @@ function openPostForm() {
           '<div class="auth__field">' +
             '<label class="t-label-m c-secondary" for="postNote">' + t('Note') + '</label>' +
             '<span class="field field--area">' + icon('comment', 17) +
-              '<textarea id="postNote" placeholder="' + t('What do you think? (optional)') + '" maxlength="500" rows="3"></textarea></span>' +
+              '<textarea id="postNote" placeholder="' + t('What do you think? (optional)') + '" maxlength="500" rows="2"></textarea></span>' +
           '</div>' +
           audiencePicker(lastPostAudience()) +
         '</form>' +

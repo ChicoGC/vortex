@@ -395,7 +395,7 @@
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: grid; place-items: start center;
-  padding: 12vh 20px 20px;
+  padding: min(12vh, 96px) 20px 20px;
   animation: fade-in var(--dur-base) var(--ease-out);
 }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -409,11 +409,19 @@
   -webkit-backdrop-filter: blur(var(--blur-strong)) saturate(160%);
   animation: modal-in var(--dur-slow) var(--ease-spring);
   overflow: hidden;
+  /* Never taller than the window: the body scrolls, the title and the buttons stay put. */
+  display: flex; flex-direction: column;
+  max-height: calc(100vh - min(12vh, 96px) - 20px);
+  max-height: calc(100dvh - min(12vh, 96px) - 20px);
+}
+@media (max-height: 720px) {
+  .scrim { padding-top: 20px; }
+  .modal { max-height: calc(100vh - 40px); max-height: calc(100dvh - 40px); }
 }
 @keyframes modal-in { from { opacity: 0; transform: translateY(-12px) scale(.97); } to { opacity: 1; transform: none; } }
-.modal__head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border-subtle); }
-.modal__body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
-.modal__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--border-subtle); }
+.modal__head { flex: none; display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border-subtle); }
+.modal__body { flex: 0 1 auto; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.modal__foot { flex: none; display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--border-subtle); }
 
 .cmdk { width: min(560px, 100%); }
 .cmdk__input { display: flex; align-items: center; gap: 11px; padding: 15px 18px; border-bottom: 1px solid var(--border-subtle); }

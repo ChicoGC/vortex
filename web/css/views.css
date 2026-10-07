@@ -180,6 +180,10 @@ a.post__author:hover .t-body-m-med { text-decoration: underline; }
 }
 .post__play:hover { transform: scale(1.08); background: var(--accent-base); color: var(--text-on-accent); border-color: transparent; }
 
+/* title and artist share a row in the post form, so it fits short windows */
+.post-form__pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 420px) { .post-form__pair { grid-template-columns: minmax(0, 1fr); gap: 14px; } }
+
 /* ---- song clips (clips.js) ------------------------------------------------ */
 .post__listen { display: flex; align-items: center; gap: 2px; flex: none; }
 .post__clip { display: block; margin-top: 1px; }
