@@ -5,7 +5,11 @@
   var root = document.documentElement;
   function get(k) { try { return localStorage.getItem('vortex.' + k); } catch (e) { return null; } }
   var light = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches;
-  root.dataset.theme = get('theme') || (light ? 'light' : 'dark');
+  // Scenes and the mode each rides on; a copy of THEMES in custom-views.js.
+  var SCENES = { galaxy: 'dark', aurora: 'dark', ocean: 'dark', sunset: 'dark', sakura: 'light', sky: 'light' };
+  var theme = get('theme');
+  if (SCENES[theme]) { root.dataset.theme = SCENES[theme]; root.dataset.scene = theme; }
+  else root.dataset.theme = theme === 'light' || theme === 'dark' ? theme : (light ? 'light' : 'dark');
   var accent = get('look.accent');
   if (accent && accent !== 'ember') root.dataset.accent = accent;
 

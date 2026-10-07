@@ -1,0 +1,407 @@
+/* ==========================================================================
+   vortex — scenes: the themes that come with their own moving backdrop.
+   A scene sits on a base mode (data-theme stays "dark" or "light"), so every
+   rule written for those still applies. data-scene only retints the canvas
+   and the glows, and draws the layers in #scene. The accent stays your pick.
+   Everything that moves is transform or opacity, so it never repaints.
+   ========================================================================== */
+
+:root {
+  /* Repeating tiles: each list is one tile, sized where it's used. */
+  --sc-stars-s:
+    radial-gradient(0.6px 0.6px at 135px 172px, rgba(235,205,255,.95), transparent),
+    radial-gradient(0.9px 0.9px at 73px 161px, rgba(255,255,255,.95), transparent),
+    radial-gradient(0.6px 0.6px at 20px 175px, rgba(200,210,255,.95), transparent),
+    radial-gradient(0.7px 0.7px at 45px 39px, rgba(235,205,255,.95), transparent),
+    radial-gradient(1.0px 1.0px at 87px 74px, rgba(235,205,255,.95), transparent),
+    radial-gradient(0.9px 0.9px at 123px 146px, rgba(200,210,255,.95), transparent),
+    radial-gradient(0.9px 0.9px at 129px 34px, rgba(255,255,255,.95), transparent),
+    radial-gradient(0.9px 0.9px at 193px 101px, rgba(200,210,255,.95), transparent),
+    radial-gradient(0.9px 0.9px at 208px 9px, rgba(200,210,255,.95), transparent),
+    radial-gradient(0.7px 0.7px at 196px 197px, rgba(235,205,255,.95), transparent),
+    radial-gradient(0.7px 0.7px at 112px 170px, rgba(200,210,255,.95), transparent),
+    radial-gradient(0.7px 0.7px at 40px 44px, rgba(200,210,255,.95), transparent),
+    radial-gradient(0.6px 0.6px at 92px 117px, rgba(200,210,255,.95), transparent),
+    radial-gradient(0.6px 0.6px at 43px 9px, rgba(255,255,255,.95), transparent);
+  --sc-stars-m:
+    radial-gradient(1.3px 1.3px at 82px 333px, rgba(200,210,255,.95), transparent),
+    radial-gradient(1.2px 1.2px at 267px 161px, rgba(200,210,255,.95), transparent),
+    radial-gradient(1.3px 1.3px at 185px 326px, rgba(200,210,255,.95), transparent),
+    radial-gradient(1.1px 1.1px at 287px 202px, rgba(200,210,255,.95), transparent),
+    radial-gradient(1.2px 1.2px at 186px 171px, rgba(235,205,255,.95), transparent),
+    radial-gradient(1.3px 1.3px at 56px 72px, rgba(200,210,255,.95), transparent),
+    radial-gradient(1.1px 1.1px at 259px 134px, rgba(255,255,255,.95), transparent),
+    radial-gradient(1.1px 1.1px at 178px 230px, rgba(235,205,255,.95), transparent),
+    radial-gradient(1.1px 1.1px at 289px 194px, rgba(200,210,255,.95), transparent),
+    radial-gradient(1.2px 1.2px at 81px 259px, rgba(200,210,255,.95), transparent);
+  --sc-stars-l:
+    radial-gradient(1.9px 1.9px at 131px 356px, rgba(235,205,255,.95), transparent),
+    radial-gradient(1.8px 1.8px at 297px 208px, rgba(255,255,255,.95), transparent),
+    radial-gradient(1.8px 1.8px at 16px 347px, rgba(235,205,255,.95), transparent),
+    radial-gradient(1.7px 1.7px at 249px 127px, rgba(255,255,255,.95), transparent),
+    radial-gradient(1.5px 1.5px at 436px 281px, rgba(235,205,255,.95), transparent),
+    radial-gradient(1.3px 1.3px at 218px 84px, rgba(235,205,255,.95), transparent);
+  --sc-snow:
+    radial-gradient(1.1px 1.1px at 228px 158px, rgba(255,255,255,.7), transparent),
+    radial-gradient(1.2px 1.2px at 99px 33px, rgba(255,255,255,.7), transparent),
+    radial-gradient(1.0px 1.0px at 249px 140px, rgba(186,230,253,.8), transparent),
+    radial-gradient(0.9px 0.9px at 92px 202px, rgba(255,255,255,.7), transparent),
+    radial-gradient(0.8px 0.8px at 34px 192px, rgba(255,255,255,.7), transparent),
+    radial-gradient(1.1px 1.1px at 96px 40px, rgba(186,230,253,.8), transparent),
+    radial-gradient(1.1px 1.1px at 144px 123px, rgba(255,255,255,.7), transparent),
+    radial-gradient(0.9px 0.9px at 51px 223px, rgba(255,255,255,.7), transparent),
+    radial-gradient(0.8px 0.8px at 22px 205px, rgba(255,255,255,.7), transparent),
+    radial-gradient(1.0px 1.0px at 84px 128px, rgba(255,255,255,.7), transparent),
+    radial-gradient(1.2px 1.2px at 168px 87px, rgba(255,255,255,.7), transparent),
+    radial-gradient(0.8px 0.8px at 31px 70px, rgba(255,255,255,.7), transparent);
+  --sc-bubbles:
+    radial-gradient(circle 5.5px at 182px 538px, transparent 62%, rgba(186, 230, 253, .45) 72%, rgba(186, 230, 253, .08) 88%, transparent),
+    radial-gradient(circle 7.0px at 463px 13px, transparent 62%, rgba(186, 230, 253, .45) 72%, rgba(186, 230, 253, .08) 88%, transparent),
+    radial-gradient(circle 4.7px at 19px 81px, transparent 62%, rgba(186, 230, 253, .45) 72%, rgba(186, 230, 253, .08) 88%, transparent),
+    radial-gradient(circle 2.9px at 450px 251px, transparent 62%, rgba(186, 230, 253, .45) 72%, rgba(186, 230, 253, .08) 88%, transparent),
+    radial-gradient(circle 3.9px at 233px 486px, transparent 62%, rgba(186, 230, 253, .45) 72%, rgba(186, 230, 253, .08) 88%, transparent),
+    radial-gradient(circle 6.7px at 134px 311px, transparent 62%, rgba(186, 230, 253, .45) 72%, rgba(186, 230, 253, .08) 88%, transparent),
+    radial-gradient(circle 5.6px at 333px 190px, transparent 62%, rgba(186, 230, 253, .45) 72%, rgba(186, 230, 253, .08) 88%, transparent),
+    radial-gradient(circle 6.8px at 510px 261px, transparent 62%, rgba(186, 230, 253, .45) 72%, rgba(186, 230, 253, .08) 88%, transparent),
+    radial-gradient(circle 3.9px at 646px 351px, transparent 62%, rgba(186, 230, 253, .45) 72%, rgba(186, 230, 253, .08) 88%, transparent);
+  --sc-petals-s:
+    radial-gradient(9.6px 5.4px at 311px 406px, #F2A0B8, #F9C6D4 62%, transparent 78%),
+    radial-gradient(5.1px 8.8px at 358px 443px, #F4AEC2, #FBD3DE 62%, transparent 78%),
+    radial-gradient(6.5px 9.8px at 454px 518px, #F2A0B8, #F9C6D4 62%, transparent 78%),
+    radial-gradient(5.3px 9.9px at 144px 85px, #F2A0B8, #F9C6D4 62%, transparent 78%),
+    radial-gradient(8.4px 4.6px at 265px 345px, #EE90AC, #F7B8CA 62%, transparent 78%),
+    radial-gradient(6.1px 10.8px at 514px 60px, #EE90AC, #F7B8CA 62%, transparent 78%),
+    radial-gradient(10.1px 5.7px at 27px 597px, #F2A0B8, #F9C6D4 62%, transparent 78%),
+    radial-gradient(9.5px 5.7px at 291px 434px, #EE90AC, #F7B8CA 62%, transparent 78%),
+    radial-gradient(10.8px 6.0px at 596px 65px, #EE90AC, #F7B8CA 62%, transparent 78%),
+    radial-gradient(10.3px 5.6px at 414px 388px, #F2A0B8, #F9C6D4 62%, transparent 78%);
+  --sc-petals-l:
+    radial-gradient(15.2px 9.7px at 621px 112px, #F4AEC2, #FBD3DE 62%, transparent 78%),
+    radial-gradient(15.4px 8.9px at 857px 167px, #F4AEC2, #FBD3DE 62%, transparent 78%),
+    radial-gradient(15.8px 9.7px at 529px 371px, #F4AEC2, #FBD3DE 62%, transparent 78%),
+    radial-gradient(12.1px 6.9px at 658px 160px, #EE90AC, #F7B8CA 62%, transparent 78%),
+    radial-gradient(8.5px 14.6px at 611px 503px, #F2A0B8, #F9C6D4 62%, transparent 78%),
+    radial-gradient(9.6px 14.5px at 485px 775px, #EE90AC, #F7B8CA 62%, transparent 78%),
+    radial-gradient(7.3px 12.1px at 657px 23px, #F4AEC2, #FBD3DE 62%, transparent 78%),
+    radial-gradient(15.4px 9.9px at 469px 52px, #F4AEC2, #FBD3DE 62%, transparent 78%);
+  --sc-clouds-far:
+    radial-gradient(70px 26px at 180px 150px, rgba(255, 255, 255, .9) 35%, transparent),
+    radial-gradient(42px 32px at 202px 130px, rgba(255, 255, 255, .9) 35%, transparent),
+    radial-gradient(36px 24px at 150px 140px, rgba(255, 255, 255, .85) 35%, transparent),
+    radial-gradient(46px 16px at 760px 92px, rgba(255, 255, 255, .8) 35%, transparent),
+    radial-gradient(26px 20px at 774px 80px, rgba(255, 255, 255, .8) 35%, transparent),
+    radial-gradient(60px 20px at 520px 420px, rgba(255, 255, 255, .75) 35%, transparent),
+    radial-gradient(34px 24px at 540px 404px, rgba(255, 255, 255, .75) 35%, transparent);
+  --sc-clouds-near:
+    radial-gradient(120px 40px at 300px 380px, rgba(255, 255, 255, .95) 35%, transparent),
+    radial-gradient(70px 54px at 340px 344px, rgba(255, 255, 255, .95) 35%, transparent),
+    radial-gradient(60px 42px at 250px 360px, rgba(255, 255, 255, .9) 35%, transparent),
+    radial-gradient(50px 36px at 400px 370px, rgba(255, 255, 255, .9) 35%, transparent),
+    radial-gradient(100px 34px at 1000px 170px, rgba(255, 255, 255, .9) 35%, transparent),
+    radial-gradient(56px 44px at 1030px 140px, rgba(255, 255, 255, .9) 35%, transparent),
+    radial-gradient(44px 30px at 965px 154px, rgba(255, 255, 255, .85) 35%, transparent);
+}
+
+/* ---- tokens ------------------------------------------------------------- */
+[data-scene="galaxy"] {
+  --bg-canvas: #0D0A22;
+  --bg-canvas-deep: #08061A;
+  --glass-panel-strong: rgba(20, 15, 44, calc(.6 + .2 * var(--glass-k, 1)));
+  --overlay-scrim: rgba(6, 4, 20, .64);
+  --ambient-2: rgba(91, 76, 255, .17);
+  --ambient-3: rgba(217, 70, 239, .09);
+  --ambient-4: rgba(59, 130, 246, .11);
+}
+[data-scene="aurora"] {
+  --bg-canvas: #06111A;
+  --bg-canvas-deep: #040C13;
+  --glass-panel-strong: rgba(9, 22, 30, calc(.6 + .2 * var(--glass-k, 1)));
+  --overlay-scrim: rgba(3, 10, 14, .64);
+  --ambient-2: rgba(34, 211, 170, .10);
+  --ambient-3: rgba(99, 102, 241, .10);
+  --ambient-4: rgba(56, 189, 248, .08);
+}
+[data-scene="ocean"] {
+  --bg-canvas: #041222;
+  --bg-canvas-deep: #020B17;
+  --glass-panel-strong: rgba(7, 22, 38, calc(.6 + .2 * var(--glass-k, 1)));
+  --overlay-scrim: rgba(2, 8, 16, .64);
+  --ambient-2: rgba(14, 165, 233, .14);
+  --ambient-3: rgba(45, 212, 191, .07);
+  --ambient-4: rgba(37, 99, 235, .13);
+}
+[data-scene="sunset"] {
+  --bg-canvas: #170B1E;
+  --bg-canvas-deep: #0F0614;
+  --glass-panel-strong: rgba(28, 13, 32, calc(.6 + .2 * var(--glass-k, 1)));
+  --overlay-scrim: rgba(12, 4, 14, .64);
+  --ambient-2: rgba(244, 63, 94, .12);
+  --ambient-3: rgba(251, 146, 60, .10);
+  --ambient-4: rgba(168, 85, 247, .12);
+}
+[data-scene="sakura"] {
+  --bg-canvas: #FBF0F3;
+  --bg-canvas-deep: #F5E3E9;
+  --glass-border: rgba(120, 40, 70, .08);
+  --glass-border-strong: rgba(120, 40, 70, .13);
+  --overlay-scrim: rgba(70, 30, 45, .30);
+  --ambient-2: rgba(244, 114, 182, .16);
+  --ambient-3: rgba(253, 186, 116, .12);
+  --ambient-4: rgba(196, 181, 253, .16);
+}
+[data-scene="sky"] {
+  --bg-canvas: #EAF2FB;
+  --bg-canvas-deep: #DDE9F6;
+  --glass-border: rgba(30, 60, 100, .08);
+  --glass-border-strong: rgba(30, 60, 100, .13);
+  --overlay-scrim: rgba(25, 40, 60, .30);
+  --ambient-2: rgba(56, 189, 248, .14);
+  --ambient-3: rgba(253, 224, 71, .12);
+  --ambient-4: rgba(147, 197, 253, .20);
+}
+
+/* ---- the layer ---------------------------------------------------------- */
+.scene { position: absolute; inset: 0; display: none; overflow: hidden; pointer-events: none; }
+[data-scene] .scene { display: block; animation: scene-in 1.6s var(--ease-out); }
+.scene span, .scene::before, .scene::after { content: ""; position: absolute; display: none; }
+.scene span { inset: 0; background-repeat: repeat; will-change: transform; }
+@keyframes scene-in { from { opacity: 0; } }
+
+/* A repeating layer moves exactly one tile per loop (--mx, --my), so it never jumps. */
+@keyframes sc-move { to { transform: translate3d(var(--mx, 0px), var(--my, 0px), 0); } }
+@keyframes sc-twinkle { from { opacity: var(--lo, .35); } to { opacity: 1; } }
+
+/* galaxy: three depths of stars drifting past, a milky band, now and then a meteor */
+[data-scene="galaxy"] .scene span { display: block; }
+[data-scene="galaxy"] .scene span:nth-child(1) {
+  top: -211px; background-image: var(--sc-stars-s); background-size: 211px 211px; --my: 211px;
+  animation: sc-move 150s linear infinite, sc-twinkle 5s ease-in-out infinite alternate;
+}
+[data-scene="galaxy"] .scene span:nth-child(2) {
+  top: -337px; background-image: var(--sc-stars-m); background-size: 337px 337px; --my: 337px;
+  animation: sc-move 160s linear infinite, sc-twinkle 7s ease-in-out -3s infinite alternate;
+}
+[data-scene="galaxy"] .scene span:nth-child(3) {
+  top: -523px; background-image: var(--sc-stars-l); background-size: 523px 523px; --my: 523px; --lo: .5;
+  filter: drop-shadow(0 0 3px rgba(220, 200, 255, .9));
+  animation: sc-move 140s linear infinite, sc-twinkle 4s ease-in-out -1s infinite alternate;
+}
+[data-scene="galaxy"] .scene::before {
+  display: block; inset: -30%;
+  background:
+    radial-gradient(ellipse 34% 9% at 46% 50%, rgba(244, 114, 182, .12), transparent 70%),
+    radial-gradient(ellipse 24% 7% at 60% 48%, rgba(125, 211, 252, .09), transparent 70%),
+    radial-gradient(ellipse 60% 17% at 50% 50%, rgba(167, 139, 250, .17), transparent 72%);
+  transform: rotate(-24deg);
+  animation: sc-band 80s ease-in-out infinite alternate;
+}
+@keyframes sc-band { to { transform: rotate(-17deg) scale(1.08); } }
+[data-scene="galaxy"] .scene::after {
+  display: block; top: 14%; left: 70%; width: 130px; height: 1.5px; border-radius: 2px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(235, 225, 255, .95));
+  transform-origin: 100% 50%; opacity: 0;
+  animation: sc-meteor 14s ease-in 5s infinite;
+}
+@keyframes sc-meteor {
+  0%      { transform: rotate(150deg) translateX(0);      opacity: 0; }
+  1.5%    { opacity: 1; }
+  6%, 100% { transform: rotate(150deg) translateX(-460px); opacity: 0; }
+}
+
+/* aurora: two curtains of light swaying over a few faint stars */
+[data-scene="aurora"] .scene span:nth-child(1) {
+  display: block; background-image: var(--sc-stars-s); background-size: 211px 211px; --lo: .2;
+  -webkit-mask-image: linear-gradient(#000, transparent 75%); mask-image: linear-gradient(#000, transparent 75%);
+  animation: sc-twinkle 6s ease-in-out infinite alternate;
+}
+[data-scene="aurora"] .scene::before,
+[data-scene="aurora"] .scene::after {
+  display: block; transform-origin: 50% 0;
+  /* An arc of light, brightest along its lower edge and fading up, with rays running through it. */
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 0%, transparent 45%, rgba(0, 0, 0, .22) 76%, #000 93%, transparent 99%);
+  mask-image: radial-gradient(ellipse 50% 50% at 50% 0%, transparent 45%, rgba(0, 0, 0, .22) 76%, #000 93%, transparent 99%);
+}
+[data-scene="aurora"] .scene::before {
+  left: -70%; right: -50%; top: -24vh; height: 130vh; opacity: .6;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .10) 0 2px, transparent 2px 7px, rgba(255, 255, 255, .05) 7px 8px, transparent 8px 13px),
+    linear-gradient(90deg, transparent 4%, #2DD4BF 20%, #4ADE80 38%, #38BDF8 60%, #8B5CF6 80%, transparent 96%);
+  animation: sc-curtain-a 19s ease-in-out infinite alternate;
+}
+[data-scene="aurora"] .scene::after {
+  left: -90%; right: 10%; top: -20vh; height: 110vh; opacity: .4;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .08) 0 1px, transparent 1px 6px),
+    linear-gradient(90deg, transparent 6%, #A78BFA 26%, #F472B6 46%, #2DD4BF 70%, transparent 94%);
+  animation: sc-curtain-b 27s ease-in-out infinite alternate;
+}
+@keyframes sc-curtain-a {
+  0%   { transform: translateX(-5%) rotate(-3deg) scaleY(.94); opacity: .45; }
+  100% { transform: translateX(5%) rotate(2deg) scaleY(1.1); opacity: .7; }
+}
+@keyframes sc-curtain-b {
+  0%   { transform: translateX(8%) rotate(4deg); opacity: .25; }
+  100% { transform: translateX(-4%) rotate(-2deg) scaleY(1.12); opacity: .5; }
+}
+
+/* ocean: light shafts swaying from the surface, plankton and bubbles rising */
+[data-scene="ocean"] .scene::before {
+  display: block; top: -10%; left: -20%; right: -20%; height: 95%; transform-origin: 50% 0;
+  background: repeating-linear-gradient(98deg,
+    transparent 0 46px, rgba(186, 230, 253, .09) 46px 60px, transparent 60px 104px,
+    rgba(186, 230, 253, .05) 104px 128px, transparent 128px 170px, rgba(186, 230, 253, .07) 170px 178px, transparent 178px 236px);
+  filter: blur(7px);
+  -webkit-mask-image: linear-gradient(#000, rgba(0, 0, 0, .5) 40%, transparent 85%);
+  mask-image: linear-gradient(#000, rgba(0, 0, 0, .5) 40%, transparent 85%);
+  animation: sc-sway 22s ease-in-out infinite alternate;
+}
+@keyframes sc-sway { from { transform: skewX(-7deg); opacity: .75; } to { transform: skewX(7deg); opacity: 1; } }
+[data-scene="ocean"] .scene span:nth-child(1) {
+  display: block; bottom: -263px; background-image: var(--sc-snow); background-size: 263px 263px; --my: -263px; opacity: .7;
+  animation: sc-move 110s linear infinite;
+}
+[data-scene="ocean"] .scene span:nth-child(2) {
+  display: block; bottom: -677px; background-image: var(--sc-bubbles); background-size: 677px 677px;
+  animation: sc-rise 60s linear infinite;
+}
+@keyframes sc-rise {
+  25%  { transform: translate3d(9px, -169.25px, 0); }
+  50%  { transform: translate3d(0, -338.5px, 0); }
+  75%  { transform: translate3d(-9px, -507.75px, 0); }
+  100% { transform: translate3d(0, -677px, 0); }
+}
+
+/* sunset: a striped sun low on the horizon, a grid rolling toward you */
+[data-scene="sunset"] .scene span:nth-child(1) {
+  display: block; inset: 0;
+  background: radial-gradient(ellipse 55% 50% at 50% 82%, rgba(255, 100, 120, .20), transparent 70%);
+  animation: sc-twinkle 9s ease-in-out infinite alternate; --lo: .7;
+}
+[data-scene="sunset"] .scene::before {
+  display: block; left: 50%; bottom: 22vh; width: min(58vmin, 520px); aspect-ratio: 1; margin-left: calc(min(58vmin, 520px) / -2);
+  border-radius: 50%; opacity: .38;
+  background: linear-gradient(#FFC979 0%, #FF8A5B 38%, #FF4E88 68%, #B4307E 100%);
+  -webkit-mask-image: linear-gradient(#000 50%, transparent 50% 53%, #000 53% 61%, transparent 61% 65%, #000 65% 72%, transparent 72% 77%, #000 77% 83%, transparent 83% 89%, #000 89%);
+  mask-image: linear-gradient(#000 50%, transparent 50% 53%, #000 53% 61%, transparent 61% 65%, #000 65% 72%, transparent 72% 77%, #000 77% 83%, transparent 83% 89%, #000 89%);
+  animation: sc-sun 12s ease-in-out infinite alternate;
+}
+@keyframes sc-sun { to { transform: translateY(-10px) scale(1.025); opacity: .46; } }
+[data-scene="sunset"] .scene span:nth-child(2) {
+  display: block; top: auto; bottom: 0; left: -60%; right: -60%; height: 26vh;
+  perspective: 220px; perspective-origin: 50% 0; overflow: hidden; will-change: auto;
+  -webkit-mask-image: linear-gradient(transparent, #000 70%); mask-image: linear-gradient(transparent, #000 70%);
+}
+[data-scene="sunset"] .scene span:nth-child(2)::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 300%; transform-origin: 50% 0;
+  background:
+    linear-gradient(rgba(255, 110, 170, .34) 1.5px, transparent 1.5px) 0 0 / 100% 46px,
+    linear-gradient(90deg, rgba(255, 110, 170, .26) 1.5px, transparent 1.5px) 50% 0 / 60px 100%;
+  animation: sc-grid 2.6s linear infinite;
+}
+@keyframes sc-grid {
+  from { transform: rotateX(72deg) translateY(-46px); }
+  to   { transform: rotateX(72deg) translateY(0); }
+}
+[data-scene="sunset"] .scene span:nth-child(3) {
+  display: block; background-image: var(--sc-stars-s); background-size: 211px 211px; --lo: .15;
+  -webkit-mask-image: linear-gradient(#000, transparent 45%); mask-image: linear-gradient(#000, transparent 45%);
+  animation: sc-twinkle 5s ease-in-out infinite alternate;
+}
+
+/* sakura: petals carried down and to the left, near ones faster */
+[data-scene="sakura"] .scene span { display: block; }
+[data-scene="sakura"] .scene span:nth-child(1) {
+  top: -1226px; right: -613px; background-image: var(--sc-petals-s); background-size: 613px 613px; opacity: .7;
+  --tx: -613px; --ty: 1226px; animation: sc-fall 95s linear infinite;
+}
+[data-scene="sakura"] .scene span:nth-child(2) {
+  top: -1774px; right: -887px; background-image: var(--sc-petals-l); background-size: 887px 887px; opacity: .9;
+  --tx: -887px; --ty: 1774px; animation: sc-fall 80s linear infinite;
+}
+[data-scene="sakura"] .scene span:nth-child(3) {
+  background: radial-gradient(circle at 88% -6%, rgba(255, 255, 255, .8), transparent 38%);
+  will-change: auto;
+}
+/* Falls one tile (--tx, --ty) with a sway on the way, so the loop is seamless. */
+@keyframes sc-fall {
+  25%  { transform: translate3d(calc(var(--tx) * .25 + 18px), calc(var(--ty) * .25), 0); }
+  50%  { transform: translate3d(calc(var(--tx) * .5), calc(var(--ty) * .5), 0); }
+  75%  { transform: translate3d(calc(var(--tx) * .75 - 18px), calc(var(--ty) * .75), 0); }
+  100% { transform: translate3d(var(--tx), var(--ty), 0); }
+}
+
+/* sky: two decks of cloud crossing at different speeds, under a warm sun */
+[data-scene="sky"] .scene span { display: block; }
+[data-scene="sky"] .scene span:nth-child(1) {
+  right: -960px; background-image: var(--sc-clouds-far); background-size: 960px 520px; opacity: .8;
+  --mx: -960px; animation: sc-move 240s linear infinite;
+}
+[data-scene="sky"] .scene span:nth-child(2) {
+  right: -1300px; background-image: var(--sc-clouds-near); background-size: 1300px 640px;
+  --mx: -1300px; animation: sc-move 170s linear infinite;
+}
+[data-scene="sky"] .scene span:nth-child(3) {
+  background: radial-gradient(circle at 90% -8%, rgba(255, 233, 160, .55), transparent 36%);
+  animation: sc-twinkle 10s ease-in-out infinite alternate; --lo: .6;
+}
+
+/* "Reduced" keeps the scene but stills it; the meteor only exists in motion. */
+[data-motion="reduced"] .scene,
+[data-motion="reduced"] .scene *,
+[data-motion="reduced"] .scene::before,
+[data-motion="reduced"] .scene::after,
+[data-motion="reduced"] .scene *::before { animation: none !important; }
+
+/* ---- the theme cards' previews ----------------------------------------- */
+.preview::before { content: ""; position: absolute; inset: 0; pointer-events: none; }
+.preview__rail, .preview__body { position: relative; }
+.preview--galaxy { background: #0D0A22; }
+.preview--galaxy::before {
+  background:
+    var(--sc-stars-l), var(--sc-stars-s),
+    radial-gradient(ellipse 70% 22% at 55% 50%, rgba(167, 139, 250, .30), transparent 70%);
+  background-size: 523px 523px, 211px 211px, 100% 100%;
+  background-position: -120px -170px, 0 0, 0 0;
+}
+.preview--aurora { background: #06111A; }
+.preview--aurora::before {
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .06) 0 1px, transparent 1px 7px),
+    linear-gradient(100deg, transparent 8%, rgba(45, 212, 191, .45) 30%, rgba(56, 189, 248, .38) 55%, rgba(139, 92, 246, .34) 78%, transparent 95%);
+  -webkit-mask-image: linear-gradient(transparent, #000 25%, transparent 75%);
+  mask-image: linear-gradient(transparent, #000 25%, transparent 75%);
+}
+.preview--ocean { background: #041222; }
+.preview--ocean::before {
+  background: repeating-linear-gradient(98deg, transparent 0 14px, rgba(186, 230, 253, .2) 14px 19px, transparent 19px 34px, rgba(186, 230, 253, .11) 34px 42px, transparent 42px 60px);
+  filter: blur(2px);
+  -webkit-mask-image: linear-gradient(#000, transparent 90%);
+  mask-image: linear-gradient(#000, transparent 90%);
+}
+.preview--sunset { background: #170B1E; }
+.preview--sunset::before {
+  background:
+    radial-gradient(circle 34px at 50% 84%, #FF7A6B 98%, transparent),
+    radial-gradient(ellipse 70% 60% at 50% 95%, rgba(255, 100, 120, .35), transparent 70%);
+  -webkit-mask-image: linear-gradient(#000 70%, transparent 70% 74%, #000 74% 80%, transparent 80% 85%, #000 85%);
+  mask-image: linear-gradient(#000 70%, transparent 70% 74%, #000 74% 80%, transparent 80% 85%, #000 85%);
+  opacity: .8;
+}
+.preview--sakura { background: #FBF0F3; }
+.preview--sakura::before {
+  background: var(--sc-petals-l), var(--sc-petals-s);
+  background-size: 887px 887px, 613px 613px;
+  background-position: -60px -200px, 0 -90px;
+}
+.preview--sky { background: #EAF2FB; }
+/* Lighter mock panels on the light scenes, so the scene shows through them like it does in the app. */
+.preview--sakura .preview__rail, .preview--sakura .preview__body,
+.preview--sky .preview__rail, .preview--sky .preview__body { background: rgba(255, 255, 255, .5); }
+.preview--sky::before {
+  background: var(--sc-clouds-near), radial-gradient(circle at 92% 0%, rgba(255, 233, 160, .7), transparent 40%);
+  background-size: 1300px 640px, 100% 100%;
+  background-position: -190px -300px, 0 0;
+}
+/* The picked card's preview breathes, so the live one reads at a glance. */
+.themecard[aria-pressed="true"] .preview::before { animation: sc-twinkle 2.6s ease-in-out infinite alternate; --lo: .55; }
+[data-motion="reduced"] .themecard .preview::before { animation: none; }

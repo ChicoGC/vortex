@@ -861,9 +861,18 @@ function repaintSidebar() {
 }
 
 /* ---- theme & preferences ------------------------------------------------ */
-function setTheme(theme) {
-  document.documentElement.dataset.theme = theme;
-  STORE.set('theme', theme);
+/* id is a THEMES id: a plain mode, or a scene that rides on one. */
+function setTheme(id) {
+  const theme = themeById(id) || themeById('dark');
+  const root = document.documentElement;
+  const scene = theme.id === theme.mode ? null : theme.id;
+  const changed = (root.dataset.scene || null) !== scene;
+  root.dataset.theme = theme.mode;
+  if (scene) root.dataset.scene = scene; else delete root.dataset.scene;
+  STORE.set('theme', theme.id);
+  // A new scene fades in rather than popping over the old one.
+  const layer = document.getElementById('scene');
+  if (changed && scene && layer) { layer.style.animation = 'none'; void layer.offsetWidth; layer.style.animation = ''; }
   syncAppearanceControls();
 }
 
@@ -894,7 +903,7 @@ function setAmbient(on) {
 }
 
 function syncAppearanceControls() {
-  const theme = document.documentElement.dataset.theme;
+  const theme = currentThemeId();
   document.querySelectorAll('[data-theme-pick]').forEach(function (b) {
     b.setAttribute('aria-pressed', String(b.dataset.themePick === theme));
   });
@@ -3234,7 +3243,8 @@ function guardSpotifyOwner(justConnected) {
   }
 
   const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
-  setTheme(STORE.get('theme', prefersLight ? 'light' : 'dark'));
+  const savedTheme = STORE.get('theme', null);
+  setTheme(themeById(savedTheme) ? savedTheme : (prefersLight ? 'light' : 'dark'));
   applyLook();
   document.getElementById('sidebar').innerHTML = renderSidebar();
   document.getElementById('bottomnav').innerHTML = renderBottomNav();

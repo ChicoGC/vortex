@@ -338,7 +338,7 @@ a.post__author:hover .t-body-m-med { text-decoration: underline; }
 .tile__meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 
 /* ---- appearance / theme preview ----------------------------------------- */
-.themegrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.themegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 14px; }
 .themecard {
   padding: 12px; border-radius: var(--radius-lg);
   border: 1px solid var(--glass-border);
@@ -953,7 +953,10 @@ button.tile[aria-pressed="true"] { border-color: var(--accent-border); backgroun
 /* mobile */
 @media (max-width: 560px) {
   .app, .app[data-rail="compact"] { gap: 12px; }
-  .cols--half, .cols--thirds, .themegrid { grid-template-columns: minmax(0, 1fr); }
+  .cols--half, .cols--thirds { grid-template-columns: minmax(0, 1fr); }
+  .themegrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .themecard { padding: 9px; gap: 9px; }
+  .preview { height: 92px; }
   .tilegrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .t-display-l { font-size: 30px; line-height: 34px; }
   .t-display-m { font-size: 26px; line-height: 30px; }

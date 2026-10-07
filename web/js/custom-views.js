@@ -1,5 +1,5 @@
 /* ==========================================================================
-   vortex — Customization: accent, glass, blur, density, motion, sidebar
+   vortex — Customization: theme, accent, glass, blur, density, motion, sidebar
    Every choice is stored per device and applied to <html> right away, so
    the whole app is the preview.
    ========================================================================== */
@@ -11,10 +11,27 @@ const ACCENTS = [
   { id: 'azure',   name: t('Azure'),   dark: '#4192FF', light: '#1C6BDD' },
   { id: 'mono',    name: t('Mono'),    dark: '#F2F1EE', light: '#15151A' }
 ];
+/* Scenes (every theme past the first two) bring their own moving backdrop, drawn
+   by css/scenes.css. Each sits on a base mode, so everything written for dark or
+   light still applies. early.js keeps a copy of the id → mode pairs so the right
+   one paints before the scripts run; add a theme in both places. */
+const THEMES = [
+  { id: 'dark',   mode: 'dark',  name: t('Dark'),    hint: t('Warm graphite') },
+  { id: 'light',  mode: 'light', name: t('Light'),   hint: t('Warm paper') },
+  { id: 'galaxy', mode: 'dark',  name: t('Galaxy'),  hint: t('Purple sky full of stars') },
+  { id: 'aurora', mode: 'dark',  name: t('Aurora'),  hint: t('Northern lights in a night sky') },
+  { id: 'ocean',  mode: 'dark',  name: t('Ocean'),   hint: t('Light rays in deep water') },
+  { id: 'sunset', mode: 'dark',  name: t('Sunset'),  hint: t('A low sun over the horizon') },
+  { id: 'sakura', mode: 'light', name: t('Sakura'),  hint: t('Falling cherry petals, light') },
+  { id: 'sky',    mode: 'light', name: t('Sky'),     hint: t('Slow clouds, light') }
+];
+function themeById(id) { return THEMES.filter(function (x) { return x.id === id; })[0] || null; }
+function currentThemeId() { const r = document.documentElement.dataset; return r.scene || r.theme; }
+
 const DENSITIES = [
   { id: 'comfortable', name: t('Comfortable'), hint: t('Room to breathe') },
-  { id: 'compact',     name: t('Compact'),     hint: t('More on screen') },
-  { id: 'condensed',   name: t('Condensed'),   hint: t('As much as fits') }
+  { id: 'compact',     name: t('Compact'), hint: t('More on screen') },
+  { id: 'condensed',   name: t('Condensed'), hint: t('As much as fits') }
 ];
 const MOTIONS = [
   { id: 'system',  name: t('Device') },
@@ -269,8 +286,8 @@ function navEditor() {
 }
 
 /* ---- view -------------------------------------------------------------------- */
-function themePreview(kind) {
-  return '<div class="preview preview--' + kind + '">' +
+function themePreview(theme) {
+  return '<div class="preview preview--' + theme.mode + (theme.id !== theme.mode ? ' preview--' + theme.id : '') + '">' +
     '<div class="preview__rail"><i class="accent" style="width:60%"></i><i></i><i class="w70"></i><i class="w50"></i><i class="w70"></i></div>' +
     '<div class="preview__body"><i class="w50"></i><i class="accent"></i><i class="w85"></i><i class="w70"></i><i class="w85"></i><i class="w50"></i></div>' +
   '</div>';
@@ -311,18 +328,21 @@ VIEWS.customization = function () {
   const accent = lookPref('accent'), density = lookPref('density'), motion = lookPref('motion');
   const glass = lookPref('glass'), blur = lookPref('blur');
 
+  const themeNow = currentThemeId();
   const themePanel =
     '<section class="panel section">' + sectionHead(t('Theme')) +
-      '<div class="section__body section__body--pad"><div class="themegrid">' +
-        ['dark', 'light'].map(function (k) {
-          return '<button class="themecard" data-theme-pick="' + k + '">' + themePreview(k) +
-            '<div class="themecard__foot"><div class="stack" style="gap:2px">' +
-              '<span class="t-body-m-med">' + (k === 'dark' ? t('Dark') : t('Light')) + '</span>' +
-              '<span class="t-caption c-tertiary">' + (k === 'dark' ? t('Warm graphite') : t('Warm paper')) + '</span></div>' +
+      '<div class="section__body section__body--pad stack stack--sm"><div class="themegrid">' +
+        THEMES.map(function (k) {
+          return '<button class="themecard" data-theme-pick="' + k.id + '" aria-pressed="' + (k.id === themeNow) + '">' + themePreview(k) +
+            '<div class="themecard__foot"><div class="stack" style="gap:2px;min-width:0">' +
+              '<span class="t-body-m-med">' + k.name + '</span>' +
+              '<span class="t-caption c-tertiary">' + k.hint + '</span></div>' +
               '<span class="themecard__check">' + icon('check', 13) + '</span>' +
             '</div></button>';
         }).join('') +
-      '</div></div>' +
+      '</div>' +
+      '<p class="t-body-s c-tertiary">' + t('Scene backdrops follow your Animations setting, and turning off Ambient backdrop hides them.') + '</p>' +
+      '</div>' +
     '</section>';
 
   const accentPanel =
