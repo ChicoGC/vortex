@@ -1089,3 +1089,21 @@ update storage.buckets
 set file_size_limit = 5242880,
     allowed_mime_types = array['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 where id = 'avatars';
+
+-- ============================================================================
+-- song clips (2026-10-07): the 15 or 30 seconds of the song a post plays.
+-- Only where the clip starts and how long it is; the audio comes from Spotify.
+-- Set when the post is created and never changed, so no update grant.
+-- ============================================================================
+alter table public.posts add column if not exists clip_start_ms integer;
+alter table public.posts add column if not exists clip_length_s smallint;
+
+alter table public.posts drop constraint if exists posts_clip_check;
+alter table public.posts add constraint posts_clip_check check (
+  (clip_start_ms is null and clip_length_s is null)
+  or (
+    spotify_track_id is not null
+    and clip_start_ms between 0 and 7200000
+    and clip_length_s in (15, 30)
+  )
+);

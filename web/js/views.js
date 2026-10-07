@@ -248,10 +248,16 @@ function postCard(p) {
       '<span class="post__meta">' +
         '<span class="t-title-s truncate">' + esc(p.track) + '</span>' +
         '<span class="t-body-s c-secondary truncate">' + esc(p.artist) + (p.album ? ' · ' + esc(p.album) : '') + '</span>' +
+        (p.clipStart != null && p.clipLen
+          ? '<span class="t-meta c-tertiary post__clip">' + t('Clip {from}–{to}', { from: clipTime(p.clipStart), to: clipTime(p.clipStart + p.clipLen * 1000) }) + '</span>'
+          : '') +
       '</span>' +
       (p.trackId && /^[A-Za-z0-9]{22}$/.test(p.trackId)
-        ? '<a class="post__play" href="https://open.spotify.com/track/' + p.trackId + '" target="_blank" rel="noopener" ' +
-            'data-tip="' + t('Play on Spotify') + '" aria-label="' + t('Play {track} on Spotify', { track: esc(p.track) }) + '">' + icon('play', 15) + '</a>'
+        ? '<span class="post__listen">' +
+            '<a class="iconbtn" href="https://open.spotify.com/track/' + p.trackId + '" target="_blank" rel="noopener" ' +
+              'data-tip="' + t('Open on Spotify') + '" aria-label="' + t('Open {track} on Spotify', { track: esc(p.track) }) + '">' + icon('spotify', 16) + '</a>' +
+            clipButton(p) +
+          '</span>'
         : '') +
     '</div>' +
     '<hr class="hr">' +

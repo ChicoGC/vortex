@@ -324,15 +324,21 @@ const db = {
       return data;
     },
 
-    /* visibility: 'public' (anyone) or 'friends' (you and your friends). */
-    async create(userId, { trackTitle, artist, album, artSeed, note, albumImageUrl, spotifyTrackId, visibility }) {
+    /* visibility: 'public' (anyone) or 'friends' (you and your friends).
+       clipStartMs and clipLengthS (15 or 30): the part of the song the post plays. */
+    async create(userId, { trackTitle, artist, album, artSeed, note, albumImageUrl, spotifyTrackId, clipStartMs, clipLengthS, visibility }) {
+      const row = {
+        user_id: userId, track_title: trackTitle, artist, album, art_seed: artSeed || 1, note,
+        album_image_url: albumImageUrl || null, spotify_track_id: spotifyTrackId || null,
+        visibility: visibility === 'friends' ? 'friends' : 'public'
+      };
+      if (spotifyTrackId && clipStartMs != null && clipLengthS) {
+        row.clip_start_ms = clipStartMs;
+        row.clip_length_s = clipLengthS;
+      }
       const { data, error } = await supabaseClient
         .from('posts')
-        .insert({
-          user_id: userId, track_title: trackTitle, artist, album, art_seed: artSeed || 1, note,
-          album_image_url: albumImageUrl || null, spotify_track_id: spotifyTrackId || null,
-          visibility: visibility === 'friends' ? 'friends' : 'public'
-        })
+        .insert(row)
         .select()
         .single();
       if (error) throw error;

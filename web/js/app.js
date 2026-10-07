@@ -116,6 +116,8 @@ function transformPostData(post, currentUserId) {
     art: post.art_seed || 1,
     image: post.album_image_url,
     trackId: post.spotify_track_id,
+    clipStart: post.clip_start_ms == null ? null : post.clip_start_ms,
+    clipLen: post.clip_length_s || null,
     note: post.note,
     visibility: post.visibility === 'friends' ? 'friends' : 'public',
     reactions: { flame: count('flame'), heart: count('heart') },
@@ -979,6 +981,8 @@ let lastSpotifyPoll = 0;
 
 async function pollSpotify() {
   if (!app.session || !spotify.auth.isConnected()) { stopSpotifyPolling(); return; }
+  // During a clip Spotify reports the clip as playing; it isn't what you're listening to.
+  if (clipBusy()) return;
   // In a background tab keep a slow heartbeat, so friends still see you as live.
   if (document.hidden && Date.now() - lastSpotifyPoll < 55000) return;
   lastSpotifyPoll = Date.now();
@@ -1669,7 +1673,7 @@ function fillPostFromNowPlaying() {
   document.getElementById('postTitle').value = np.title;
   document.getElementById('postArtist').value = np.artist;
   document.getElementById('postAlbum').value = np.album || '';
-  setPostTrack({ id: np.id, image: np.thumb || np.image, title: np.title, artist: np.artist });
+  setPostTrack({ id: np.id, image: np.thumb || np.image, title: np.title, artist: np.artist, durationMs: np.duration * 1000 }, np.elapsed * 1000);
   document.getElementById('postNote').focus();
 }
 
@@ -1725,7 +1729,11 @@ const TOASTS = {
   spotifyFailed: ['error', t('Could not connect Spotify'), t('Try again in a moment')],
   spotifyDisconnected: ['success', t('Spotify disconnected'), t('Remove full access at spotify.com/account/apps')],
   spotifyExpired: ['error', t('Spotify session ended'), t('Connect again in Settings')],
-  spotifyForbidden: ['error', t('Spotify blocked this account'), t('While in development, only accounts on the tester list can connect')]
+  spotifyForbidden: ['error', t('Spotify blocked this account'), t('While in development, only accounts on the tester list can connect')],
+  clipPremium: ['info', t('Clips need Spotify Premium'), t('The Spotify button next to it opens the song there')],
+  clipFailed: ['error', t('Couldn’t play the clip'), t('Try again in a moment')],
+  clipUnsupported: ['error', t('This browser can’t play clips'), t('Spotify’s player needs Chrome, Firefox, Safari or Edge')],
+  clipTapAgain: ['info', t('Tap play again'), t('Your browser wanted a tap before playing sound')]
 };
 
 function toast(kind) {
@@ -1766,7 +1774,7 @@ function showToast(inner) {
     el.classList.add('toast--out');
     setTimeout(function () { el.remove(); }, 200);
   };
-  el.querySelector('button').addEventListener('click', kill);
+  el.lastElementChild.addEventListener('click', kill);
   setTimeout(kill, 5000);
 }
 
@@ -1990,19 +1998,22 @@ async function shareLink(hash) {
 
 /* ---- overlays ------------------------------------------------------------ */
 function closeOverlay() {
+  stopComposerClip();
   const o = document.getElementById('overlay');
   o.innerHTML = '';
   o.hidden = true;
 }
 
-/* The Spotify track picked for the post being written: { id, image, title, artist } */
+/* The Spotify track picked for the post being written: { id, image, title, artist, durationMs } */
 let postTrack = null;
 let postSearchResults = [];
 let postSearchTimer = null;
 let postSearchSeq = 0;
 
-function setPostTrack(track) {
+/* startMs: where the clip picker starts (where you are in the song when sharing what's playing). */
+function setPostTrack(track, startMs) {
   postTrack = track;
+  stopComposerClip();
   const el = document.getElementById('postPicked');
   if (!el) return;
   el.innerHTML = track
@@ -2010,15 +2021,17 @@ function setPostTrack(track) {
         art(artSeedFor(track.id), null, track.image) +
         '<span class="t-body-s c-secondary truncate">' + t('Cover from Spotify · {track}', { track: esc(track.title) }) + '</span>' +
         '<button type="button" class="iconbtn" data-action="post-clear-track" data-tip="' + t('Remove cover') + '" aria-label="' + t('Remove cover') + '">' + icon('close', 15) + '</button>' +
-      '</div>'
+      '</div>' + clipPicker(track, startMs)
     : '';
+  if (!track) composerClip = null;
+  bindClipPicker();
 }
 
 function fillPostTrack(t) {
   document.getElementById('postTitle').value = t.title;
   document.getElementById('postArtist').value = t.artist;
   document.getElementById('postAlbum').value = t.album || '';
-  setPostTrack({ id: t.id, image: t.thumb, title: t.title, artist: t.artist });
+  setPostTrack({ id: t.id, image: t.thumb, title: t.title, artist: t.artist, durationMs: t.durationMs });
   document.getElementById('postNote').focus();
 }
 
@@ -2589,6 +2602,7 @@ async function handlePostSubmit(form) {
   // Same shapes the database constraints accept; anything else is dropped, not rejected.
   const image = postTrack && COVER_URL.test(postTrack.image || '') ? postTrack.image : null;
   const trackId = postTrack && TRACK_ID.test(postTrack.id || '') ? postTrack.id : null;
+  const clip = trackId && composerClip && composerClip.trackId === trackId ? composerClip : null;
 
   const btn = document.getElementById('postSubmit');
   btn.disabled = true; btn.textContent = t('Sharing…');
@@ -2601,6 +2615,8 @@ async function handlePostSubmit(form) {
       artSeed: trackId ? artSeedFor(trackId) : 1 + Math.floor(Math.random() * 6),
       albumImageUrl: image,
       spotifyTrackId: trackId,
+      clipStartMs: clip ? clip.startMs : null,
+      clipLengthS: clip ? clip.lengthS : null,
       visibility: visibility
     });
     try { localStorage.setItem('vortex.postAudience', visibility); } catch (e) {}
@@ -2853,6 +2869,10 @@ document.addEventListener('click', function (e) {
   if (t.closest('[data-action="new-post"]')) { openPostForm(); return; }
   if (t.closest('[data-action="share-now-playing"]')) { openPostForm(); fillPostFromNowPlaying(); return; }
   if (t.closest('[data-action="post-use-np"]')) { fillPostFromNowPlaying(); return; }
+  const clipBtn = t.closest('[data-clip]');
+  if (clipBtn) { onClipButton(clipBtn); return; }
+  const clipLen = t.closest('[data-clip-len-pick]');
+  if (clipLen && composerClip) { setComposerClip(composerClip.startMs, +clipLen.dataset.clipLenPick); replayComposerClip(); return; }
 
   if (t.closest('[data-action="spotify-connect"]')) { connectSpotify(); return; }
   if (t.closest('[data-action="spotify-disconnect"]')) {

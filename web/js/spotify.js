@@ -12,9 +12,13 @@ const SPOTIFY_SCOPES = [
   'user-top-read',
   'playlist-read-private'
 ].join(' ');
-/* Requested on every new connection but never required: only "Save as
-   playlist" needs it, so older connections aren't forced to reconnect. */
-const SPOTIFY_OPTIONAL_SCOPES = 'playlist-modify-private';
+/* Requested on every new connection but never required, so older connections
+   aren't forced to reconnect: "Save as playlist" needs the first, and song
+   clips (clips.js) need the rest, for Spotify's in-browser player. */
+const SPOTIFY_CLIP_SCOPES = ['streaming', 'user-read-email', 'user-read-private', 'user-modify-playback-state'];
+/* The in-browser player clips play on, as it shows in Spotify's device list. */
+const SPOTIFY_CLIP_PLAYER = 'vortex';
+const SPOTIFY_OPTIONAL_SCOPES = ['playlist-modify-private'].concat(SPOTIFY_CLIP_SCOPES).join(' ');
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SPOTIFY_API = 'https://api.spotify.com/v1';
@@ -173,6 +177,7 @@ const spotify = {
     },
 
     disconnect: function () {
+      if (typeof shutdownClips === 'function') shutdownClips();
       ['access_token', 'refresh_token', 'expires_at', 'scope', 'owner'].forEach(function (k) { spotifyStore.set(k, null); });
       spotifyUserId = null;
     },
@@ -183,12 +188,13 @@ const spotify = {
     setOwner: function (userId) { spotifyStore.set('owner', userId); }
   },
 
-  /* body (optional) is sent as JSON, which makes it a POST. */
-  async request(path, body) {
+  /* body (optional) is sent as JSON, which makes it a POST unless method says otherwise. */
+  async request(path, body, method) {
     async function send() {
       const opts = { headers: { Authorization: 'Bearer ' + await spotify.auth.getValidToken() } };
+      if (method) opts.method = method;
       if (body !== undefined) {
-        opts.method = 'POST';
+        opts.method = method || 'POST';
         opts.headers['Content-Type'] = 'application/json';
         opts.body = JSON.stringify(body);
       }
@@ -199,9 +205,15 @@ const spotify = {
       spotifyStore.set('expires_at', '0');
       res = await send();
     }
-    if (res.status === 204) return null;
-    if (!res.ok) throw new SpotifyError('Spotify request failed (' + res.status + ')', res.status);
-    return res.json();
+    if (!res.ok) {
+      const err = new SpotifyError('Spotify request failed (' + res.status + ')', res.status);
+      // Player calls say why they refused, e.g. PREMIUM_REQUIRED.
+      try { err.reason = ((await res.json()).error || {}).reason || null; } catch (e) { err.reason = null; }
+      throw err;
+    }
+    // Player commands answer 204 or 202 with no body.
+    const text = res.status === 204 ? '' : await res.text();
+    return text ? JSON.parse(text) : null;
   },
 
   /* The Spotify account id, used to tell playlists you own from ones you follow. */
@@ -218,6 +230,8 @@ const spotify = {
   async nowPlaying() {
     const data = await spotify.request('/me/player?additional_types=track');
     if (!data || !data.item || data.item.type !== 'track') return null;
+    // A clip left paused on vortex's own player isn't something you listened to.
+    if (data.device && data.device.name === SPOTIFY_CLIP_PLAYER) return null;
     const track = spotifyTrack(data.item);
     track.progressMs = data.progress_ms || 0;
     track.playing = !!data.is_playing;

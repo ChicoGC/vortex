@@ -179,6 +179,66 @@ a.post__author:hover .t-body-m-med { text-decoration: underline; }
   transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast) var(--ease-out);
 }
 .post__play:hover { transform: scale(1.08); background: var(--accent-base); color: var(--text-on-accent); border-color: transparent; }
+
+/* ---- song clips (clips.js) ------------------------------------------------ */
+.post__listen { display: flex; align-items: center; gap: 2px; flex: none; }
+.post__clip { display: block; margin-top: 1px; }
+.post__play { position: relative; }
+/* The ring fills as the clip plays; while Spotify loads it, a quarter of it spins. */
+.post__play::before {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%; opacity: 0;
+  background: conic-gradient(var(--accent-base) calc(var(--clip-p, 0) * 360deg), var(--border-default) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+.post__play[data-clip-state="playing"],
+.post__play[data-clip-state="loading"] { background: var(--accent-base); color: var(--text-on-accent); border-color: transparent; }
+.post__play[data-clip-state="playing"]::before { opacity: 1; }
+.post__play[data-clip-state="loading"]::before {
+  opacity: 1; background: conic-gradient(var(--accent-base) 0 25%, transparent 0);
+  animation: clip-spin .8s linear infinite;
+}
+@keyframes clip-spin { to { transform: rotate(1turn); } }
+.clipicon { display: grid; place-items: center; }
+.clipicon--pause, .clip__say--stop { display: none; }
+[data-clip-state="playing"] .clipicon--play, [data-clip-state="loading"] .clipicon--play,
+[data-clip-state="playing"] .clip__say--play, [data-clip-state="loading"] .clip__say--play { display: none; }
+[data-clip-state="playing"] .clipicon--pause, [data-clip-state="loading"] .clipicon--pause,
+[data-clip-state="playing"] .clip__say--stop, [data-clip-state="loading"] .clip__say--stop { display: inline-grid; }
+
+/* the picker in the post form: a stand-in waveform with a highlight you slide along it */
+.clip {
+  display: flex; flex-direction: column; gap: 10px; margin-top: 10px;
+  padding: 12px; border-radius: var(--radius-md);
+  background: var(--bg-inset); border: 1px solid var(--border-subtle);
+}
+.clip__head, .clip__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.clip__lens .tab { min-width: 52px; }
+.clip__track { position: relative; height: 58px; touch-action: none; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.clip__wave { position: absolute; inset: 9px 6px; display: flex; align-items: center; gap: 2px; pointer-events: none; }
+.clip__wave i {
+  flex: 1; height: calc(var(--h) * 100%); min-height: 3px; border-radius: 2px;
+  background: var(--border-strong); transition: background var(--dur-fast) var(--ease-out);
+}
+.clip__wave i.on { background: var(--accent-base); }
+.clip__window {
+  --min: 30px;
+  position: absolute; top: 0; bottom: 0;
+  left: min(var(--l), calc(100% - max(var(--min), var(--w))));
+  width: max(var(--min), var(--w));
+  border-radius: 10px; border: 2px solid var(--accent-base); background: var(--accent-soft);
+  cursor: grab; overflow: hidden;
+}
+.clip__track.is-dragging .clip__window { cursor: grabbing; box-shadow: 0 0 0 4px var(--accent-soft); }
+.clip__track.is-dragging .clip__wave i { transition: none; }
+/* the playhead, while the preview plays */
+.clip__window::after {
+  content: ""; position: absolute; top: 4px; bottom: 4px; width: 2px; border-radius: 1px;
+  left: calc(var(--clip-p, 0) * (100% - 2px)); background: var(--text-primary); opacity: 0;
+}
+.clip__window.is-playing::after { opacity: .9; }
+.clip__play { min-width: 0; }
 .post__foot { display: flex; align-items: center; gap: 7px; }
 .post__note {
   padding: 8px 11px; border-radius: var(--radius-md);
