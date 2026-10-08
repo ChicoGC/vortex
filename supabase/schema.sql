@@ -1107,3 +1107,19 @@ alter table public.posts add constraint posts_clip_check check (
     and clip_length_s in (15, 30)
   )
 );
+
+-- ============================================================================
+-- mural (2026-10-08): the banner and widgets people put on their profile.
+-- One jsonb value per profile, public like the bio. The app checks every field
+-- when it reads it (web/js/mural.js), so here it only has to stay an object of
+-- a sane size: 8 widgets at their fullest come to about 22 KB.
+-- ============================================================================
+alter table public.profiles add column if not exists mural jsonb;
+
+alter table public.profiles drop constraint if exists profiles_mural_check;
+alter table public.profiles add constraint profiles_mural_check check (
+  mural is null
+  or (jsonb_typeof(mural) = 'object' and octet_length(mural::text) <= 32768)
+);
+
+grant update (mural) on public.profiles to authenticated;

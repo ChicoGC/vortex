@@ -12,6 +12,7 @@ const NAV = [
   { id: 'music',        label: t('Music'),        icon: 'disc' },
   { group: 'You' },
   { id: 'profile',      label: t('Profile'),      icon: 'user' },
+  { id: 'mural',        label: t('Mural'),        icon: 'layers' },
   { id: 'recap',        label: t('Recap'),        icon: 'sparkle' },
   { id: 'customization', label: t('Customization'), icon: 'droplet' },
   { id: 'experimental', label: t('Experimental'), icon: 'flask', dot: true },
@@ -155,6 +156,8 @@ function applyProfile(profile) {
   DATA.me.bio = profile.bio || '';
   DATA.me.shareListening = profile.share_listening !== false;
   DATA.me.shareTaste = profile.share_taste !== false;
+  // An older copy of the row mustn't replace mural changes still on their way out.
+  if (MURAL.status !== 'saving') DATA.me.mural = muralFromRow(profile.mural);
 
   const joinedDate = new Date(profile.created_at);
   const month = joinedDate.toLocaleString(loc('en-US'), { month: 'long' });
@@ -1722,6 +1725,7 @@ const TOASTS = {
   avatarTooBig: ['error', t('Image too large'), t('Photos must be 5MB or smaller')],
   lookReset: ['info', t('Back to defaults'), t('Accent, glass, density, animations, sound and sidebar were reset')],
   pinSaved: ['success', t('Song pinned'), t('It\'s the first thing people see on your profile')],
+  muralFailed: ['error', t('Mural not saved'), t('Check your connection, then tap Retry at the top')],
   pinCleared: ['info', t('Song unpinned'), t('Pin another one any time from your profile')],
   recapNoShare: ['info', t('Saved instead'), t('This browser can\'t share images, so the recap was downloaded')],
   spotifyConnected: ['success', t('Spotify connected'), t('What you play now shows up in vortex')],

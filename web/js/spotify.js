@@ -330,6 +330,33 @@ const spotify = {
     return (data && data.tracks ? data.tracks.items : []).filter(Boolean).map(spotifyTrack);
   },
 
+  /* For the mural's artist widget: the ~300px portrait when there is one. */
+  async searchArtists(query, limit) {
+    const q = String(query || '').trim().slice(0, 100);
+    if (q.length < 2) return [];
+    const data = await spotify.request('/search?type=artist&limit=' + (limit || 6) + '&q=' + encodeURIComponent(q));
+    return (data && data.artists ? data.artists.items : []).filter(Boolean).map(function (a) {
+      const images = a.images || [];
+      return { id: a.id, name: a.name, image: images.length ? (images[1] || images[0]).url : null };
+    });
+  },
+
+  async searchAlbums(query, limit) {
+    const q = String(query || '').trim().slice(0, 100);
+    if (q.length < 2) return [];
+    const data = await spotify.request('/search?type=album&limit=' + (limit || 6) + '&q=' + encodeURIComponent(q));
+    return (data && data.albums ? data.albums.items : []).filter(Boolean).map(function (a) {
+      const images = a.images || [];
+      return {
+        id: a.id,
+        title: a.name,
+        artist: (a.artists || []).map(function (x) { return x.name; }).join(', '),
+        image: images.length ? (images[1] || images[0]).url : null,
+        year: parseInt(String(a.release_date || '').slice(0, 4), 10) || null
+      };
+    });
+  },
+
   /* Best-effort cover lookup for posts saved without one. Results (including
      misses) are cached per browser so each track is searched only once. */
   async findCover(title, artist) {

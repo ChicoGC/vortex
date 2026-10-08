@@ -921,9 +921,10 @@ VIEWS.music = function () {
 VIEWS.profile = function () {
   const me = DATA.me;
   const s = me.stats;
+  const mural = myMural();
   const header =
-    '<section class="panel section__body--pad" style="padding:22px">' +
-      '<div class="rowflex" style="gap:18px;align-items:flex-start;flex-wrap:wrap">' +
+    '<section class="' + cx('panel phead', muralBannerId(mural) !== 'none' && 'phead--banner') + '">' + muralBanner(mural, app.session.user.id) +
+      '<div class="rowflex phead__top" style="gap:18px;align-items:flex-start;flex-wrap:wrap">' +
         '<div class="avatar-edit">' +
           avatarEl(me.initials, '72', null, me.avatarUrl) +
           '<label class="avatar-edit__btn" data-tip="' + t('Change photo') + '" aria-label="' + t('Change profile photo') + '">' +
@@ -958,7 +959,7 @@ VIEWS.profile = function () {
       '</section>'
     : ghostPanel(t('Your recent shares'), sharePostButton(false));
 
-  return wrap(pageHead(t('Your profile'), t('Profile')), header + dnaSection() + shares);
+  return wrap(pageHead(t('Your profile'), t('Profile')), header + muralProfileSection(mural, app.session.user.id, true) + dnaSection() + shares);
 };
 
 function friendProfileLoading() {
@@ -983,8 +984,9 @@ function friendProfileHeader(profile, stats, relation) {
   const joinedDate = new Date(profile.created_at);
   const joined = t('{month} {year}', { month: joinedDate.toLocaleString(loc('en-US'), { month: 'long' }), year: joinedDate.getFullYear() });
 
-  return '<section class="panel section__body--pad" style="padding:22px">' +
-    '<div class="rowflex" style="gap:18px;align-items:flex-start;flex-wrap:wrap">' +
+  const mural = muralFromRow(profile.mural);
+  return '<section class="' + cx('panel phead', muralBannerId(mural) !== 'none' && 'phead--banner') + '">' + muralBanner(mural, profile.id) +
+    '<div class="rowflex phead__top" style="gap:18px;align-items:flex-start;flex-wrap:wrap">' +
       avatarEl(initialsFrom(profile.name), '72', null, profile.avatar_url) +
       '<div class="stack stack--sm" style="flex:1;min-width:180px;gap:6px">' +
         '<h2 class="t-title-l">' + esc(profile.name) + '</h2>' +
@@ -1041,7 +1043,7 @@ VIEWS.friendProfile = function () {
     : ghostPanel(t('{name}’s recent shares', { name: first }), null, t('Nothing shared yet.'));
 
   return wrap(pageHead(t('Profile'), esc(profile.name)),
-    friendProfileHeader(profile, state.stats, relation) + friendDnaSectionAuto() + shares);
+    friendProfileHeader(profile, state.stats, relation) + muralProfileSection(muralFromRow(profile.mural), profile.id, false) + friendDnaSectionAuto() + shares);
 };
 
 VIEWS.experimental = function () {
