@@ -944,7 +944,15 @@ VIEWS.profile = function () {
           '<button class="btn btn--secondary btn--sm" data-action="profile-edit">' + t('Edit profile') + '</button>' +
         '</div>' +
       '</div>' +
-      '<div style="margin-top:18px">' + (me.pin ? pinCard(me.pin, true) : pinInvite()) + '</div>' +
+      profileTabs('me', mural) +
+    '</section>';
+  if (profileTabFor('me') === 'mural') {
+    return wrap(pageHead(t('Your profile'), t('Profile')), header + muralProfileSection(mural, app.session.user.id, true));
+  }
+
+  const card =
+    '<section class="panel pcard" role="tabpanel" aria-labelledby="ptab-profile">' +
+      (me.pin ? pinCard(me.pin, true) : pinInvite()) +
       '<hr class="hr" style="margin:18px 0 16px">' +
       '<div class="cols cols--thirds">' +
         statTile(t('Tracks shared'), s ? String(s.posts) : '—') +
@@ -959,7 +967,7 @@ VIEWS.profile = function () {
       '</section>'
     : ghostPanel(t('Your recent shares'), sharePostButton(false));
 
-  return wrap(pageHead(t('Your profile'), t('Profile')), header + muralProfileSection(mural, app.session.user.id, true) + dnaSection() + shares);
+  return wrap(pageHead(t('Your profile'), t('Profile')), header + card + dnaSection() + shares);
 };
 
 function friendProfileLoading() {
@@ -984,7 +992,7 @@ function friendProfileHeader(profile, stats, relation) {
   const joinedDate = new Date(profile.created_at);
   const joined = t('{month} {year}', { month: joinedDate.toLocaleString(loc('en-US'), { month: 'long' }), year: joinedDate.getFullYear() });
 
-  const mural = muralFromRow(profile.mural);
+  const mural = muralFromRow(profile.mural, profile.id);
   return '<section class="' + cx('panel phead', muralBannerId(mural) !== 'none' && 'phead--banner') + '">' + muralBanner(mural, profile.id) +
     '<div class="rowflex phead__top" style="gap:18px;align-items:flex-start;flex-wrap:wrap">' +
       avatarEl(initialsFrom(profile.name), '72', null, profile.avatar_url) +
@@ -996,8 +1004,15 @@ function friendProfileHeader(profile, stats, relation) {
       '<div class="rowflex" style="gap:8px;flex:none;flex-wrap:wrap">' + shareLinkButton('#/u/' + profile.username, t('Copy profile link')) + controls +
         safetyTrigger({ id: profile.id, name: profile.name, username: profile.username }, null, t('More options for {name}', { name: profile.name })) + '</div>' +
     '</div>' +
-    (pinFromRow(profile) ? '<div style="margin-top:18px">' + pinCard(pinFromRow(profile), false) + '</div>' : '') +
-    '<hr class="hr" style="margin:18px 0 16px">' +
+    profileTabs('u:' + profile.id, mural) +
+  '</section>';
+}
+
+/* The Profile tab's pinned song and numbers. */
+function friendProfileCard(profile, stats) {
+  const pin = pinFromRow(profile);
+  return '<section class="panel pcard" role="tabpanel" aria-labelledby="ptab-profile">' +
+    (pin ? pinCard(pin, false) + '<hr class="hr" style="margin:18px 0 16px">' : '') +
     '<div class="cols cols--thirds">' +
       statTile(t('Tracks shared'), stats ? String(stats.posts) : '—') +
       statTile(t('Reactions received'), stats ? String(stats.reactions) : '—') +
@@ -1036,6 +1051,11 @@ VIEWS.friendProfile = function () {
   if (isBlocked(profile.id)) return wrap(pageHead(t('Profile'), esc(profile.name)), blockedPanel(profile));
   const relation = relationshipWith(profile.id);
   const first = profile.name.split(/\s+/)[0];
+  const header = friendProfileHeader(profile, state.stats, relation);
+  if (profileTabFor('u:' + profile.id) === 'mural') {
+    return wrap(pageHead(t('Profile'), esc(profile.name)),
+      header + muralProfileSection(muralFromRow(profile.mural, profile.id), profile.id, false, first));
+  }
   const shares = state.posts.length
     ? '<section class="panel section">' + sectionHead(t('{name}’s recent shares', { name: first })) +
         '<div class="section__body">' + state.posts.map(function (p) { return postRow(p, false); }).join('') + '</div>' +
@@ -1043,7 +1063,7 @@ VIEWS.friendProfile = function () {
     : ghostPanel(t('{name}’s recent shares', { name: first }), null, t('Nothing shared yet.'));
 
   return wrap(pageHead(t('Profile'), esc(profile.name)),
-    friendProfileHeader(profile, state.stats, relation) + muralProfileSection(muralFromRow(profile.mural), profile.id, false) + friendDnaSectionAuto() + shares);
+    header + friendProfileCard(profile, state.stats) + friendDnaSectionAuto() + shares);
 };
 
 VIEWS.experimental = function () {

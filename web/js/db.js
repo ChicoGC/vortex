@@ -206,6 +206,31 @@ const db = {
       if (error || !data) return;
       const stale = data.map(function (f) { return userId + '/' + f.name; }).filter(function (p) { return p !== keepPath; });
       if (stale.length) await supabaseClient.storage.from('avatars').remove(stale);
+    },
+
+    /* blob: a JPEG already shrunk and stripped by mural.js. Returns its public URL. */
+    async uploadMuralPhoto(userId, blob) {
+      const path = userId + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+      const { error } = await supabaseClient.storage.from('mural')
+        .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+      if (error) throw error;
+      return supabaseClient.storage.from('mural').getPublicUrl(path).data.publicUrl;
+    },
+
+    /* Removes this user's mural photos that aren't in keepUrls, skipping any uploaded in the last hour. */
+    async pruneMuralPhotos(userId, keepUrls) {
+      const { data, error } = await supabaseClient.storage.from('mural').list(userId, { limit: 100 });
+      if (error) throw error;
+      const hourAgo = Date.now() - 3600 * 1000;
+      const stale = (data || []).map(function (f) { return userId + '/' + f.name; }).filter(function (path) {
+        const uploaded = parseInt(path.split('/')[1], 10);
+        const url = supabaseClient.storage.from('mural').getPublicUrl(path).data.publicUrl;
+        return keepUrls.indexOf(url) < 0 && uploaded > 0 && uploaded < hourAgo;
+      });
+      if (stale.length) {
+        const res = await supabaseClient.storage.from('mural').remove(stale);
+        if (res.error) throw res.error;
+      }
     }
   },
 

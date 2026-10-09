@@ -1123,3 +1123,36 @@ alter table public.profiles add constraint profiles_mural_check check (
 );
 
 grant update (mural) on public.profiles to authenticated;
+
+-- ============================================================================
+-- mural photos (2026-10-08): the photos widget, one folder per user in the
+-- public "mural" bucket. The app shrinks each photo to a JPEG of at most
+-- 1600px with its metadata (GPS, camera) stripped before it uploads it.
+-- Reading a photo needs only its public URL; listing a folder is owner-only,
+-- so nobody can page through everyone's uploads. At most 30 files per person,
+-- and the app deletes ones no widget uses any more.
+-- ============================================================================
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('mural', 'mural', true, 2097152, array['image/jpeg'])
+on conflict (id) do update
+set public = true, file_size_limit = 2097152, allowed_mime_types = array['image/jpeg'];
+
+drop policy if exists "users list their own mural photos" on storage.objects;
+create policy "users list their own mural photos"
+  on storage.objects for select
+  using (bucket_id = 'mural' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "users upload their own mural photos" on storage.objects;
+create policy "users upload their own mural photos"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'mural'
+    and name ~ ('^' || auth.uid()::text || '/[0-9]+-[a-z0-9]+\.jpg$')
+    and (select count(*) from storage.objects o
+         where o.bucket_id = 'mural' and (storage.foldername(o.name))[1] = auth.uid()::text) < 30
+  );
+
+drop policy if exists "users delete their own mural photos" on storage.objects;
+create policy "users delete their own mural photos"
+  on storage.objects for delete
+  using (bucket_id = 'mural' and (storage.foldername(name))[1] = auth.uid()::text);

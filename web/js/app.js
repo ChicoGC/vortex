@@ -157,7 +157,7 @@ function applyProfile(profile) {
   DATA.me.shareListening = profile.share_listening !== false;
   DATA.me.shareTaste = profile.share_taste !== false;
   // An older copy of the row mustn't replace mural changes still on their way out.
-  if (MURAL.status !== 'saving') DATA.me.mural = muralFromRow(profile.mural);
+  if (MURAL.status !== 'saving') DATA.me.mural = muralFromRow(profile.mural, profile.id);
 
   const joinedDate = new Date(profile.created_at);
   const month = joinedDate.toLocaleString(loc('en-US'), { month: 'long' });

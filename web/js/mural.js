@@ -27,11 +27,12 @@ const MURAL_TYPES = {
   tracks:  { icon: 'disc',     name: t('Favourite songs'),   hint: t('Up to 5, each with a clip'),       size: 'm', max: 5 },
   artists: { icon: 'users',    name: t('Favourite artists'), hint: t('Up to 6 faces'),                   size: 'm', max: 6 },
   album:   { icon: 'layers',   name: t('Album'),             hint: t('The one you never skip'),          size: 's', max: 1 },
+  photos:  { icon: 'camera',   name: t('Photos'),            hint: t('Up to 6 of your own'),             size: 'm', max: 6 },
   note:    { icon: 'comment',  name: tx('mural', 'Note'),              hint: t('A few words, up to 160 characters'), size: 's' },
   tags:    { icon: 'sparkle',  name: t('Genres and moods'),  hint: t('Up to 8 tags, in your words'),     size: 's', max: 8 },
   shows:   { icon: 'calendar', name: t('Shows'),             hint: t('Concerts you’ve been to'),         size: 'm', max: 6 }
 };
-const MURAL_TYPE_ORDER = ['tracks', 'artists', 'album', 'note', 'tags', 'shows'];
+const MURAL_TYPE_ORDER = ['tracks', 'artists', 'album', 'photos', 'note', 'tags', 'shows'];
 const MURAL_SEARCHED = { tracks: true, artists: true, album: true };
 
 /* ---- reading and checking --------------------------------------------------- */
@@ -43,8 +44,12 @@ function muralYear(v) {
   return n >= 1950 && n <= new Date().getFullYear() + 1 ? n : null;
 }
 
-/* null when the widget is broken or has nothing in it, so it isn't shown. */
-function muralCleanWidget(w) {
+/* Photos live in the mural bucket, in a folder named after their owner (db.storage.uploadMuralPhoto). */
+const MURAL_PHOTO = /^https:\/\/hpblrmnturpihyrhwzih\.supabase\.co\/storage\/v1\/object\/public\/mural\/([0-9a-f-]{36})\/[A-Za-z0-9_-]+\.jpg$/;
+
+/* null when the widget is broken or has nothing in it, so it isn't shown.
+   owner: the profile's id. A photo only counts if it's in that person's own folder. */
+function muralCleanWidget(w, owner) {
   if (!w || typeof w !== 'object' || !MURAL_TYPES.hasOwnProperty(w.type)) return null;
   const type = MURAL_TYPES[w.type];
   const out = {
@@ -76,6 +81,11 @@ function muralCleanWidget(w) {
     }).slice(0, 1).map(function (x) {
       return { id: x.id, title: muralStr(x.title, 200), artist: muralStr(x.artist, 200), image: dnaCover(x.image), year: muralYear(x.year) };
     });
+  } else if (w.type === 'photos') {
+    out.items = muralArr(w.items, type.max).filter(function (x) {
+      const hit = x && typeof x.url === 'string' && MURAL_PHOTO.exec(x.url);
+      return hit && hit[1] === owner && once(x.url);
+    }).slice(0, type.max).map(function (x) { return { url: x.url, caption: muralStr(x.caption, 60) }; });
   } else if (w.type === 'tags') {
     out.items = muralArr(w.items, type.max).map(function (x) { return muralStr(x, 24); })
       .filter(function (x) { return x && once(x); }).slice(0, type.max);
@@ -88,11 +98,11 @@ function muralCleanWidget(w) {
   return out.items.length ? out : null;
 }
 
-function muralFromRow(raw) {
+function muralFromRow(raw, owner) {
   const m = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
   return {
     banner: MURAL_BANNERS.some(function (b) { return b.id === m.banner; }) ? m.banner : 'glow',
-    widgets: muralArr(m.widgets, MURAL_MAX).map(muralCleanWidget).filter(Boolean).slice(0, MURAL_MAX)
+    widgets: muralArr(m.widgets, MURAL_MAX).map(function (w) { return muralCleanWidget(w, owner); }).filter(Boolean).slice(0, MURAL_MAX)
   };
 }
 
@@ -220,6 +230,16 @@ const MURAL_BODY = {
         '<span class="mw-ticket__stub t-num">' + (x.year || '—') + '</span>' +
       '</li>';
     }).join('') + '</ul>';
+  },
+  /* A collage; each photo opens larger (openMuralPhoto), with the rest of the widget's photos a swipe away. */
+  photos: function (w) {
+    return '<ul class="mw-photos mw-photos--' + w.items.length + '">' + w.items.map(function (x, i) {
+      return '<li><button type="button" class="mw-photo" data-mural-photo="' + i + '" aria-label="' +
+          (x.caption ? t('Open photo: {caption}', { caption: esc(x.caption) }) : t('Open photo {n} of {count}', { n: i + 1, count: w.items.length })) + '">' +
+        '<img src="' + esc(x.url) + '" alt="" loading="lazy" decoding="async" data-caption="' + esc(x.caption) + '">' +
+        (x.caption ? '<span class="mw-photo__cap">' + esc(x.caption) + '</span>' : '') +
+      '</button></li>';
+    }).join('') + '</ul>';
   }
 };
 
@@ -254,24 +274,42 @@ function muralBoard(m, ctx) {
   '</div>';
 }
 
-/* On a profile: the board, or for your own empty one an invitation to start it. */
-function muralProfileSection(m, ownerId, own) {
+/* ---- Profile | Mural on a profile ------------------------------------------------ */
+/* Which half of a profile shows. key: 'me', or 'u:' + a profile id. A profile always
+   opens on Profile; Mural shows only when you pick it (or come from "See on profile"). */
+UI.profileTab = { key: '', tab: 'profile', keep: false };
+function profileTabFor(key) { return UI.profileTab.key === key ? UI.profileTab.tab : 'profile'; }
+
+function profileTabs(key, m) {
+  const tab = profileTabFor(key);
+  const n = m.widgets.length;
+  return '<div class="ptabs" role="tablist" aria-label="' + t('Profile sections') + '">' +
+    ['profile', 'mural'].map(function (id) {
+      const on = tab === id;
+      return '<button class="ptab" role="tab" id="ptab-' + id + '" data-profile-tab="' + id + '" data-profile-key="' + esc(key) + '" aria-selected="' + on + '" tabindex="' + (on ? 0 : -1) + '">' +
+        icon(id === 'profile' ? 'user' : 'layers', 15) + (id === 'profile' ? t('Profile') : t('Mural')) +
+        (id === 'mural' && n ? '<span class="ptab__count">' + n + '</span>' : '') +
+      '</button>';
+    }).join('') +
+  '</div>';
+}
+
+/* The Mural tab: the board, or what to do when it's empty. first: the owner's first name, for someone else's. */
+function muralProfileSection(m, ownerId, own, first) {
   if (!m.widgets.length) {
     return own
       ? '<a class="mural-invite" href="#/mural">' +
           '<span class="mural-invite__art" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' +
           '<span class="mural-invite__meta">' +
             '<span class="t-body-m-med">' + t('Build your mural') + '</span>' +
-            '<span class="t-body-s c-tertiary">' + t('Favourite songs, artists, an album, the shows you’ve been to. It sits right here on your profile.') + '</span>' +
+            '<span class="t-body-s c-tertiary">' + t('Favourite songs, artists, an album, photos, the shows you’ve been to. Anyone who opens Mural on your profile sees it.') + '</span>' +
           '</span>' +
           '<span class="btn btn--primary btn--sm">' + icon('layers', 15) + t('Open Mural') + '</span>' +
         '</a>'
-      : '';
+      : ghostPanel(null, null, t('{name} hasn’t put anything on their mural yet.', { name: esc(first) }));
   }
-  return '<section class="mural-wrap">' +
-    '<div class="mural-wrap__head"><h2 class="t-title-s">' + t('Mural') + '</h2>' +
-      (own ? '<a class="btn btn--ghost btn--sm" href="#/mural">' + icon('sliders', 14) + t('Edit mural') + '</a>' : '') +
-    '</div>' +
+  return '<section class="mural-wrap" role="tabpanel" aria-labelledby="ptab-mural">' +
+    (own ? '<div class="mural-wrap__head"><a class="btn btn--secondary btn--sm" href="#/mural">' + icon('sliders', 14) + t('Edit mural') + '</a></div>' : '') +
     muralBoard(m, { owner: ownerId, edit: false }) +
   '</section>';
 }
@@ -362,7 +400,7 @@ VIEWS.mural = function () {
   const m = myMural();
   const actions =
     '<span id="muralStatus">' + muralStatusMarkup() + '</span>' +
-    '<a class="btn btn--secondary btn--sm" href="#/profile">' + icon('user', 15) + t('See on profile') + '</a>';
+    '<a class="btn btn--secondary btn--sm" href="#/profile" data-profile-tab-go="mural">' + icon('user', 15) + t('See on profile') + '</a>';
   return wrap(pageHead(t('Your profile, your way'), t('Mural'), actions),
     '<div class="mural-layout">' +
       '<div class="stack" id="muralMain">' + muralPreviewHead(m) + muralBoardOrEmpty(m) + '</div>' +
@@ -408,6 +446,7 @@ async function saveMural() {
     if (seq !== MURAL.seq) return;
     rememberProfile(row);
     MURAL.status = 'saved';
+    pruneMuralPhotos(value);
   } catch (err) {
     if (seq !== MURAL.seq) return;
     console.error('Could not save the mural:', err);
@@ -430,12 +469,13 @@ function openMuralEditor(type, index) {
   if (!existing && myMural().widgets.length >= MURAL_MAX) return;
   const w = existing ? JSON.parse(JSON.stringify(existing)) : muralBlank(type);
   if (w.type === 'shows') w.items.forEach(function (x) { if (x.year == null) x.year = ''; });
-  MURAL.edit = { index: index, w: w, results: [], searchSeq: 0, timer: null };
+  MURAL.edit = { index: index, w: w, results: [], searchSeq: 0, timer: null, uploading: 0 };
   const o = document.getElementById('overlay');
   o.hidden = false;
   o.innerHTML = muralEditorMarkup();
   const first = document.getElementById('muralSearch') || document.getElementById('muralText') ||
-    document.getElementById('muralTag') || document.querySelector('[data-mural-show-field]') || document.getElementById('muralTitle');
+    document.getElementById('muralTag') || document.querySelector('[data-mural-show-field]') ||
+    document.getElementById('muralPhotoFile') || document.getElementById('muralTitle');
   if (first) first.focus();
 }
 
@@ -468,12 +508,40 @@ function muralEditorBody(w) {
         '<button type="button" class="btn btn--ghost btn--sm" data-mural-tag-add>' + t('Add') + '</button></span>') +
       '<div id="muralPicked">' + muralPickedMarkup(w) + '</div>';
   }
+  if (w.type === 'photos') {
+    return '<div class="stack stack--sm" id="muralPicked">' + muralPickedMarkup(w) + '</div>' +
+      '<p class="t-caption c-tertiary">' + t('Anyone who opens your mural can see these. Location and camera details are removed before they’re sent.') + '</p>';
+  }
   // shows
   return '<div class="stack stack--sm" id="muralPicked">' + muralPickedMarkup(w) + '</div>';
 }
 
 function muralPickedMarkup(w) {
   const type = MURAL_TYPES[w.type];
+  if (w.type === 'photos') {
+    const busy = MURAL.edit ? MURAL.edit.uploading : 0;
+    const left = type.max - w.items.length - busy;
+    return w.items.map(function (x, i) {
+      return '<div class="photorow">' +
+        '<img class="photorow__img" src="' + esc(x.url) + '" alt="">' +
+        '<span class="field"><input data-mural-photo-cap="' + i + '" type="text" maxlength="60" autocomplete="off" placeholder="' + t('Caption (optional)') + '" aria-label="' + t('Caption for photo {n}', { n: i + 1 }) + '" value="' + esc(x.caption) + '"></span>' +
+        (w.items.length > 1
+          ? '<button type="button" class="iconbtn iconbtn--xs" data-mural-item-move="' + i + '" data-dir="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="' + t('Move photo {n} up', { n: i + 1 }) + '">' + icon('chevronUp', 14) + '</button>' +
+            '<button type="button" class="iconbtn iconbtn--xs" data-mural-item-move="' + i + '" data-dir="1"' + (i === w.items.length - 1 ? ' disabled' : '') + ' aria-label="' + t('Move photo {n} down', { n: i + 1 }) + '">' + icon('chevronDown', 14) + '</button>'
+          : '') +
+        '<button type="button" class="iconbtn iconbtn--xs" data-mural-item-remove="' + i + '" aria-label="' + t('Remove photo {n}', { n: i + 1 }) + '">' + icon('close', 14) + '</button>' +
+      '</div>';
+    }).join('') +
+    (busy ? '<p class="photorow__busy t-body-s c-secondary" role="status"><span class="photorow__spin" aria-hidden="true"></span>' + tn(busy, 'Sending {n} photo…', 'Sending {n} photos…') + '</p>' : '') +
+    (left > 0
+      ? '<label class="photodrop">' +
+          '<input type="file" id="muralPhotoFile" accept="image/*" multiple>' +
+          '<span class="photodrop__icon">' + icon('camera', 18) + '</span>' +
+          '<span class="photodrop__meta"><span class="t-body-m-med">' + (w.items.length ? t('Add more photos') : t('Add photos')) + '</span>' +
+            '<span class="t-caption c-tertiary">' + tn(left, 'Pick or drop an image, {n} more fits', 'Pick or drop images, {n} more fit') + '</span></span>' +
+        '</label>'
+      : '');
+  }
   if (w.type === 'tags') {
     return w.items.length
       ? '<ul class="mw-tags mw-tags--edit">' + w.items.map(function (x, i) {
@@ -621,11 +689,12 @@ function commitMuralEditor() {
   if (title) e.w.title = title.value;
   const tagInput = document.getElementById('muralTag');
   if (tagInput && tagInput.value.trim()) addMuralTag();
-  const clean = muralCleanWidget(e.w);
+  if (e.uploading) { muralEditorError(t('Wait for the photos to finish sending.')); return; }
+  const clean = muralCleanWidget(e.w, app.session.user.id);
   if (!clean) {
     muralEditorError({
       tracks: t('Pick at least one song.'), artists: t('Pick at least one artist.'), album: t('Pick an album.'),
-      note: t('Write something first.'), tags: t('Add at least one tag.'), shows: t('Add at least one show with the artist’s name.')
+      photos: t('Add at least one photo.'), note: t('Write something first.'), tags: t('Add at least one tag.'), shows: t('Add at least one show with the artist’s name.')
     }[e.w.type]);
     return;
   }
@@ -642,6 +711,151 @@ function commitMuralEditor() {
     added.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 }
+
+/* ---- photos ------------------------------------------------------------------------- */
+const MURAL_PHOTO_EDGE = 1600;                 // longest side, in pixels
+const MURAL_PHOTO_IN_MAX = 30 * 1024 * 1024;   // what a file may weigh before it's shrunk
+
+/* Draws the image onto a canvas and saves that as a JPEG: it comes out at most 1600px
+   across, the right way up, and without the file's metadata (GPS position, camera). */
+async function muralPhotoBlob(file) {
+  let img = null;
+  if (window.createImageBitmap) {
+    try { img = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (e) { img = null; }
+  }
+  if (!img) {
+    img = await new Promise(function (resolve, reject) {
+      const url = URL.createObjectURL(file);
+      const el = new Image();
+      el.onload = function () { URL.revokeObjectURL(url); resolve(el); };
+      el.onerror = function () { URL.revokeObjectURL(url); reject(new Error('This image could not be read')); };
+      el.src = url;
+    });
+  }
+  const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
+  if (!w0 || !h0) throw new Error('Empty image');
+  const k = Math.min(1, MURAL_PHOTO_EDGE / Math.max(w0, h0));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w0 * k);
+  canvas.height = Math.round(h0 * k);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';   // transparent PNGs land on white, not black
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  if (img.close) img.close();
+  const encode = function (q) { return new Promise(function (r) { canvas.toBlob(r, 'image/jpeg', q); }); };
+  let blob = await encode(.86);
+  if (blob && blob.size > 1.8 * 1024 * 1024) blob = await encode(.7);
+  if (!blob) throw new Error('Could not encode the photo');
+  return blob;
+}
+
+async function addMuralPhotos(files) {
+  const e = MURAL.edit;
+  if (!e || e.w.type !== 'photos') return;
+  const all = Array.prototype.slice.call(files || []);
+  const images = all.filter(function (f) { return /^image\//.test(f.type); });
+  const room = Math.max(0, MURAL_TYPES.photos.max - e.w.items.length - e.uploading);
+  const list = images.slice(0, room);
+  muralEditorError(images.length < all.length ? t('Only image files can go here.')
+    : list.length < images.length ? t('That’s the most this widget holds. Remove one to add another.') : '');
+  if (!list.length) return;
+  e.uploading += list.length;
+  paintMuralPicked();
+  let failed = 0;
+  for (let i = 0; i < list.length; i++) {
+    try {
+      if (list[i].size > MURAL_PHOTO_IN_MAX) throw new Error('Too large');
+      const blob = await muralPhotoBlob(list[i]);
+      const url = await db.storage.uploadMuralPhoto(app.session.user.id, blob);
+      e.w.items.push({ url: url, caption: '' });
+    } catch (err) {
+      console.error('Could not add a photo:', err);
+      failed++;
+    }
+    e.uploading--;
+    if (MURAL.edit === e) paintMuralPicked();
+  }
+  if (failed && MURAL.edit === e) {
+    muralEditorError(tn(failed, '{n} photo couldn’t be added. Try another file, or check your connection.', '{n} photos couldn’t be added. Try other files, or check your connection.'));
+  }
+}
+
+/* After a save: deletes your uploaded photos that no widget uses any more. Ones from the last
+   hour stay, since they may be sitting in an editor that's still open. Best-effort. */
+function pruneMuralPhotos(mural) {
+  const keep = [];
+  mural.widgets.forEach(function (w) { if (w.type === 'photos') w.items.forEach(function (x) { keep.push(x.url); }); });
+  const sig = keep.slice().sort().join('|');
+  if (sig === MURAL.prunedSig) return;
+  MURAL.prunedSig = sig;
+  db.storage.pruneMuralPhotos(app.session.user.id, keep).catch(function (err) { console.warn('Could not tidy up mural photos:', err); });
+}
+
+/* The photo viewer: the widget's photos, one at a time, with arrows between them. */
+function openMuralPhoto(btn) {
+  const shown = Array.prototype.filter.call(btn.closest('.mw-photos').querySelectorAll('li'), function (li) { return !li.hidden; });
+  const list = shown.map(function (li) {
+    const img = li.querySelector('img');
+    return { src: img.getAttribute('src'), caption: img.dataset.caption || '' };
+  });
+  MURAL.lightbox = { list: list, i: Math.max(0, shown.indexOf(btn.closest('li'))) };
+  const o = document.getElementById('overlay');
+  o.innerHTML = '';
+  o.hidden = false;
+  paintMuralLightbox();
+  const close = o.querySelector('.lightbox__close');
+  if (close) close.focus();
+}
+
+function paintMuralLightbox() {
+  const lb = MURAL.lightbox;
+  const o = document.getElementById('overlay');
+  if (!lb || o.hidden) return;
+  const x = lb.list[lb.i];
+  const many = lb.list.length > 1;
+  // Stepping through: swap the photo and its words, so the viewer doesn't fade in again.
+  const open = o.querySelector('.lightbox__frame');
+  if (open) {
+    open.setAttribute('aria-label', t('Photo {n} of {count}', { n: lb.i + 1, count: lb.list.length }));
+    const img = open.querySelector('.lightbox__img');
+    img.src = x.src;
+    img.alt = x.caption;
+    open.querySelector('.lightbox__cap').textContent = x.caption;
+    const count = open.querySelector('.lightbox__count');
+    if (count) count.textContent = (lb.i + 1) + ' / ' + lb.list.length;
+    return;
+  }
+  o.innerHTML = '<div class="scrim lightbox" data-scrim>' +
+    '<figure class="lightbox__frame" role="dialog" aria-modal="true" aria-label="' + t('Photo {n} of {count}', { n: lb.i + 1, count: lb.list.length }) + '">' +
+      '<img class="lightbox__img" src="' + esc(x.src) + '" alt="' + esc(x.caption) + '">' +
+      '<figcaption class="lightbox__bar">' +
+        '<span class="t-body-m lightbox__cap">' + esc(x.caption) + '</span>' +
+        (many ? '<span class="t-meta lightbox__count">' + (lb.i + 1) + ' / ' + lb.list.length + '</span>' : '') +
+      '</figcaption>' +
+      (many
+        ? '<button type="button" class="lightbox__nav lightbox__nav--prev" data-lightbox-step="-1" aria-label="' + t('Previous photo') + '">' + icon('chevronLeft', 20) + '</button>' +
+          '<button type="button" class="lightbox__nav lightbox__nav--next" data-lightbox-step="1" aria-label="' + t('Next photo') + '">' + icon('chevronRight', 20) + '</button>'
+        : '') +
+      '<button type="button" class="lightbox__close" data-close aria-label="' + t('Close') + '">' + icon('close', 18) + '</button>' +
+    '</figure>' +
+  '</div>';
+}
+
+function stepMuralLightbox(dir) {
+  const lb = MURAL.lightbox;
+  if (!lb) return;
+  lb.i = (lb.i + dir + lb.list.length) % lb.list.length;
+  paintMuralLightbox();
+  const same = document.querySelector('[data-lightbox-step="' + dir + '"]');
+  if (same) same.focus();
+}
+
+/* A photo that's gone (deleted, or a dead link) takes its tile with it. */
+document.addEventListener('error', function (ev) {
+  const img = ev.target;
+  if (img && img.tagName === 'IMG' && img.closest && img.closest('.mw-photos')) img.closest('li').hidden = true;
+}, true);
 
 /* ---- board actions ------------------------------------------------------------------ */
 function moveMuralWidget(i, dir) {
@@ -690,10 +904,15 @@ document.addEventListener('click', function (ev) {
   const el = ev.target.closest && ev.target.closest(
     '[data-mural-banner], [data-mural-add], [data-mural-move], [data-mural-size], [data-mural-edit], [data-mural-remove], ' +
     '[data-mural-undo], [data-mural-retry], [data-mural-pick], [data-mural-item-remove], [data-mural-item-move], ' +
-    '[data-mural-tag-add], [data-mural-show-add]');
+    '[data-mural-tag-add], [data-mural-show-add], [data-mural-photo], [data-lightbox-step], [data-profile-tab], [data-profile-tab-go]');
   if (!el || el.disabled) return;
   const d = el.dataset;
   const e = MURAL.edit;
+
+  if ('profileTabGo' in d) { UI.profileTab = { key: 'me', tab: d.profileTabGo, keep: true }; return; }
+  if ('profileTab' in d) { pickProfileTab(d.profileKey, d.profileTab); return; }
+  if ('muralPhoto' in d) { openMuralPhoto(el); return; }
+  if ('lightboxStep' in d) { stepMuralLightbox(+d.lightboxStep); return; }
 
   if ('muralBanner' in d) {
     const m = myMural();
@@ -767,6 +986,9 @@ document.addEventListener('input', function (ev) {
   if (el.id === 'muralSearch') {
     clearTimeout(e.timer);
     e.timer = setTimeout(function () { runMuralSearch(el.value); }, 300);
+  } else if (el.dataset && el.dataset.muralPhotoCap) {
+    const x = e.w.items[+el.dataset.muralPhotoCap];
+    if (x) x.caption = el.value;
   } else if (el.id === 'muralText') {
     e.w.text = el.value;
     const count = document.getElementById('muralTextCount');
@@ -777,6 +999,41 @@ document.addEventListener('input', function (ev) {
     if (x) x[el.dataset.muralShowField] = el.value;
   }
 });
+
+document.addEventListener('change', function (ev) {
+  if (ev.target.id !== 'muralPhotoFile') return;
+  const files = ev.target.files;
+  addMuralPhotos(files);
+});
+
+/* Arrow keys: between the Profile and Mural tabs, and between photos in the viewer. */
+document.addEventListener('keydown', function (ev) {
+  if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+  const dir = ev.key === 'ArrowLeft' ? -1 : 1;
+  const tab = ev.target.closest && ev.target.closest('[data-profile-tab]');
+  if (tab) {
+    ev.preventDefault();
+    pickProfileTab(tab.dataset.profileKey, tab.dataset.profileTab === 'profile' ? 'mural' : 'profile');
+  } else if (MURAL.lightbox && !document.getElementById('overlay').hidden && document.querySelector('.lightbox')) {
+    ev.preventDefault();
+    stepMuralLightbox(dir);
+  }
+});
+
+/* A profile always opens on its Profile tab, unless the link asked for Mural. */
+window.addEventListener('hashchange', function () {
+  if (UI.profileTab.keep) UI.profileTab.keep = false;
+  else UI.profileTab = { key: '', tab: 'profile', keep: false };
+});
+
+function pickProfileTab(key, tab) {
+  if (profileTabFor(key) !== tab) {
+    UI.profileTab = { key: key, tab: tab, keep: false };
+    setView(app.view);
+  }
+  const now = document.getElementById('ptab-' + tab);
+  if (now) now.focus();
+}
 
 document.addEventListener('keydown', function (ev) {
   if (ev.key !== 'Enter' || !MURAL.edit) return;
